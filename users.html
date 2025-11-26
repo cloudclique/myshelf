@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Find Users | MYEVERYCOLLECTION</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the search page layout */
+
+    </style>
+</head>
+<body>
+    <header class="main-header">
+        <nav class="header-nav">
+            <a href="index.html" class="header-logo">MyShelf</a>
+            <a href="index.html">Home</a>
+            <a href="users.html" class="active">Community</a>
+            <a href="search.html">Database</a>
+            <a href="messenger.html" class="active">✉</a>
+        </nav>
+        <div class="header-tools" id="headerTools"></div>
+    </header>
+
+    <div class="user-search-container"> 
+        <h3 style="margin-left: 20px; font-weight: bold; font-size: 1.2em;">My Profile</h3> 
+        <div id="pinnedUser"></div>
+    </div>
+
+    <div class="user-search-container">
+        <h1 class="text-3xl font-bold mb-6 text-gray-800">Find Users</h1>
+        <form id="searchForm" class="flex items-center">
+            <input 
+                type="text" 
+                id="searchQuery" 
+                placeholder="Search by Username or User ID..." 
+                class="modern_search_bar" 
+                required
+            >
+            <button type="submit" class="action-btn" style="margin-left: 20px;">Search</button>
+        </form>
+
+        <p id="searchMessage" class="info-message hidden">Enter a search query to find users.</p>
+        
+        <div id="searchResults" class="search-results-list">
+            <!-- User cards will be injected here -->
+        </div>
+    </div>
+
+    <!-- Firebase and Page Script -->
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script type="module" src="./firebase-config.js"></script>
+    <script type="module" src="./users.js"></script>
+
+</body>
+</html>

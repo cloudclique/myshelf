@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Item</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="main-header">
+        <nav class="header-nav">
+            <a href="index.html" class="header-logo">MyShelf</a>
+            <a href="index.html">Home</a>
+            <a href="users.html">Community</a>
+            <a href="search.html">Database</a>
+            <a href="messenger.html" class="active">✉</a>
+        </nav>
+        <div class="header-tools" id="headerTools"></div>
+    </header>
+
+<div id="confirmationModal" class="modal">
+    <div class="modal-content">
+        <p id="modalMessage"></p>
+        <div class="modal-actions">
+            <button id="modalYesBtn" class="action-btn">Yes</button>
+            <button id="modalNoBtn" class="action-btn cancel-btn">No</button>
+        </div>
+    </div>
+</div>
+
+    <div class="content-wrapper main-layout">
+
+        <main class="main-content">
+            <h1 class="page-title">Add New Collection Entry</h1>
+            
+            <section class="item-section form-section">
+                <h2>Manual Entry</h2>
+                <form id="addItemForm" class="modern-form">
+                    
+                    <label for="itemName">Title:</label>
+                    <input type="text" id="itemName" class="modern_text_field" required>
+
+                    <div class="four-column-row">
+                        <div>
+                            <label for="itemCategory">Category:</label>
+                            <select id="itemCategory" class="modern_dropdown" required></select>
+                        </div>
+                        <div>
+                            <label for="itemAgeRating">Age Rating:</label>
+                            <select id="itemAgeRating" class="modern_dropdown"></select>
+                        </div>
+                        <div>
+                            <label for="itemScale">Scale:</label>
+                            <select id="itemScale" class="modern_dropdown"></select>
+                        </div>
+                        <div>
+                            <label for="itemReleaseDate">Release Date:</label>
+                            <input type="date" id="itemReleaseDate" class="modern_dropdown">
+                        </div>
+                    </div>
+                    
+                    <label for="tags">Tags (comma-separated, optional):</label>
+                    <input type="text" id="tags" class="modern_text_field">
+
+                    <label for="itemImageFile">Images (Max 6, 5MB each, required):</label>
+                    <input type="file" id="itemImageFile" accept="image/*" multiple required>
+                    
+                    <div id="imagePreviewsContainer" class="image-previews-container"></div>
+                    
+                    <p class="image-note" id="editImageNote">Click an image to set it as the primary cover, or click the 'X' to remove it.</p>
+                    
+                    <p id="uploadStatus" class="form-message"></p>
+                    <button type="submit" id="uploadButton" class="action-btn">Add Item to Database</button>
+                </form>
+            </section>
+
+            <hr style="margin: 30px 0;">
+
+            <section class="item-section form-section">
+                <h2>Import Data (MyFigureCollection CSV)</h2>
+                <div class="form-group-row">
+                    <input type="file" id="mfcImportFile" accept=".csv" style="display: none;">
+                    <button id="importMfcBtn" type="button" class="secondary-btn">Import MFC CSV File</button>
+                </div>
+                <p class="search-note">This feature allows batch uploading data from a MyFigureCollection export. Image data must be added manually later.</p>
+                <p id="importStatus" class="form-message"></p>
+            </section>
+        </main>
+    </div>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+<script type="module" src="add-item.js"></script>
+</body>
+</html>

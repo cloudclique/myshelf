@@ -1,0 +1,2225 @@
+:root {
+    --bg-color: ##f5f5f5;
+    --text-color: #141414;
+    --text-color-reverse: white;
+    --header-bg: #111;
+    --section-bg: #ffffff;
+    --accent-color: #ff9100; /* Blue for 'Add Entry' button and active states */
+    --logout-color: #dc3545; /* Red for logout button */
+    --login-color: #97cf57;
+    --delete-color: #ff4d4d; /* Bright Red for Delete */
+    --border-color: #ff9100;
+    --drop-shadow-clr: #ebebeb;
+
+    /* Status Colors */
+    --status-owned-bg: #28a745; /* Green */
+    --status-wished-bg: #ffc107; /* Yellow */
+    --status-ordered-bg: #007bff; /* Blue */
+    --status-remove-bg: #6c757d; /* Gray */
+
+    --border-radius: 10px
+}
+
+/* --- Base Styles --- */
+body {
+    font-family: Monospace, Arial, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* --- Header --- */
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    background-color: var(--header-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.header-logo {
+    font-weight: bold;
+    font-size: 1.2em;
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+.header-nav a {
+    color: var(--text-color-reverse);
+    text-decoration: none;
+    margin-left: 20px;
+    padding: 5px 0;
+    transition: color 0.2s;
+}
+
+.header-nav a:hover {
+    color: var(--accent-color);
+}
+
+
+.header-tools button {
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: background-color 0.3s;
+}
+
+
+
+
+/* --- Layout --- */
+
+
+.sidebar-menu nav a {
+    display: block;
+    color: var(--text-color);
+    text-decoration: none;
+    padding: 10px 0;
+    margin-bottom: 5px;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+.sidebar-menu nav a:hover {
+    background-color: var(--section-bg);
+    padding-left: 10px;
+}
+
+.sidebar-menu nav a.active {
+    font-weight: bold;
+    border-left: 4px solid var(--accent-color);
+    padding-left: 10px;
+}
+
+/* --- Section Styling --- */
+.item-section {
+    background-color: var(--section-bg);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px var(--drop-shadow-clr);
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+
+
+.item-card-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+
+.item-info {
+    padding: 10px;
+    flex-grow: 1;
+}
+
+.item-title {
+    font-size: 1em;
+    margin: 0 0 5px 0;
+    white-space: wrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.item-manufacturer, .item-price {
+    font-size: 0.8em;
+    color: var(--text-color);
+    margin: 0;
+}
+
+.card-actions {
+    display: flex;
+    gap: 5px;
+    padding: 5px 10px 10px 10px;
+}
+
+.card-actions button {
+    flex-grow: 1;
+    padding: 5px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.8em;
+    border: none;
+}
+
+.card-actions .edit-btn {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.card-actions .delete-btn {
+    background-color: var(--logout-color);
+    color: white;
+}
+
+
+.close-btn {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+    color: var(--text-color);
+    text-decoration: none;
+}
+
+/* --- Form Styles (Used in Modal and Add Item Page) --- */
+.modern-form label {
+    display: block;
+    margin-top: 15px;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+
+
+.modern-form input[type="email"],
+.modern-form input[type="password"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--section-bg);
+    color: var(--text-color);
+    margin-bottom: 10px;
+}
+
+.modern-form button[type="submit"] {
+    margin-top: 20px;
+    width: 100%;
+    padding: 10px;
+}
+
+.form-message {
+    padding: 10px;
+    border-radius: 4px;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.success-message {
+    background-color: #28a745; /* Green */
+    color: white;
+}
+
+.error-message {
+    background-color: var(--logout-color); /* Red */
+    color: white;
+}
+
+/* NEW: Layout for multiple form fields in a row */
+.form-group-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+/* Ensure children fill the grid area */
+.form-group-row > div {
+    display: block;
+}
+
+
+
+/* Profile specific styles */
+.status-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.status-tabs button {
+    width: 100px;
+    padding: 10px 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    background-color: var(--section-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    transition: background-color 0.2s, border-color 0.2s;
+}
+
+.status-tabs button.active {
+    background-color: var(--accent-color);
+    border-color: var(--accent-color);
+    color: white;
+}
+
+
+.item-grid {
+    display: grid;
+    /* Changed to auto-fit and minmax(150px, 1fr). 
+       This ensures the cards never shrink below 150px and automatically wrap (stack down). */
+    grid-template-columns: repeat(auto-fit, 95px);
+    gap: 5px; /* Increased gap for better spacing */
+    padding: 10px 0;
+    justify-content: center; /* Center the grid items if the last row is incomplete */
+}
+
+.item-image-wrapper {
+    width: 100%;
+    /* 1:1 Aspect Ratio Trick */
+    padding-top: 100%; 
+    height: 0; 
+    position: relative;
+    overflow: hidden;
+    background-color: #1f1f1f; /* Dark background for the wrapper */
+    color: var(--text-color-reverse);
+    font-size: 8pt;
+}
+
+/* 2. Style the Image inside the Wrapper */
+.item-image {
+    width: 100%;
+    height: 100%;
+    /* Position image absolutely to respect the padded square container */
+    position: absolute;
+    top: 0;
+    left: 0;
+    
+    /* Ensure the image covers the entire square area without distortion */
+    object-fit: cover; 
+    display: block;
+}
+
+/* Image fills the card completely */
+.item-card img.item-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* cover square without distortion */
+    border-radius: 4px;
+}
+
+/* 3. Modify the Placeholder to be a Dark Gray Square */
+.item-image-placeholder {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    /* 1:1 Aspect Ratio Trick */
+    padding-top: 100%; 
+    height: 0; 
+    position: relative;
+    
+    /* Ensure dark gray background */
+    background-color: var(--section-bg); /* This is defined as #333 */
+    color: #bbb;
+    font-style: italic;
+    text-align: center;
+}
+
+/* Add inner text for the placeholder square */
+.item-image-placeholder::before {
+    content: "No Image Available";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.item-info {
+    padding: 15px;
+    flex-grow: 1; /* Allows the info section to expand */
+}
+
+.item-info h3 {
+    margin-top: 0;
+    font-size: 1.1em;
+    color: var(--accent-color);
+}
+
+.item-info p {
+    margin: 5px 0;
+    font-size: 0.9em;
+}
+
+/* Hide all text/info inside item-card */
+.item-info {
+    display: none;
+}
+
+.barcode-id {
+    font-size: 0.75em;
+    color: #888;
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+    margin-top: 10px;
+}
+
+/* --- Pagination Styles (Add to style.css) --- */
+.pagination-controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0;
+    gap: 20px;
+}
+
+.pagination-controls button {
+    padding: 10px 20px;
+    font-size: 1em;
+    min-width: 100px;
+}
+
+.pagination-controls button:disabled {
+    background-color: #555 !important;
+    color: #aaa !important;
+    border-color: #555 !important;
+    cursor: not-allowed;
+}
+
+#pageStatus {
+    font-size: 1.1em;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0;
+    gap: 20px;
+}
+
+
+
+/* --- Layout --- */
+.content-wrapper {
+    display: flex;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.items-content-wrapper {
+    display: flex;
+    max-width: 830px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.main-content {
+    padding: 0 0px;
+    width: 100%;
+}
+
+.page-title {
+    color: var(--text-color);
+    border-bottom: 2px solid var(--accent-color);
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+/* --- Forms and Inputs --- */
+.action-form label {
+    display: block;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.action-form input[type="text"],
+.action-form input[type="email"],
+.action-form input[type="password"],
+.action-form input[type="date"],
+.modern-form input[type="file"],
+.modern_file_field,
+.modern_text_field,
+.modern_dropdown {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 0px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--section-bg);
+    color: var(--text-color);
+    box-shadow: 0 1px 3px var(--drop-shadow-clr);
+}
+
+.form-group-row {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    margin-top: 15px;
+}
+
+.form-group-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+/* --- Buttons --- */
+.action-btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s, transform 0.1s;
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.action-btn:hover {
+    background-color: #ff5100;
+    transform: translateY(-1px);
+}
+
+.action-btn:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* --- Action Button --- */
+.action-btn, .secondary-btn {
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.9em;
+    text-decoration: none; /* Make sure it styles anchor tags too */
+    display: inline-block;
+    transition: background-color 0.3s;
+    text-align: center;
+}
+
+.secondary-btn {
+    background-color: var(--section-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
+}
+
+.secondary-btn:hover {
+    background-color: #fff3eb;
+}
+
+.logout-btn {
+    background-color: var(--logout-color);
+    color: var(--text-color-reverse);
+}
+
+.logout-btn:hover {
+    background-color: #b4303e;
+}
+
+.login-btn {
+    background-color: var(--login-color);
+    color: var(--text-color-reverse);
+}
+
+.login-btn:hover {
+    background-color: #89b854;
+}
+
+
+/* --- Messages --- */
+.form-message {
+    padding: 10px;
+    margin-top: 15px;
+    border-radius: 6px;
+    font-weight: bold;
+}
+
+.info-message {
+    background-color: rgba(0, 123, 255, 0.2);
+    color: var(--accent-color);
+}
+
+.success-message {
+    background-color: rgba(40, 167, 69, 0.2);
+    color: var(--status-owned-bg);
+}
+
+.error-message {
+    background-color: rgba(220, 53, 69, 0.2);
+    color: var(--logout-color);
+}
+
+
+
+.item-card {
+    background-color: var(--section-bg);
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 4px 8px var(--drop-shadow-clr);
+    transition: transform 0.2s, box-shadow 0.2s;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.item-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px var(--drop-shadow-clr);
+}
+
+.item-info {
+    padding: 15px;
+    flex-grow: 1;
+}
+
+.item-info h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-size: 1em;
+    color: white;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+}
+
+.item-info p {
+    margin: 0px 0;
+    font-size: 0.7em;
+    /* --- Line Clamp for 2 Lines --- */
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    /* ------------------------------ */
+}
+
+.barcode-id {
+    font-size: 0.8em;
+    color: #999;
+}
+
+/* --- Alignment Controls --- */
+
+.alignment-selector {
+    display: flex; /* Arranges buttons horizontally */
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.alignment-selector input[type="radio"] {
+    /* Hides the default radio circle */
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.alignment-selector label {
+    /* Styles the label to look like a button */
+    cursor: pointer;
+    padding: 8px 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--section-bg);
+    transition: background-color 0.2s, border-color 0.2s;
+    flex-grow: 1; /* Makes all options the same width */
+    text-align: center;
+}
+
+/* Hover state */
+.alignment-selector label:hover {
+    background-color: #444; /* Darken on hover */
+    border-color: var(--accent-color);
+}
+
+/* Checked state (The selected button) */
+.alignment-selector input[type="radio"]:checked + label {
+    background-color: var(--accent-color); /* Highlight color */
+    border-color: var(--accent-color);
+    color: var(--text-color);
+}
+
+
+
+
+
+/* Status Badges (for Item Details display) */
+.status-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-weight: bold;
+    margin-right: 5px;
+    color: var(--header-bg);
+}
+
+.status-owned { background-color: var(--status-owned-bg); color: white; }
+.status-wished { background-color: var(--status-wished-bg); }
+.status-ordered { background-color: var(--status-ordered-bg); color: white; }
+.status-n\/a { background-color: var(--status-remove-bg); color: white; }
+
+
+/* --- Status Button Group Styling (NEW) --- */
+.status-buttons-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.status-radio-btn {
+    display: none; /* Hide the actual radio button */
+}
+
+
+/* Status Colors for Labels */
+.status-owned-color {
+    background-color: var(--status-owned-bg);
+    color: white;
+}
+.status-wished-color {
+    background-color: var(--status-wished-bg);
+    color: var(--header-bg);
+}
+.status-ordered-color {
+    background-color: var(--status-ordered-bg);
+    color: white;
+}
+
+/* State when radio is CHECKED */
+.status-radio-btn:checked + .status-label {
+    /* Use a bright box shadow to indicate selection */
+    box-shadow: 0 0 0 4px var(--drop-shadow-clr), 0 0 0 6px white;
+    transform: translateY(-1px);
+}
+
+/* Status Action Buttons */
+.status-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+.save-status-btn {
+    background-color: var(--accent-color);
+    flex-grow: 1;
+    margin-right: 10px;
+}
+
+.remove-status-btn {
+    background-color: var(--status-remove-bg);
+    color: white;
+}
+.remove-status-btn:hover {
+    background-color: #5a6268;
+}
+
+/* --- Other Details Sections --- */
+.separator {
+    border: 0;
+    height: 1px;
+    background: #444;
+    margin: 30px 0;
+}
+
+.delete-section {
+    text-align: right;
+    padding: 10px 0;
+}
+
+
+/* --- Edit Form Section --- */
+#editItemForm {
+    background-color: var(--section-bg);
+    padding: 20px;
+    border-radius: 12px;
+    margin-bottom: 30px;
+    display: none;
+    box-shadow: 0 2px 10px var(--drop-shadow-clr);
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+}
+
+#editItemForm label {
+    font-weight: bold;
+    color: var(--accent-color);
+    margin-top: 10px;
+    display: block;
+}
+
+#editItemForm button[type="submit"] {
+    grid-column: 1 / -1;
+    margin-top: 15px;
+}
+
+.alignment-group {
+    display: flex;
+    gap: 20px; /* Space between the two groups */
+    margin-bottom: 15px; /* Add some margin below the group */
+    /* Ensure they stay side-by-side even on small screens */
+    flex-wrap: nowrap; 
+}
+
+.alignment-group > div {
+    flex: 1 1 50%; /* Make both sides take up equal width */
+    display: flex; /* Make label and select inside flexible for vertical alignment */
+    flex-direction: column; 
+}
+/* --- END NEW ALIGNMENT GROUP STYLING --- */
+
+/* ... other styles ... */
+
+
+
+/* Update the base image style */
+.item-image-wrapper img.item-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+
+    object-position: var(--hor-align) var(--ver-align);
+
+    border-radius: 6px 6px 0 0;
+}
+
+.img-align-hor-left { --hor-align: left; }
+.img-align-hor-center { --hor-align: center; }
+.img-align-hor-right { --hor-align: right; }
+
+.img-align-ver-top { --ver-align: top; }
+.img-align-ver-center { --ver-align: center; }
+.img-align-ver-bottom { --ver-align: bottom; }
+
+/* --- New Controls Styling --- */
+
+.controls-bar {
+    display: flex;
+    justify-content: flex-start; /* Align to the left/start */
+    gap: 30px;
+    padding: 10px 0;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.controls-bar label {
+    font-weight: bold;
+    color: var(--text-color);
+    font-size: 0.9em;
+}
+
+.controls-bar select {
+    padding: 8px 12px;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    background-color: var(--section-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.9em;
+}
+
+.controls-bar select:focus {
+    outline: none;
+    border-color: var(--accent-color);
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
+
+    .item-metadata {
+        width: 70%;
+    }
+
+/* Responsive: reduce columns on smaller screens */
+/*@media (max-width: 1000px) {
+/*    .item-grid {
+/*        grid-template-columns: repeat(5, 1fr); /* 5 images per row */
+/*    }
+/*}
+/*@media (max-width: 600px) {
+/*    .item-grid {
+/*        grid-template-columns: repeat(3, 1fr); /* 3 images per row */
+/*    }
+/*}
+
+/* Responsive adjustments for controls bar */
+@media (max-width: 600px) {
+    .controls-bar {
+        justify-content: space-between;
+        gap: 15px;
+    }
+    .control-group {
+        width: 100%; /* Make each group take full width */
+        justify-content: space-between;
+    }
+}
+
+/* Responsive adjustments for details page */
+@media (min-width: 800x) {
+    .item-details-display {
+        flex-direction: row;
+    }
+    .item-image-large {
+        width: 40%;
+        max-height: none;
+        margin-right: 0px;
+        margin-bottom: 0px;
+        
+
+    }
+    .item-metadata {
+        width: 60px;
+    }
+    .item-info-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* --- Item Details Page Styling --- */
+
+
+.item-details-display {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    background-color: var(--section-bg);
+    border-radius: 12px;
+    box-shadow: 0 0px 10px var(--drop-shadow-clr);
+    padding: 20px;
+    margin-bottom: 30px;
+}
+
+.item-image-large {
+    width: auto;
+    max-height: 400px;
+    object-fit: contain;
+    border-radius: 0px;
+    margin-bottom: -10px;
+}
+
+
+.info-label {
+    font-weight: bold;
+    color: var(--accent-color);
+    display: block;
+    margin-bottom: 5px;
+    line-height: 1;
+    text-decoration: underline 1px;
+}
+
+.info-value {
+    border-bottom: 0px solid var(--border-color);
+    font-size: 12pt;
+}
+
+.item-info-block {
+    flex-grow: 1;
+}
+
+.item-info-block h3 {
+    color: var(--accent-color);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 5px;
+}
+
+.item-meta p {
+    margin: 5px 0;
+}
+
+
+.action-controls-section {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.action-form {
+    background-color: var(--section-bg);
+    padding: 20px;
+    border-radius: 6px;
+    margin-top: 15px;
+}
+
+.form-field{
+    flex-direction: column;
+    max-width: 25%;
+}
+
+.radio-group {
+    display: flex;
+    gap: 20px;
+    margin: 10px 0 20px 0;
+}
+
+.radio-group input[type="radio"] {
+    margin-right: 5px;
+}
+
+.delete-section {
+    display: flex;
+    justify-content: right;
+}
+
+.delete-section p {
+    color: var(--logout-color);
+    font-weight: bold;
+}
+
+.delete-section .action-btn {
+    background-color: var(--section-bg);
+}
+
+.delete-section .action-btn:hover {
+    background-color: var(--secondary-color);
+}
+
+
+/* --- Status Header Bar Styling (NEW) --- */
+.status-header-bar {
+    /* The form element now acts as the sub-header bar */
+    display: flex;
+    align-items: center; /* Align items vertically in the center */
+    justify-content: center;
+    gap: 20px;
+    background-color: var(--section-bg);
+    padding: 10px 20px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px var(--drop-shadow-clr);
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+    border: none;
+}
+
+.status-header-label {
+    font-weight: bold;
+    color: var(--text-color);
+    margin: 0;
+    font-size: 1.1em;
+    padding-right: 10px;
+}
+
+/* Updated Status Button Group Styling */
+.status-buttons-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 0px;
+}
+
+.status-label {
+    /* Square Button Styling */
+    padding: 10px;
+    width: 40px; 
+    height: 40px; 
+    display: flex; 
+    justify-content: center;
+    align-items: center;
+    border-radius: 6px; 
+    
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.2s, box-shadow 0.2s, color 0.2s;
+    text-align: center;
+    border: 2px solid transparent;
+    color: var(--text-color);
+    background-color: var(--section-bg) /* Default inactive color */
+}
+
+.status-label .icon {
+    font-size: 1.2em;
+    line-height: 1;
+}
+
+/* Status Colors for Labels */
+.status-owned-color {
+    background-color: var(--status-owned-bg);
+    color: white;
+}
+.status-wished-color {
+    background-color: var(--status-wished-bg);
+    color: var(--header-bg); /* Dark text on yellow */
+}
+.status-ordered-color {
+    background-color: var(--status-ordered-bg);
+    color: white;
+}
+
+/* State when radio is CHECKED */
+.status-radio-btn:checked + .status-label {
+    box-shadow: 0 0 0 4px var(--section-bg), 0 0 0 6px var(--accent-color);
+    transform: translateY(-1px) scale(1.05); /* Slight pop effect */
+}
+
+
+/* Status Action Buttons - Ensure they align well with the new header bar */
+.status-actions {
+    display: flex;
+    gap: 10px;
+    /* Pushes action buttons to the right side of the flex container */
+    margin-left: auto; 
+}
+
+.save-status-btn {
+    padding: 8px 15px;
+    font-size: 0.9em;
+}
+
+.remove-status-btn {
+    padding: 8px 15px;
+    font-size: 0.9em;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 600px) {
+    .status-header-bar {
+        /* Stack the label and buttons/actions on small screens */
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .status-buttons-group {
+        width: 100%;
+        justify-content: space-around;
+    }
+    
+    .status-actions {
+        /* Ensure actions stack nicely or are centered */
+        margin-left: 0;
+        width: 100%;
+        justify-content: space-between;
+        margin-top: 10px;
+        
+    }
+}
+/* END Status Header Bar Styling */
+
+#authMessage {
+    display: none !important; /* Use !important to ensure it overrides any existing display rules */
+}
+ 
+
+        .login-container {
+            max-width: 400px;
+            margin: 80px auto;
+            padding: 30px;
+            background-color: var(--section-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px var(--drop-shadow-clr);
+            text-align: center;
+        }
+        .login-container h1 {
+            color: var(--primary-color);
+            margin-bottom: 25px;
+            font-size: 1.8em;
+        }
+        .login-form input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: #2a2a2a;
+            color: var(--text-color);
+            font-size: 1em;
+        }
+        .login-form input:focus {
+            outline: 2px solid var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .login-form button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            background-color: var(--primary-color);
+            color: #fff;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin-bottom: 10px;
+        }
+        .login-form button:hover {
+            background-color: var(--primary-hover);
+        }
+        .form-message {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .error-message {
+            background-color: #610000;
+            color: #ffcccc;
+        }
+        .success-message {
+            background-color: #004d00;
+            color: #ccffcc;
+        }
+        .toggle-mode-btn {
+            background: none !important;
+            color: var(--primary-color) !important;
+            text-decoration: underline;
+            font-size: 0.8em !important;
+            margin: 10px 50px;
+            padding: 5px 0 !important;
+            border: none;
+        }
+        .toggle-mode-btn:hover {
+             color: var(--primary-hover) !important;
+        }
+
+.four-column-row {
+    display: grid; /* 1. Enables grid layout */
+    /* 2. Creates four equal-width columns */
+    grid-template-columns: repeat(4, 1fr); 
+    gap: 20px; /* 3. Adds spacing between the columns */
+    margin-bottom: 20px; /* Optional: Adds space below the row */
+}
+
+.two-column-row {
+    display: grid; /* 1. Enables grid layout */
+    /* 2. Creates four equal-width columns */
+    grid-template-columns: repeat(2, 1fr); 
+    gap: 20px; /* 3. Adds spacing between the columns */
+    margin-bottom: 20px; /* Optional: Adds space below the row */
+}
+
+/* Ensure the label and input/select are stacked vertically within their grid cell */
+.field-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.image-preview {
+    max-height: 400px;
+}
+
+.image-preview-bar {
+    max-height: 100px;
+    max-width: 100dvb;
+    gap: 15px;
+    margin-bottom: 10px;
+    object-fit: contain;
+}
+
+.exist-images-preview {
+    max-height: 100px;
+    max-width: 100px;
+    display: grid; 
+    gap: 10px; 
+    overflow-x: auto;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+
+
+.comment-form-container textarea {
+    /* Set a specific, fixed width. I recommend a percentage or something larger than 50px */
+    width: 100%; 
+    max-width: 100%; /* Or whatever width you prefer for the comment section */
+    
+    /* This is the key property to prevent resizing */
+    resize: none; 
+    
+    /* Optional: Add some padding/margin if needed */
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.comment-section {
+    width: 100%;
+    float: right;
+    margin: 0 1em;
+}
+
+.comments-list {
+    max-height: 60%;
+    overflow-y: auto;
+    margin-bottom: 10px;
+}
+
+.comment {
+    border: 1px solid #ccc;
+    background-color: var(--section-bg);
+    border-radius: 10px;
+    margin-bottom: 10px;
+    padding: 10px;
+}
+
+
+.comment-username {
+    font-weight: bold;
+}
+
+.comment-text {
+    margin-top: 2px;
+    word-wrap: break-word;      /* For older browsers */
+    overflow-wrap: break-word;  /* Standard way to wrap long words */
+    word-break: break-word;
+}
+
+.settings-btn {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 6px 12px;
+    margin-right: 5px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.settings-btn:hover {
+    background-color: var(--primary-color-dark);
+}
+
+/* --- Header --- */
+.status-alignment {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: -20px;
+}
+
+
+.settings-container { 
+    max-width: 500px; 
+    margin: 20px auto; 
+    background: #fff; 
+    padding: 20px; 
+    border-radius: 8px; 
+    box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+}
+
+.edit-form-framing {
+    background-color: #fefefe;
+    position: fixed;
+    left: 25vw;
+    top: -15vh;
+    margin: 15% auto; /* 15% from the top and centered */
+    height: auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 100%; 
+    max-width: 1200px;
+    border-radius: 8px;
+    text-align: center;
+}
+
+/* Example CSS (you should style this to match your site) */
+.edit-form-modal {
+    display: none; /* Hidden by default */
+    position: fixed;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000; 
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: auto; 
+    background-color: rgba(0,0,0,0.4); 
+}
+
+
+/* Example CSS (you should style this to match your site) */
+.modal {
+    display: none; /* Hidden by default */
+    position: fixed; 
+    z-index: 1000; 
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto; 
+    background-color: rgba(0,0,0,0.4); 
+}
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto; /* 15% from the top and centered */
+    height: 200px;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%; 
+    max-width: 400px;
+    border-radius: 8px;
+    text-align: center;
+}
+.modal-actions button {
+    margin: 10px;
+    padding: 10px 20px;
+}
+
+        .user-search-container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+        }
+        .user-card {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+        }
+        .user-card:hover {
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+            border-color: var(--primary-color);
+        }
+        .user-icon {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-right: 20px;
+        }
+        .user-info {
+            flex-grow: 1;
+        }
+        .user-name {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+        }
+        .user-id {
+            font-size: 0.85rem;
+            color: #777;
+            margin: 2px 0 0 0;
+            word-break: break-all;
+        }
+        .search-results-list {
+            margin-top: 20px;
+        }
+        .modern_search_bar {
+            padding: 12px 18px;
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            width: 100%;
+            font-size: 1rem;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        }
+        .modern_search_bar:focus {
+            border-color: var(--primary-color);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2);
+        }
+
+
+        /* Add some minimal styling for the banner */
+        .profile-banner-container {
+            position: relative;
+            width: 100%;
+            height: 150px; /* Example height */
+            background-color: #333; /* Default dark background */
+            margin-bottom: 20px;
+            overflow: hidden;
+            border-radius: 8px;
+        }
+
+        #profileBanner {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .banner-edit-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.288);
+            color: white;
+            border: none;
+            padding: 5px 7px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 0.8em;
+            z-index: 10;
+            
+        }
+
+.profile-loader {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgb(243, 243, 243);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    color: #131313;
+    font-size: 1.2em;
+}
+
+.spinner {
+    width: 60px;
+    height: 60px;
+    border: 6px solid #ccc;
+    border-top-color: #4caf50;
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Hide loader when not needed */
+.profile-loader.hidden {
+    display: none;
+}
+
+
+
+/* --- Image Gallery (NEW STYLES) --- */
+
+.item-main-image-area {
+    margin: 20px 0;
+    max-width: 600px; /* Constrain image area width */
+}
+
+.gallery-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    
+}
+
+.detail-image-wrapper {
+    position: relative;
+    width: 100%;
+    box-shadow: 0 0px 10px var(--drop-shadow-clr);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.detail-image {
+    display: block;
+    width: 100%;
+    max-height: 500px; /* Max height for the main image */
+    height: auto;
+    object-fit: contain; /* Default object-fit for the new gallery */
+    transition: object-position 0.3s;
+    box-shadow: var(--drop-shadow-clr);
+}
+
+/* Gallery Controls */
+.gallery-control {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    cursor: pointer;
+    font-size: 1.5em;
+    z-index: 10;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.gallery-control:hover {
+    opacity: 1;
+}
+
+.prev-btn {
+    left: 0px;
+    border-radius: 0 4px 4px 0;
+}
+
+.next-btn {
+    right: 0px;
+    border-radius: 4px 0 0 4px;
+}
+
+/* Thumbnail Bar */
+.image-thumbnail-bar {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 5px; /* space for scrollbar */
+    justify-content: flex-start;
+    align-items: center;
+}
+
+.thumbnail {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    cursor: pointer;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    transition: border-color 0.2s, opacity 0.2s;
+    flex-shrink: 0;
+}
+
+.thumbnail:hover {
+    opacity: 0.8;
+}
+
+.thumbnail.active {
+    border-color: var(--primary-color);
+}
+
+.image-note {
+    font-size: 0.85em;
+    color: var(--secondary-color);
+    text-align: right;
+}
+
+/* --- Image Alignment Classes (for the .detail-image) --- */
+
+/* Vertical Alignment */
+.img-align-ver-top { object-position: center top; }
+.img-align-ver-center { object-position: center center; }
+.img-align-ver-bottom { object-position: center bottom; }
+
+/* Horizontal Alignment */
+.img-align-hor-left { object-position: left center; }
+.img-align-hor-center { object-position: center center; }
+.img-align-hor-right { object-position: right center; }
+
+/* Combined Alignment */
+.img-align-ver-top.img-align-hor-left { object-position: left top; }
+.img-align-ver-top.img-align-hor-right { object-position: right top; }
+.img-align-ver-bottom.img-align-hor-left { object-position: left bottom; }
+.img-align-ver-bottom.img-align-hor-right { object-position: right bottom; }
+
+.images-preview-gallery {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.images-preview-gallery img {
+    width: 80px;
+    height: 80px;
+    object-fit: cover;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+
+
+.item-image-gallery {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.image-thumbnails {
+    display: flex;
+    width: 100%;
+    gap: 5px;
+}
+
+.thumbnail-image {
+    width: 60px;
+    height: 60px;
+    object-fit: cover;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border 0.2s;
+}
+
+.thumbnail-image:hover {
+    border: 2px solid var(--primary-color);
+}
+
+
+/* --- Suggested CSS Additions (Not a file, but for context) --- */
+
+.image-gallery-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 40%; /* Adjust as necessary */
+    margin: 20px;
+}
+
+#mainGalleryImage {
+    max-width: 100%;
+    height: 350px;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    margin-bottom: 10px;
+}
+
+.thumbnail-gallery-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px; /* Gap between thumbnails */
+    align-content: center;
+    justify-content: center;
+    margin-top: 10px;
+    width: 90%; /* Ensure it respects container width */
+    max-width: 400px; /* Match the large image max width */
+}
+
+.item-thumbnail {
+    /* Calculates a width so exactly 4 items fit, accounting for 3 gaps (8px * 3 = 24px) */
+    width: 50px; /* 25% of the container width minus a proportional part of the gap (24px / 4 items = 6px) */
+    height: 50px; /* Fixed height for uniformity */
+    object-fit: cover;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: border-color 0.2s;
+    border-radius: calc(var(--border-radius) / 2);
+}
+
+.item-thumbnail:hover, .item-thumbnail.selected-thumbnail {
+    border-color: var(--primary-color);
+}
+
+/* Edit Form Previews */
+.image-previews-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.image-preview-item {
+    position: relative;
+    width: 100px; /* Size for edit previews */
+    height: 100px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.image-preview-item .image-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+
+.image-preview-item img {
+    border: 2px solid transparent;
+    border-radius: 4px;
+}
+
+.image-preview-item.primary img {
+    border-color: #007bff;
+}
+
+
+.remove-image-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background-color: var(--logout-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+    z-index: 10;
+}
+
+.new-tag {
+    position: absolute;
+    bottom: 80%;
+    left: 0;
+    background-color: var(--success-color);
+    color: white;
+    font-size: 0.7em;
+    padding: 2px 5px;
+    border-top-right-radius: 4px;
+}
+
+.user-card.pinned {
+    border: 2px solid gold;
+    background-color: #fff8dc;
+    margin-bottom: 10px;
+}
+
+.user-card {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #fff;
+    margin-bottom: 12px;
+}
+
+.user-card-left {
+    flex-shrink: 0;
+}
+
+.user-avatar {
+    width: 70px;
+    height: 70px;
+    border-radius: 10%;
+    object-fit: cover;
+    border: 2px solid #ccc;
+}
+
+.small-user-avatar {
+width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px solid #ddd;
+}
+.user-card-body {
+    flex-grow: 1;
+}
+
+.user-card-link {
+    text-decoration: none;
+    color: inherit;
+}
+
+.lightbox-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    flex-direction: column;
+}
+
+.lightbox-image {
+    max-width: 90%;
+    max-height: 80%;
+    margin: auto;
+    border-radius: 5px;
+    box-shadow: 0 0 20px #000;
+}
+
+.lightbox-close {
+    position: absolute;
+    top: 20px;
+    right: 35px;
+    color: #fff;
+    font-size: 40px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.lightbox-prev,
+.lightbox-next {
+    cursor: pointer;
+    position: absolute;
+    top: 50%;
+    width: auto;
+    padding: 16px;
+    color: #fff;
+    font-weight: bold;
+    font-size: 50px;
+    transition: 0.3s;
+    user-select: none;
+    border-radius: 0 3px 3px 0;
+}
+
+.lightbox-prev { left: 0; }
+.lightbox-next { right: 0; }
+
+.lightbox-prev:hover,
+.lightbox-next:hover,
+.lightbox-close:hover {
+    color: #bbb;
+}
+
+
+
+
+/* Container for all previews */
+.image-previews-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 15px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: var(--border-radius);
+    background-color: #f9f9f9;
+}
+
+/* Individual image preview item */
+.image-preview-item {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    border: 2px solid transparent;
+    border-radius: 5px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s;
+}
+
+/* Style for the image itself */
+.image-preview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* Highlight for the primary (first) image */
+.primary-image-preview {
+    border: 3px solid var(--accent-color);
+    box-shadow: 0 0 10px rgba(255, 145, 0, 0.5);
+}
+
+/* Primary Tag */
+.primary-tag, .new-tag {
+    position: absolute;
+    top: 0;
+    left: 0;
+    background-color: var(--accent-color);
+    color: var(--text-color-reverse);
+    padding: 2px 5px;
+    font-size: 0.7em;
+    font-weight: bold;
+    border-bottom-right-radius: var(--border-radius);
+    z-index: 10;
+}
+
+
+/* Remove button for images */
+.remove-image-btn, .remove-new-file-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: var(--delete-color);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    line-height: 1;
+    cursor: pointer;
+    font-size: 14px;
+    opacity: 0.8;
+    z-index: 10;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.remove-image-btn:hover, .remove-new-file-btn:hover {
+    opacity: 1;
+    background: #c82333;
+}
+
+/* Set as Primary Button */
+.set-primary-btn {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    padding: 5px 0;
+    background-color: var(--section-bg);
+    color: black;
+    border: none;
+    cursor: pointer;
+    font-size: 0.8em;
+    opacity: 0; /* Hidden by default */
+    transition: opacity 0.2s;
+    z-index: 9;
+}
+
+.image-preview-item:hover .set-primary-btn {
+    opacity: 1; /* Show on hover */
+    color: black;
+}
+
+/* Note for image edit form */
+.image-note {
+    width: 100%;
+    font-size: 0.85em;
+    color: #555;
+    text-align: center;
+    margin: 5px 0 0;
+    padding-top: 10px;
+    border-top: 1px dashed #ccc;
+}
+
+
+/* Custom CSS for a better layout and image grid */
+
+.upload-container { 
+    margin-bottom: 20px; 
+    padding: 16px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    background-color: white;
+}
+.upload-container input { 
+    margin-right: 10px; 
+}
+
+#gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 202px)); /* Responsive grid */
+    gap: 10px;
+}
+
+#gallery img {
+    width: 100%;
+    aspect-ratio: 1 / 1;  /* Make images square */
+    object-fit: cover;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+#gallery img:hover {
+    transform: scale(1.03);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+/* Lightbox overlay */
+#lightbox {
+    display: none;
+    position: fixed;
+    z-index: 999;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0,0,0,0.9);
+    backdrop-filter: blur(5px);
+    justify-content: center;
+    align-items: center;
+}
+
+#lightbox img {
+    max-width: 90%;
+    max-height: 90%;
+    border-radius: 8px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+/* Status messages */
+#statusMessage {
+    margin-top: 10px;
+    font-weight: 500;
+}
+
+
+        .user-gallery-preview {
+            padding: 20px;
+            background-color: var(--section-bg);
+            border-radius: 8px;
+            box-shadow: 0 0px 5px var(--drop-shadow-clr);
+            margin-top: 20px;
+        }
+
+        .user-gallery-preview h2 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 2px solid #ddd;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        /* Grid for the 4 thumbnails */
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        /* Link container for the thumbnail, ensures it's square */
+        .gallery-thumbnail-link {
+            display: block;
+            width: 100%;
+            /* This creates a square aspect ratio */
+            padding-top: 100%; 
+            position: relative;
+            overflow: hidden;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        /* The actual image inside the square container */
+        .gallery-thumbnail {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover; /* Ensures the image covers the square area without stretching */
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .gallery-thumbnail:hover {
+            transform: scale(1.05);
+        }
+
+        .user-gallery-preview .action-btn {
+            width: 100%;
+            padding: 10px;
+            font-size: 1em;
+        }
+
+        /* Responsive adjustment: 2x2 grid on smaller screens */
+        @media (max-width: 768px) {
+            .preview-grid {
+                grid-template-columns: repeat(2, 1fr); 
+            }
+        }
+
+
+/*my own*/
+
+.detail-page-wrapper{
+    display: flex;
+    overflow: hidden;
+    clear: both;
+    max-width: 1280px;
+    min-height: 512px;
+    margin: auto;
+    padding: 16px 8px;
+    gap: 20px;
+}
+
+.gallery-page-wrapper {
+    overflow: hidden;
+    clear: both;
+    max-width: 1280px;
+    min-height: 512px;
+    margin: auto;
+    padding: 16px 8px;
+    gap: 20px;
+}
+
+.item-header{
+    display: flex;
+    flex-flow: row nowrap;
+    justify-content: space-between;
+    align-items: center;
+    max-width: 1280px;
+    padding: 10px;
+    margin: auto;
+}
+
+.item-title {
+    color: var(--text-color);
+    font-size: x-large;
+}
+
+.item-header-bg{
+    width:100vw;
+    background-color: var(--section-bg);
+    box-shadow: 0 0 10px var(--drop-shadow-clr);
+}
+
+.item-btn-container {
+    display: flex;
+}
+
+.item-manage-btn {
+    background-color: var(--section-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 0 5px var(--drop-shadow-clr);
+    border-radius: 10px;
+    height: 50px;
+    width: 50px;
+    margin: 0 5px;
+    color: var(--text-color);
+}
+
+.side-block{
+    background-color: var(--section-bg);
+    box-shadow: 0 0 10px var(--drop-shadow-clr);
+    padding: 20px;
+    width: 100%;
+    border-radius: 10px;
+}
+
+.tagsBox {
+    line-height: 1.2;
+}
+
+.tags {
+    
+}
+
+.shop-list {
+    max-height: none;
+    overflow: visible;
+    padding: 0;
+    margin: 0;
+}
+
+.side-column {
+    width: 30%;
+}
+
+.main-column {
+    width: 70%;
+}
+
+.block-row {
+    display: flex;
+}
+
+.gallery-wrapper {
+    flex-direction: row;
+    width: 100%;
+    background-color: var(--section-bg);
+    border-radius: 12px;
+    box-shadow: 0 0px 10px var(--drop-shadow-clr);
+    padding: 20px;
+    margin-bottom: 30px;
+}

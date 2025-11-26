@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="itemNamePlaceholder">Loading Item...</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header class="main-header">
+        <nav class="header-nav">
+            <a href="index.html" class="header-logo">MyShelf</a>
+            <a href="index.html">Home</a>
+            <a href="users.html">Community</a>
+            <a href="search.html">Database</a>
+            <a href="messenger.html" class="active">✉</a>
+        </nav>
+        <div class="header-tools" id="headerTools"></div>
+    </header>
+
+                    <div class="item-header-bg"> 
+                    <div class=" item-header">
+                        <h1 class="item-title" id="itemNamePlaceholderTitle">Item Title</h1>
+                        
+
+                        <div class="item-btn-container">
+                            <button id="statusToggleBtn" class="item-manage-btn" title="Toggle Collection Status Manager" disabled>+</button>
+
+                            
+                            <p id="authMessage" class="form-message"></p>
+                                <button id="editToggleBtn" class="item-manage-btn" style="display:none;">✏️</button>
+                                <div id="deleteContainer"></div>
+                            </div>
+                        </div>
+                    </div>
+                    </div>
+
+
+<div id="confirmationModal" class="modal">
+    <div class="modal-content">
+        <p id="modalMessage"></p>
+        <div class="modal-actions">
+            <button id="modalYesBtn" class="action-btn">Yes</button>
+            <button id="modalNoBtn" class="action-btn cancel-btn">No</button>
+        </div>
+    </div>
+</div>
+    
+        <div id="editModal" class="edit-form-modal">
+            <div class="edit-form-framing">
+                <span class="close-btn" id="closeEditModal">&times;</span>
+                <form id="editItemForm" class="action-form edit-form">
+                    <h2>Edit Item Details</h2>
+                    <label for="editTitle">Title:</label>
+                    <input type="text" id="editTitle" class="modern_text_field" required>
+
+                    <div>
+                        <div class="four-column-row">
+                            <div>
+                                <label for="editCategory">Category:</label>
+                                <select id="editCategory" class="modern_dropdown"></select>
+                            </div>    
+                            <div>
+                                <label for="editAgeRating">Age Rating:</label>
+                                <select id="editAgeRating" class="modern_dropdown"></select>
+                            </div>
+                            <div>
+                                <label for="editScale">Scale:</label>
+                                <select id="editScale" class="modern_dropdown"></select>
+                            </div>
+                            <div>
+                                <label for="editReleaseDate">Release Date:</label>
+                                <input type="date" id="editReleaseDate" class="modern_dropdown">
+                            </div>
+                        </div>
+
+                        <label for="editTags">Tags (comma-separated):</label>
+                        <input type="text" id="editTags" class="modern_text_field">
+                    </div>
+
+                    <div class="image-upload-group">
+                        <label for="editImage">Update/Add Images (Max 6, 5MB each):</label>
+                        <input type="file" id="editImage" accept="image/*" class="modern_file_field" multiple>
+                        
+                        <div id="editImageUploadsContainer" class="image-previews-container">
+                            </div>
+                        <p class="image-note" id="editImageNote">click an image to set it as the primary cover.</p>
+                    </div>
+                    <div class="two-column-row">                  
+                            <div>
+                                <label for="editImageAlignVer">Vertical Align:</label>
+                                <select id="editImageAlignVer" class="modern_dropdown"></select>
+                            </div>
+                            <div>
+                                <label for="editImageAlignHor">Horizontal Align:</label>
+                                <select id="editImageAlignHor" class="modern_dropdown"></select>
+                        </div>
+                    </div>
+                    <p id="editMessage" class="form-message"></p>
+                    <button type="submit" class="action-btn">Save Edits</button>
+                </form>
+            </div>
+        </div>
+        <div class="detail-page-wrapper">
+                
+            <main class="main-column item-detail-container">
+                
+                        <form id="collectionStatusForm" class="status-header-bar" style="display: none;">
+                            <p id="statusMessage" class="form-message" style="margin-right: 0px;"></p>
+                            <span class="status-header-label">Set Status:</span>
+                            
+                                <div class="status-buttons-group">
+                                    <input type="radio" id="statusOwned" name="collectionStatus" value="Owned" class="status-radio-btn" style="display: none;">
+                                    <label for="statusOwned" class="status-label secondary-btn">
+                                        🏠
+                                    </label>
+
+                                    <input type="radio" id="statusWished" name="collectionStatus" value="Wished" class="status-radio-btn" style="display: none;">
+                                    <label for="statusWished" class="status-label secondary-btn">
+                                        ⭐
+                                    </label>
+
+                                    <input type="radio" id="statusOrdered" name="collectionStatus" value="Ordered" class="status-radio-btn" style="display: none;">
+                                    <label for="statusOrdered" class="status-label secondary-btn">
+                                        📦
+                                    </label>                  
+                                </div>
+
+                                <div class="status-actions">
+                                    <button type="submit" class="action-btn save-status-btn">Save</button>
+                                    <button type="button" id="removeStatusBtn" class="action-btn secondary-btn remove-status-btn">🗑️</button>
+                                </div>
+                        </form>
+                    
+
+
+                        <section id="itemDetailsContent" class="item-details-display">
+                            <div class="loading-state">
+                                <div class="spinner"></div>
+                                <p>Loading details...</p>
+                            </div>
+                        </section>
+
+                    <section class="item-details-display">
+                        <div id="commentSection" class="comment-section">
+                            <h3>Comments</h3>
+                        
+                            <div id="commentFormContainer" class="comment-form-container">
+                                <textarea id="commentInput" placeholder="Write a comment..." rows="3" class="modern_text_field""></textarea>
+                                <button id="submitCommentBtn" class="action-btn" style="margin-bottom: 20px;">Post Comment</button>
+                            </div>
+
+                            <div id="commentsList" class="comments-list"></div>
+                            <p id="commentMessage"></p>
+                            
+                            <div id="commentsPaginationControls" class="pagination-container">
+                                <button id="prevCommentsBtn" class="secondary-btn" disabled>Previous</button>
+                                <span id="commentPageStatus">Page 1</span>
+                                <button id="nextCommentsBtn" class="secondary-btn" disabled>Next</button>
+                            </div>
+                        </div> 
+                    </section>    
+                    
+
+
+
+            </main> 
+
+            <div class="side-column">   
+                
+                
+                    <section class="item-details-display">
+                        <div id="ShopSection" class="comment-section">
+                            <h3>Shops</h3>
+                        
+                            <div id="shopFormContainer" class="comment-form-container">
+                                <textarea id="ShopInput" placeholder="Enter shop URL..." rows="3" class="modern_text_field"></textarea>
+                                <button id="submitShopBtn" class="action-btn" style="margin-bottom: 20px;">Post Shop</button>
+                            </div>
+
+                            <div id="ShopList" class="shop-list"></div>
+                            <p id="ShopMessage"></p>
+                            
+                        </div> 
+                    </section>  
+
+
+                <section class="side-block"> 
+                    <section id="tagsBox" class="tagsBox"></section>
+                </section>
+            </div>
+        </div>
+
+
+<div id="lightboxOverlay" class="lightbox-overlay" style="display:none;">
+    <span class="lightbox-close">&times;</span>
+    <img class="lightbox-image" src="" alt="Lightbox Image">
+    <a class="lightbox-prev">&#10094;</a>
+    <a class="lightbox-next">&#10095;</a>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
+<script type="module" src="item-details.js"></script>
+</body>
+</html>

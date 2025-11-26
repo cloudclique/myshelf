@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Collection Database</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header class="main-header">
+        <nav class="header-nav">
+            <a href="search.html" class="header-logo">MyShelf</a>
+            <a href="index.html">Home</a>
+            <a href="users.html">Community</a>
+            <b><a href="search.html">Database</a></b>
+            <a href="messenger.html" class="active">✉</a>
+        </nav>
+        <div class="header-tools" id="headerTools"></div>
+    </header>
+
+    <div class="content-wrapper main-layout">
+
+        <main class="main-content">
+        <h1 class="page-title">Database Overview</h1>
+
+        <section class="item-section">
+            <a href="add-item.html" class="action-btn">Add New Entry</a>
+            
+            <!-- Search + Controls -->
+            <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">
+                <input type="text" id="searchInput" class="modern_text_field" placeholder="Search item...">
+                <button id="searchBtn" class="action-btn" style="width: 150px; flex-shrink: 0;">Search</button>
+                <button id="clearSearchBtn" class="secondary-btn" style="width: 100px; flex-shrink: 0; display: none;">Clear</button>
+            </div>
+
+
+            <p id="loadingStatus" class="form-message"></p>
+            
+            <!-- Pagination Top -->
+            <div class="pagination-controls pagination-top">
+                <button id="prevPageBtnTop" class="action-btn secondary-btn" disabled>Previous</button>
+                <span id="pageStatusTop">Page 1</span>
+                <button id="nextPageBtnTop" class="action-btn" disabled>Next</button>
+            </div>
+            
+            <!-- Item Grid -->
+            <div class="item-grid" id="latestAdditionsGrid"></div>
+            
+            <!-- Pagination Bottom -->
+            <div class="pagination-controls">
+                <button id="prevPageBtn" class="action-btn secondary-btn" disabled>Previous</button>
+                <span id="pageStatus">Page 1</span>
+                <button id="nextPageBtn" class="action-btn" disabled>Next</button>
+            </div>
+        </section>
+
+        </main>
+    </div>
+
+    <div id="loginModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" data-modal="loginModal">&times;</span>
+            <h2>Member Access</h2>
+
+            <form id="loginForm">
+                <h3>Log In</h3>
+                <label for="loginEmail">Email:</label>
+                <input type="email" id="loginEmail" required>
+
+                <label for="loginPassword">Password:</label>
+                <input type="password" id="loginPassword" required>
+                
+                <button type="submit">Log In</button>
+            </form>
+
+            <hr style="margin: 20px 0;">
+
+            <form id="signupForm">
+                <h3>Create Account</h3>
+                <label for="signupEmail">Email:</label>
+                <input type="email" id="signupEmail" required>
+
+                <label for="signupPassword">Password:</label>
+                <input type="password" id="signupPassword" required minlength="6">
+                
+                <button type="submit">Create Account</button>
+            </form>
+        </div>
+    </div>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script type="module" src="search.js"></script>
+</body>
+</html>

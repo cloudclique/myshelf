@@ -176,7 +176,7 @@ async function initializeProfile() {
 
     // Set up the "View Full Collection" button
     if (viewMoreGalleryBtn) {
-        // Link to the user's main collection page (index.html)
+        // Link to the user's main collection page 
         viewMoreGalleryBtn.onclick = () => {
             window.location.href = `../?uid=${targetUserId}`;
         };

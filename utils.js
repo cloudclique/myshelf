@@ -41,7 +41,7 @@ export function createItemCard(item, showEdit = false) {
     }
 
     card.innerHTML = `
-        <a href="item-details.html?id=${item.id}">
+        <a href="./items/?id=${item.id}">
             <img src="${imageUrl}" alt="${item.title}" class="item-image">
             <div class="item-info">
                 <h3 class="item-title">${item.title}</h3>

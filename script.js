@@ -55,6 +55,7 @@ function updateUrl(userId) {
 // -------------------
 auth.onAuthStateChanged((user) => {
     currentUser = user;
+    headerTools.innerHTML = '';
     
     if (user) {
         // --- USER IS LOGGED IN ---
@@ -65,16 +66,9 @@ auth.onAuthStateChanged((user) => {
         currentUserIdDisplay.textContent = user.uid;
         shareIdContainer.classList.remove('hidden');
 
-        // Update Auth Button to "Logout"
-        if(authBtn) {
-            authBtn.textContent = "Logout";
-            authBtn.onclick = () => {
-                auth.signOut().then(() => {
-                    // Optional: Redirect or refresh after logout
-                    window.location.reload();
-                });
-            };
-        }
+        currentUserId = user.uid;
+        headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
+        document.getElementById('logoutBtn').onclick = () => auth.signOut();
 
     } else {
         // --- USER IS LOGGED OUT ---
@@ -83,14 +77,8 @@ auth.onAuthStateChanged((user) => {
         loadMyBtn.disabled = true;
         shareIdContainer.classList.add('hidden');
 
-        // Update Auth Button to "Login"
-        if(authBtn) {
-            authBtn.textContent = "Login";
-            authBtn.onclick = () => {
-                // Redirect to your login page
-                window.location.href = '/login/'; 
-            };
-        }
+        currentUserId = null;
+        headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
 
     // Load gallery after auth state is determined

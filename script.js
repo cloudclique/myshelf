@@ -24,6 +24,7 @@ deleteBtn.className = "absolute top-20 right-4 px-3 py-1 bg-red-600 text-white f
 lightbox.appendChild(deleteBtn);
 
 // Track current user
+let currentUserId = null;
 let currentUser = null;
 let currentImageDocId = null;
 let currentImageUploaderId = null;

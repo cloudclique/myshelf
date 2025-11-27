@@ -2222,4 +2222,11 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     box-shadow: 0 0px 10px var(--drop-shadow-clr);
     padding: 20px;
     margin-bottom: 30px;
+
+}
+
+#login-form {
+    display:flex;
+    flex-direction: column;
+    gap: 5;
 }

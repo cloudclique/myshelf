@@ -90,7 +90,7 @@ auth.onAuthStateChanged((user) => {
             authBtn.textContent = "Login";
             authBtn.onclick = () => {
                 // Redirect to your login page
-                window.location.href = 'login.html'; 
+                window.location.href = '/login/'; 
             };
         }
     }
@@ -313,4 +313,5 @@ uploadBtn.addEventListener("click", async () => {
     } finally {
         uploadBtn.disabled = false;
     }
+
 });

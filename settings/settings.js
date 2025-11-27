@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db } from '../firebase-config.js';
 
 // --- DOM Elements ---
 const usernameForm = document.getElementById('usernameForm');

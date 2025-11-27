@@ -1,4 +1,4 @@
-import { auth, db, collectionName } from './firebase-config.js';
+import { auth, db, collectionName } from '../firebase-config.js';
 
 // --- Constants ---
 const ITEMS_PER_PAGE = 32;

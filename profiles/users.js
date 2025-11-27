@@ -1,4 +1,4 @@
-import { auth, db } from './firebase-config.js';
+import { auth, db } from '../firebase-config.js';
 
 const TOP_USERS = 10;
 

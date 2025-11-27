@@ -1,4 +1,4 @@
-import { auth, db, collectionName } from './firebase-config.js';
+import { auth, db, collectionName } from '../firebase-config.js';
 
 const PAGE_SIZE = 52;
 const DEFAULT_IMAGE_URL = 'path/to/your/default-image.jpg';

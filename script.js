@@ -8,7 +8,6 @@ const statusMessage = document.getElementById("statusMessage");
 const loadMyBtn = document.getElementById("loadMyBtn");
 const loadAllBtn = document.getElementById("loadAllBtn");
 const shareIdContainer = document.getElementById("shareId");
-const currentUserIdDisplay = document.getElementById("currentUserIdDisplay");
 const copyIdBtn = document.getElementById("copyIdBtn");
 const closeLightboxBtn = document.getElementById("closeLightboxBtn");
 const lightbox = document.getElementById("lightbox");
@@ -64,19 +63,14 @@ auth.onAuthStateChanged((user) => {
         loadMyBtn.disabled = false;
         
         // Display user ID for sharing
-        currentUserIdDisplay.textContent = user.uid;
-        shareIdContainer.classList.remove('hidden');
-
         currentUserId = user.uid;
         headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
         document.getElementById('logoutBtn').onclick = () => auth.signOut();
 
     } else {
         // --- USER IS LOGGED OUT ---
-        statusMessage.textContent = "You must be signed in to upload or filter by your images.";
         uploadBtn.disabled = true;
         loadMyBtn.disabled = true;
-        shareIdContainer.classList.add('hidden');
 
         currentUserId = null;
         headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;

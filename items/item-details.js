@@ -418,7 +418,7 @@ function setupAuthUI(user) {
         authMessage.textContent = "Log in to set your collection status or edit this item.";
         authMessage.className = 'form-message info-message';
         if (headerTools) headerTools.innerHTML = `<button id="loginBtn" class="login-btn">Login</button>`;
-        if (document.getElementById('loginBtn')) document.getElementById('loginBtn').onclick = () => { window.location.href = 'login.html'; };
+        if (document.getElementById('loginBtn')) document.getElementById('loginBtn').onclick = () => { window.location.href = '../login'; };
     }
 
     // MODIFIED: Hide the toggle button, not the form (the form is in a modal now)
@@ -578,7 +578,7 @@ function renderItemDetails(item, userStatus) {
         getUploaderUsername(uploaderId).then(name => {
             if (uploaderEl) {
                 const profileLink = document.createElement('a');
-                profileLink.href = `user-profile.html?uid=${uploaderId}`;
+                profileLink.href = `../user/?uid=${uploaderId}`;
                 profileLink.textContent = name;
                 profileLink.className = 'info-value-link';
                 uploaderEl.innerHTML = '';
@@ -779,7 +779,7 @@ async function handleDeleteItem(itemId) {
         await db.collection('items').doc(itemId).delete();
         authMessage.textContent = "Item deleted successfully!";
         authMessage.className = 'form-message success-message';
-        setTimeout(() => window.location.href = 'index.html', 1500);
+        setTimeout(() => window.location.href = '../', 1500);
     } catch (error) {
         authMessage.textContent = `Error deleting item: ${error.message}`;
         authMessage.className = 'form-message error-message';
@@ -956,7 +956,7 @@ async function createCommentElement(commentId, userId, text, timestamp) {
     // Fetch and update the username
     const username = await getUploaderUsername(userId);
     const authorEl = commentEl.querySelector('.comment-author');
-    authorEl.innerHTML = `<a href="user-profile.html?uid=${userId}">${username}</a>`;
+    authorEl.innerHTML = `<a href="../user/?uid=${userId}">${username}</a>`;
 
     // Attach delete handler
     commentEl.querySelector('.delete-comment-btn').onclick = async () => {
@@ -1074,7 +1074,7 @@ async function renderComments(itemId) {
             // Fetch and update live username
             const username = await getUploaderUsername(data.userId);
             const authorEl = commentEl.querySelector('.comment-author');
-            authorEl.innerHTML = `<a href="user-profile.html?uid=${data.userId}">${username}</a>`;
+            authorEl.innerHTML = `<a href="../user/?uid=${data.userId}">${username}</a>`;
 
             // Attach delete handler if allowed
             if (canDelete) {

@@ -30,7 +30,7 @@ const clearSearchBtn = document.getElementById('clearSearchBtn');
 // --- HELPERS ---
 function createItemCard(itemData) {
     const link = document.createElement('a');
-    link.href = `item-details.html?id=${itemData.id}`;
+    link.href = `../items/?id=${itemData.id}`;
     link.className = 'item-card-link';
 
     const card = document.createElement('div');
@@ -180,7 +180,7 @@ auth.onAuthStateChanged(user => {
         document.getElementById('logoutBtn').onclick = () => auth.signOut();
     } else {
         currentUserId = null;
-        headerTools.innerHTML = `<button onclick="window.location.href='login.html'" class="login-btn">Login / Signup</button>`;
+        headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
     fetchAllItems();
 });

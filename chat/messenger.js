@@ -411,7 +411,7 @@ auth.onAuthStateChanged(async (user) => {
         if (messageListener) messageListener();
         currentChatUserId = null;
         headerTools.innerHTML = `<button id="loginBtn" class="login-btn">Login/Register</button>`;
-        document.getElementById('loginBtn').onclick = () => window.location.href = 'login.html';
+        document.getElementById('loginBtn').onclick = () => window.location.href = '../login';
         userList.innerHTML = '<p style="padding: 10px;">Please log in to use the messenger.</p>';
         chatHeader.textContent = 'Select a user to start chatting';
         messageList.innerHTML = '';

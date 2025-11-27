@@ -47,7 +47,7 @@ function fileToBase64(file) {
 // --- Load current user info ---
 auth.onAuthStateChanged(async (user) => {
   if (!user) {
-    window.location.href = 'login.html';
+    window.location.href = '../login/';
     return;
   }
 
@@ -209,5 +209,5 @@ profilePicForm.addEventListener('submit', async (e) => {
 
 // --- Logout ---
 logoutBtn.addEventListener('click', () => {
-  auth.signOut().then(() => window.location.href = 'index.html');
+  auth.signOut().then(() => window.location.href = '../');
 });

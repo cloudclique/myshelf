@@ -178,7 +178,7 @@ async function initializeProfile() {
     if (viewMoreGalleryBtn) {
         // Link to the user's main collection page (index.html)
         viewMoreGalleryBtn.onclick = () => {
-            window.location.href = `index.html?uid=${targetUserId}`;
+            window.location.href = `../?uid=${targetUserId}`;
         };
     }
 
@@ -318,7 +318,7 @@ function renderProfileItem(doc, status) {
   const item = doc.data();
   const itemId = doc.id;
   const link = document.createElement('a');
-  link.href = `item-details.html?id=${itemId}`;
+  link.href = `../items/?id=${itemId}`;
   link.className = 'item-card-link';
 
   const card = document.createElement('div');
@@ -471,7 +471,7 @@ async function fetchAndRenderGalleryPreview(userId) {
             
             // Render the thumbnail
             const link = document.createElement('a');
-            //link.href = `item-details.html?id=${itemId}`; // Links to the item the image is associated with
+            //link.href = `../items/?id=${itemId}`; // Links to the item the image is associated with
             link.className = 'gallery-thumbnail-link';
             
             const img = document.createElement('img');
@@ -575,7 +575,7 @@ async function startChatWithUser() {
             lastMessage: '',
             lastSent: new Date(0)
         }, { merge: true });
-        window.location.href = `messenger.html?chat=${otherId}`;
+        window.location.href = `../chat/?chat=${otherId}`;
     } catch (e) {
         console.error("Error creating chat:", e);
         // Use a modal or a div message instead of alert
@@ -656,7 +656,7 @@ async function loadComments(profileUserId) {
       <div style="display:flex; align-items:center; justify-content:space-between;">
         <div style="display:flex; align-items:center; gap:5px;">
           ${canDelete ? `<button class="delete-comment-btn" data-id="${commentId}" title="Delete comment">&times;</button>` : ''}
-          <a href="user-profile.html?uid=${c.userId}" class="comment-author" style="text-decoration: underline;">${linkify(c.displayName || 'User')}</a>
+          <a href="../user/?uid=${c.userId}" class="comment-author" style="text-decoration: underline;">${linkify(c.displayName || 'User')}</a>
         </div>
         <div style="font-size:0.8em; color:#888;">${time}</div>
       </div>
@@ -772,7 +772,7 @@ function updateHeaderAuthButton(user) {
     } else {
         btn.className = 'login-btn';
         btn.textContent = 'Login';
-        btn.onclick = () => { window.location.href = 'login.html'; };
+        btn.onclick = () => { window.location.href = '../login'; };
         addCommentBox.style.display = 'none';
         loginToCommentMsg.style.display = 'block';
     }
@@ -793,7 +793,7 @@ function customizeHeaderForOwner() {
             openChatBtn.textContent = 'User Settings';
             openChatBtn.onclick = () => {
                 // ⬇️ Replace the placeholder alert with the actual redirect ⬇️
-                window.location.href = 'settings.html';
+                window.location.href = '../settings';
             };
         
         // Enable banner editing

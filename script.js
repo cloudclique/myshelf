@@ -23,8 +23,6 @@ deleteBtn.textContent = "Delete Image";
 deleteBtn.className = "absolute top-20 right-4 px-3 py-1 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition duration-150 hidden";
 lightbox.appendChild(deleteBtn);
 
-const IMGBB_API_KEY = "f46392a52309bdc54b971eaeeb043e2f";
-
 // Track current user
 let currentUser = null;
 let currentImageDocId = null;

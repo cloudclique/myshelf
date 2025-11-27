@@ -33,7 +33,7 @@ async function fetchAllUserProfiles() {
  */
 function createUserCard(user, container, isPinned = false) {
     const link = document.createElement("a");
-    link.href = `user-profile.html?uid=${user.uid}`;
+    link.href = `../user/?uid=${user.uid}`;
     link.className = "user-card-link";
 
     const card = document.createElement("div");
@@ -191,7 +191,7 @@ function updateLoginButton(user) {
         };
     } else {
         btn.textContent = "Login";
-        btn.onclick = () => window.location.href = "login.html";
+        btn.onclick = () => window.location.href = "../login/";
     }
 
     headerTools.appendChild(btn);

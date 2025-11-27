@@ -322,7 +322,7 @@ addItemForm.onsubmit = async (e) => {
         
         // Navigate to the new item's page
         setTimeout(() => {
-            window.location.href = `item-details.html?id=${docRef.id}`;
+            window.location.href = `../items/?id=${docRef.id}`;
         }, 1000);
 
         // Reset form state (only if not navigating)

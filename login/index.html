@@ -71,13 +71,13 @@
             const currentOrigin = window.location.origin;
 
             // Ensure the referrer is from YOUR site and is NOT the login page itself (prevents loops)
-            if (referrer && referrer.includes(currentOrigin) && !referrer.includes('login.html')) {
+            if (referrer && referrer.includes(currentOrigin) && !referrer.includes('../login/')) {
                 console.log('Redirecting to referrer:', referrer);
                 window.location.href = referrer;
             } else {
                 // 3. Fallback to home
-                console.log('No history found, redirecting to index.html');
-                window.location.href = 'index.html';
+                console.log('No history found, redirecting to Home');
+                window.location.href = '../';
             }
         }
 

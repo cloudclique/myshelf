@@ -13,6 +13,7 @@ const copyIdBtn = document.getElementById("copyIdBtn");
 const closeLightboxBtn = document.getElementById("closeLightboxBtn");
 const lightbox = document.getElementById("lightbox");
 const lightboxImg = lightbox.querySelector("img");
+const headerTools = document.getElementById('headerTools');
 
 // --- NEW: Auth Button Reference ---
 const authBtn = document.getElementById("authBtn"); 

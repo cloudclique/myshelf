@@ -14,16 +14,12 @@ const lightbox = document.getElementById("lightbox");
 const lightboxImg = lightbox.querySelector("img");
 const headerTools = document.getElementById('headerTools');
 
-// --- NEW: Auth Button Reference ---
-const authBtn = document.getElementById("authBtn"); 
-
-// Create delete button in lightbox
+// Create delete button inside lightbox
 const deleteBtn = document.createElement("button");
 deleteBtn.textContent = "Delete Image";
-deleteBtn.className = "absolute top-20 right-4 px-3 py-1 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition duration-150 hidden";
+deleteBtn.className = "absolute top-20 right-4 px-3 py-1 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition hidden";
 lightbox.appendChild(deleteBtn);
 
-// Track current user
 let currentUserId = null;
 let currentUser = null;
 let currentImageDocId = null;
@@ -32,9 +28,9 @@ let currentImageUploaderId = null;
 uploadBtn.disabled = true;
 loadMyBtn.disabled = true;
 
-// -------------------
-// Utility Functions
-// -------------------
+// --------------------------------------------------
+// Helpers
+// --------------------------------------------------
 
 function getUserIdFromUrl() {
     const params = new URLSearchParams(window.location.search);
@@ -43,33 +39,60 @@ function getUserIdFromUrl() {
 
 function updateUrl(userId) {
     const url = new URL(window.location.href);
-    if (userId) {
-        url.searchParams.set('uid', userId);
-    } else {
-        url.searchParams.delete('uid');
-    }
+    if (userId) url.searchParams.set('uid', userId);
+    else url.searchParams.delete('uid');
     window.history.pushState({}, '', url);
 }
 
-// -------------------
-// Auth check and setup
-// -------------------
+// --------------------------------------------------
+// Convert file → WebP → Base64
+// --------------------------------------------------
+
+async function fileToWebPBase64(file, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = () => {
+            const img = new Image();
+
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = img.width;
+                canvas.height = img.height;
+
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(img, 0, 0);
+
+                const webpDataUrl = canvas.toDataURL("image/webp", quality);
+                resolve(webpDataUrl.split(",")[1]);
+            };
+
+            img.onerror = reject;
+            img.src = reader.result;
+        };
+
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+// --------------------------------------------------
+// Auth Handling
+// --------------------------------------------------
+
 auth.onAuthStateChanged((user) => {
     currentUser = user;
-    headerTools.innerHTML = '';
-    
+    headerTools.innerHTML = "";
+
     if (user) {
-        // --- USER IS LOGGED IN ---
         uploadBtn.disabled = false;
         loadMyBtn.disabled = false;
-        
-        // Display user ID for sharing
         currentUserId = user.uid;
+
         headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
-        document.getElementById('logoutBtn').onclick = () => auth.signOut();
+        document.getElementById("logoutBtn").onclick = () => auth.signOut();
 
     } else {
-        // --- USER IS LOGGED OUT ---
         uploadBtn.disabled = true;
         loadMyBtn.disabled = true;
 
@@ -77,20 +100,21 @@ auth.onAuthStateChanged((user) => {
         headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
 
-    // Load gallery after auth state is determined
     loadGallery(getUserIdFromUrl());
 });
 
+// --------------------------------------------------
+// Load Gallery
+// --------------------------------------------------
 
 async function loadGallery(filterUserId = null) {
     gallery.innerHTML = '<p class="main-column">Loading images...</p>';
     statusMessage.textContent = "";
 
-    const appId = "default-app-id"; 
+    const appId = "default-app-id";
 
     try {
-        let queryRef = db
-            .collection("artifacts")
+        let queryRef = db.collection("artifacts")
             .doc(appId)
             .collection("gallery")
             .orderBy("createdAt", "desc");
@@ -98,14 +122,14 @@ async function loadGallery(filterUserId = null) {
         if (filterUserId) {
             queryRef = queryRef.where("uploaderId", "==", filterUserId);
             statusMessage.textContent = `uploaded by user ID: ${filterUserId}`;
-            statusMessage.style.color = "#059669"; 
+            statusMessage.style.color = "#059669";
         } else {
             statusMessage.textContent = "Showing all community images.";
-            statusMessage.style.color = "#4b5563"; 
+            statusMessage.style.color = "#4b5563";
         }
 
         const snapshot = await queryRef.get();
-        gallery.innerHTML = ""; 
+        gallery.innerHTML = "";
 
         if (snapshot.empty) {
             gallery.innerHTML = `<p class="text-center text-gray-500 p-10">No images found for this filter.</p>`;
@@ -116,7 +140,6 @@ async function loadGallery(filterUserId = null) {
             const data = doc.data();
             const img = document.createElement("img");
             img.src = data.url;
-            img.alt = "Community Image";
             img.loading = "lazy";
 
             img.addEventListener("click", async () => {
@@ -129,119 +152,39 @@ async function loadGallery(filterUserId = null) {
                 let canDelete = false;
 
                 if (currentUser) {
-                    // 1. Check Owner
                     if (currentUser.uid === currentImageUploaderId) {
                         canDelete = true;
-                    } 
-                    
-                    // 2. Check Admin/Mod
+                    }
+
                     if (!canDelete) {
-                        try {
-                            const userProfileDoc = await db.collection('artifacts')
-                                .doc(appId)
-                                .collection('user_profiles')
-                                .doc(currentUser.uid)
-                                .get();
-                            
-                            if (userProfileDoc.exists) {
-                                const userData = userProfileDoc.data();
-                                const role = userData.role; 
-                                if (role === 'admin' || role === 'mod') {
-                                    canDelete = true;
-                                }
-                            }
-                        } catch (roleErr) {
-                            console.error("Error verifying user role:", roleErr);
+                        const userDoc = await db.collection('artifacts')
+                            .doc(appId)
+                            .collection('user_profiles')
+                            .doc(currentUser.uid)
+                            .get();
+
+                        if (userDoc.exists && ["admin", "mod"].includes(userDoc.data().role)) {
+                            canDelete = true;
                         }
                     }
                 }
-                deleteBtn.classList.toggle('hidden', !canDelete);
+
+                deleteBtn.classList.toggle("hidden", !canDelete);
             });
 
             gallery.appendChild(img);
         });
+
     } catch (err) {
-        console.error("Error loading gallery:", err);
-        if (err.message.includes("index")) {
-             const indexUrl = err.message.match(/https:\/\/[^\s]+/)[0];
-             gallery.innerHTML = `<p class="text-center text-red-500 p-10"><strong>Missing Index:</strong> <a href="${indexUrl}" target="_blank" style="text-decoration:underline">Click here to create it.</a></p>`;
-        } else {
-             gallery.innerHTML = `<p class="text-center text-red-500 p-10">Error loading gallery: ${err.message}</p>`;
-        }
+        console.error("Gallery error:", err);
+        gallery.innerHTML = `<p class="text-center text-red-500 p-10">Error: ${err.message}</p>`;
     }
 }
 
-// -------------------
-// Event Listeners
-// -------------------
+// --------------------------------------------------
+// Upload Image
+// --------------------------------------------------
 
-loadAllBtn.addEventListener("click", () => {
-    updateUrl(null);
-    loadGallery();
-});
-
-loadMyBtn.addEventListener("click", () => {
-    if (!currentUser) {
-        statusMessage.textContent = "Please sign in to view only your images.";
-        statusMessage.style.color = "red";
-        return;
-    }
-    updateUrl(currentUser.uid);
-    loadGallery(currentUser.uid);
-});
-
-closeLightboxBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    lightbox.style.display = "none";
-    lightboxImg.src = "";
-    deleteBtn.classList.add('hidden');
-    currentImageDocId = null;
-    currentImageUploaderId = null;
-});
-
-lightbox.addEventListener("click", (e) => {
-    if (e.target === lightbox) {
-        lightbox.style.display = "none";
-        lightboxImg.src = "";
-        deleteBtn.classList.add('hidden');
-        currentImageDocId = null;
-        currentImageUploaderId = null;
-    }
-});
-
-// -------------------
-// Delete Logic
-// -------------------
-deleteBtn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    if (!currentImageDocId) return;
-
-    const confirmation = window.confirm("Are you sure you want to delete this image?");
-    if (!confirmation) return;
-
-    try {
-        await db
-            .collection("artifacts")
-            .doc("default-app-id")
-            .collection("gallery")
-            .doc(currentImageDocId)
-            .delete();
-
-        statusMessage.textContent = "Image deleted successfully! Reloading gallery...";
-        statusMessage.style.color = "green";
-
-        lightbox.style.display = "none";
-        loadGallery(getUserIdFromUrl());
-    } catch (err) {
-        console.error("Error deleting image:", err);
-        statusMessage.textContent = "Error deleting image.";
-        statusMessage.style.color = "red";
-    }
-});
-
-// -------------------
-// Upload Logic
-// -------------------
 uploadBtn.addEventListener("click", async () => {
     if (!currentUser) {
         statusMessage.textContent = "You must be signed in to upload images.";
@@ -256,38 +199,40 @@ uploadBtn.addEventListener("click", async () => {
         return;
     }
 
-    statusMessage.textContent = "Uploading...";
-    statusMessage.style.color = "black";
+    statusMessage.textContent = "Converting to WebP...";
     uploadBtn.disabled = true;
 
     try {
-        const formData = new FormData();
-        formData.append("image", file);
+        const base64 = await fileToWebPBase64(file);
 
-        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+        statusMessage.textContent = "Uploading to server...";
+
+        const response = await fetch("/.netlify/functions/upload-imgbb", {
             method: "POST",
-            body: formData
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ base64Image: base64 })
         });
 
         const data = await response.json();
-        if (!data.success) throw new Error("ImgBB upload failed");
+        if (!data.url) throw new Error("Upload failed");
 
-        const imageUrl = data.data.url;
-        const firebaseGlobal = window.firebase; 
-        
+        const firebaseGlobal = window.firebase;
+
         await db.collection("artifacts")
             .doc("default-app-id")
             .collection("gallery")
             .add({
-                url: imageUrl,
+                url: data.url,
                 createdAt: firebaseGlobal.firestore.FieldValue.serverTimestamp(),
                 uploaderId: currentUser.uid
             });
 
         statusMessage.textContent = "Upload successful!";
         statusMessage.style.color = "green";
+
         imageInput.value = "";
         loadGallery(getUserIdFromUrl());
+
     } catch (err) {
         console.error(err);
         statusMessage.textContent = "Error uploading image.";
@@ -295,5 +240,57 @@ uploadBtn.addEventListener("click", async () => {
     } finally {
         uploadBtn.disabled = false;
     }
+});
 
+// --------------------------------------------------
+// Delete Image
+// --------------------------------------------------
+
+deleteBtn.addEventListener("click", async () => {
+    if (!currentImageDocId) return;
+
+    if (!confirm("Delete this image?")) return;
+
+    try {
+        await db.collection("artifacts")
+            .doc("default-app-id")
+            .collection("gallery")
+            .doc(currentImageDocId)
+            .delete();
+
+        statusMessage.textContent = "Image deleted.";
+        statusMessage.style.color = "green";
+
+        lightbox.style.display = "none";
+        loadGallery(getUserIdFromUrl());
+    } catch (err) {
+        statusMessage.textContent = "Deletion error.";
+        statusMessage.style.color = "red";
+    }
+});
+
+// Lightbox
+closeLightboxBtn.addEventListener("click", () => {
+    lightbox.style.display = "none";
+    lightboxImg.src = "";
+    deleteBtn.classList.add("hidden");
+});
+lightbox.addEventListener("click", e => {
+    if (e.target === lightbox) {
+        lightbox.style.display = "none";
+        lightboxImg.src = "";
+        deleteBtn.classList.add("hidden");
+    }
+});
+
+// Buttons
+loadAllBtn.addEventListener("click", () => { updateUrl(null); loadGallery(); });
+loadMyBtn.addEventListener("click", () => {
+    if (!currentUser) {
+        statusMessage.textContent = "Please sign in.";
+        statusMessage.style.color = "red";
+        return;
+    }
+    updateUrl(currentUser.uid);
+    loadGallery(currentUser.uid);
 });

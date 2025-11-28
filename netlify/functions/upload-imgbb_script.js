@@ -9,18 +9,21 @@ exports.handler = async function(event) {
     const base64Image = body.base64Image;
 
     if (!base64Image) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Missing base64Image" }) };
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ error: "Missing base64Image" })
+      };
     }
 
-    const API_KEY = process.env.IMGBB_API_KEY;
+    const API_KEY = process.env.IMGBB_API_KEY_Script;
 
     const params = new URLSearchParams();
     params.append("image", base64Image);
 
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${API_KEY}`, {
-      method: "POST",
-      body: params
-    });
+    const response = await fetch(
+      `https://api.imgbb.com/1/upload?key=${API_KEY}`,
+      { method: "POST", body: params }
+    );
 
     const data = await response.json();
 
@@ -28,10 +31,14 @@ exports.handler = async function(event) {
       statusCode: 200,
       body: JSON.stringify({
         url: data.data.url,
-        deleteUrl: data.data.delete_url,
+        deleteUrl: data.data.delete_url
       })
     };
+
   } catch (err) {
-    return { statusCode: 500, body: JSON.stringify({ error: err.message }) };
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: err.message })
+    };
   }
 };

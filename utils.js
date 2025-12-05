@@ -1,4 +1,5 @@
 // utils.js
+export const IMGBB_API_KEY = "f46392a52309bdc54b971eaeeb043e2f";
 
 // --- Constants for Dropdown Options ---
 

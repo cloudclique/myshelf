@@ -1,4 +1,5 @@
 import { db, auth } from "./firebase-config.js";
+import {Gallery_Log} from './utils.js';
 
 // DOM Elements
 const gallery = document.getElementById("gallery");
@@ -16,7 +17,6 @@ const headerTools = document.getElementById('headerTools');
 
 // --- NEW: Auth Button Reference ---
 const authBtn = document.getElementById("authBtn"); 
-const IMGBB_API_KEY = "f46392a52309bdc54b971eaeeb043e2f";
 
 // Create delete button in lightbox
 const deleteBtn = document.createElement("button");
@@ -266,13 +266,13 @@ uploadBtn.addEventListener("click", async () => {
         const formData = new FormData();
         formData.append("image", file);
 
-        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${Gallery_Log}`, {
             method: "POST",
             body: formData
         });
 
         const data = await response.json();
-        if (!data.success) throw new Error("ImgBB upload failed");
+        if (!data.success) throw new Error("upload failed");
 
         const imageUrl = data.data.url;
         const firebaseGlobal = window.firebase; 

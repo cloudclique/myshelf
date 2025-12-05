@@ -140,7 +140,17 @@ function handleSearch(resetPage = true) {
         filteredItems = allItems.filter(item => {
             const nameMatch = (item.itemName || '').toLowerCase().includes(query);
             const tagMatch = (item.tags || []).some(tag => tag.includes(query));
-            return nameMatch || tagMatch;
+            const categoryMatch = (item.itemCategory || '').toLowerCase().includes(query);
+            const scaleMatch = (item.itemScale || '').toLowerCase().includes(query);
+            const ageRatingMatch = (item.itemAgeRating || '').toLowerCase().includes(query);
+
+            return (
+                nameMatch ||
+                tagMatch ||
+                categoryMatch ||
+                scaleMatch ||
+                ageRatingMatch
+            );
         });
     }
 

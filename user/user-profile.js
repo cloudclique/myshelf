@@ -264,36 +264,43 @@ async function fetchProfileItems(status) {
 }
 
 async function fetchPage() {
-  if (!targetUserId) return;
+    if (!targetUserId) return;
 
-  profileItemsGrid.innerHTML = '';
-  loadingStatus.textContent = `Loading collection data...`;
+    profileItemsGrid.innerHTML = '';
+    loadingStatus.textContent = `Loading collection data...`;
 
-  try {
-    const userCollectionRef = getUserCollectionRef(targetUserId);
-    const snapshot = await userCollectionRef.where('status', '==', currentStatusFilter).get();
-    
-    if (snapshot.empty) {
-      lastFetchedItems = [];
-      renderPageItems([]);
-      loadingStatus.textContent = `${targetUsername} has no items in the "${currentStatusFilter}" collection.`;
-      return;
+    try {
+        const userCollectionRef = getUserCollectionRef(targetUserId);
+        const snapshot = await userCollectionRef.where('status', '==', currentStatusFilter).get();
+        
+        if (snapshot.empty) {
+            lastFetchedItems = [];
+            renderPageItems([]);
+            loadingStatus.textContent = `${targetUsername} has no items in the "${currentStatusFilter}" collection.`;
+            return;
+        }
+
+        const mainCollectionRef = db.collection(collectionName);
+        const detailedItems = await Promise.all(snapshot.docs.map(async doc => {
+            const itemDoc = await mainCollectionRef.doc(doc.data().itemId).get();
+            if (!itemDoc.exists) return null;
+            return { doc: itemDoc, status: doc.data().status }; 
+        }));
+
+        lastFetchedItems = detailedItems.filter(Boolean);
+
+        populateTagDropdown();
+        applySortAndFilter(); // keeps sorting/filtering
+
+        // <-- ADD THIS TO RENDER THE FIRST PAGE -->
+        renderPageItems(lastFetchedItems.slice(0, ITEMS_PER_PAGE));
+        currentPage = 1;
+
+        loadingStatus.textContent = ''; // clear loading
+    } catch (err) {
+        console.error(err);
+        loadingStatus.textContent = `Error loading collection: ${err.message}`;
     }
-
-    const mainCollectionRef = db.collection(collectionName);
-    const detailedItems = await Promise.all(snapshot.docs.map(async doc => {
-      const itemDoc = await mainCollectionRef.doc(doc.data().itemId).get();
-      if (!itemDoc.exists) return null;
-      return { doc: itemDoc, status: doc.data().status }; 
-    }));
-
-    lastFetchedItems = detailedItems.filter(Boolean);
-    populateTagDropdown();
-    applySortAndFilter();
-  } catch (err) {
-    console.error(err);
-    loadingStatus.textContent = `Error loading collection: ${err.message}`;
-  }
 }
 
 // --- Populate Tag Dropdown ---

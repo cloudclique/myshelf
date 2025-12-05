@@ -41,12 +41,63 @@ function getProfilesRef() {
     return db.collection('artifacts').doc(appId).collection('user_profiles');
 }
 
-async function uploadImageToImgBB(file) {
-    const formData = new FormData();
-    formData.append('image', file);
-    formData.append('key', Messimages);
+async function processImage(file, maxSizeMB = 1) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
 
+        reader.onload = (e) => {
+            img.src = e.target.result;
+        };
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let { width, height } = img;
+            const MAX_DIMENSION = 1920; // optional max width/height
+
+            // maintain aspect ratio, resize if needed
+            if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+                width = width * ratio;
+                height = height * ratio;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            // Convert to WebP and compress to fit maxSizeMB
+            let quality = 0.92; // start with high quality
+            function attemptExport() {
+                canvas.toBlob(
+                    (blob) => {
+                        if (blob.size / 1024 / 1024 > maxSizeMB && quality > 0.1) {
+                            quality -= 0.05;
+                            attemptExport();
+                        } else {
+                            resolve(blob);
+                        }
+                    },
+                    'image/webp',
+                    quality
+                );
+            }
+            attemptExport();
+        };
+        img.onerror = reject;
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+}
+
+async function uploadImageToImgBB(file) {
     try {
+        const processedBlob = await processImage(file, 1); // 1MB max
+        const formData = new FormData();
+        formData.append('image', processedBlob, file.name.replace(/\.\w+$/, '.webp'));
+        formData.append('key', Messimages);
+
         const response = await fetch('https://api.imgbb.com/1/upload', {
             method: 'POST',
             body: formData,
@@ -54,7 +105,7 @@ async function uploadImageToImgBB(file) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(`upload failed: ${errorData.error?.message || response.statusText}`);
+            throw new Error(`Upload failed: ${errorData.error?.message || response.statusText}`);
         }
 
         const data = await response.json();
@@ -64,6 +115,7 @@ async function uploadImageToImgBB(file) {
         throw new Error("Image upload service failed.");
     }
 }
+
 
 window.openLightbox = function(url) {
     lightboxImage.src = url;

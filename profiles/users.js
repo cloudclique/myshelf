@@ -197,25 +197,6 @@ function updateLoginButton(user) {
     headerTools.appendChild(btn);
 }
 
-/**
- * Page Init
- */
-auth.onAuthStateChanged(async (user) => {
-    updateLoginButton(user);
-
-    let pinnedUid = null;
-
-    if (user) {
-        pinnedUid = await showPinnedUser(user.uid);
-    } else {
-        pinnedContainer.innerHTML = "<p>No logged-in user.</p>";
-    }
-
-    showTopUsers(pinnedUid);
-    setupHeaderLogoRedirect();
-});
-
-
 // --- Redirect to the logged-in user's profile when clicking the header logo ---
 function setupHeaderLogoRedirect() {
     const logo = document.querySelector('.header-logo');
@@ -232,3 +213,23 @@ function setupHeaderLogoRedirect() {
         window.location.href = `../user/?uid=${userId}`;
     };
 }
+
+/**
+ * Page Init
+ */
+auth.onAuthStateChanged(async (user) => {
+    updateLoginButton(user);
+    setupHeaderLogoRedirect();
+
+    let pinnedUid = null;
+
+    if (user) {
+        pinnedUid = await showPinnedUser(user.uid);
+    } else {
+        pinnedContainer.innerHTML = "<p>No logged-in user.</p>";
+    }
+
+    showTopUsers(pinnedUid);
+});
+
+

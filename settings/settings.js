@@ -48,7 +48,6 @@ function fileToBase64(file) {
 auth.onAuthStateChanged(async (user) => {
   if (!user) {
     window.location.href = '../login/';
-    setupHeaderLogoRedirect();
     return;
   }
 
@@ -73,6 +72,7 @@ auth.onAuthStateChanged(async (user) => {
     currentUsernameSpan.textContent = 'Error loading';
     currentRoleSpan.textContent = 'Error loading';
   }
+  setupHeaderLogoRedirect();
 });
 
 // --- Update username ---

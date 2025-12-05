@@ -119,37 +119,112 @@ auth.onAuthStateChanged(async (user) => {
     [addItemForm, importMfcBtn].forEach(form => { if (form) form.disabled = !user; });
 });
 
+
+/**
+ * Convert an image File to WebP and compress to max size.
+ * @param {File} file 
+ * @param {number} maxSizeMB 
+ * @returns {Promise<Blob>}
+ */
+async function processImage(file, maxSizeMB = 1) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+
+        reader.onload = (e) => { img.src = e.target.result; };
+        reader.onerror = reject;
+        img.onerror = reject;
+
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let { width, height } = img;
+            const MAX_DIMENSION = 1920;
+
+            if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+                width *= ratio;
+                height *= ratio;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            let quality = 0.92;
+            function attemptExport() {
+                canvas.toBlob(blob => {
+                    if (blob.size / 1024 / 1024 > maxSizeMB && quality > 0.1) {
+                        quality -= 0.05;
+                        attemptExport();
+                    } else {
+                        resolve(blob);
+                    }
+                }, 'image/webp', quality);
+            }
+            attemptExport();
+        };
+
+        reader.readAsDataURL(file);
+    });
+}
+
+
 // --- 4. Multi-Image Upload & Preview Logic ---
 const IMGBB_UPLOAD_URL = `https://api.imgbb.com/1/upload?key=${itemimage}`;
 /**
  * @param {File} file The file object to upload.
  * @returns {Promise<{url: string, deleteUrl: string}>} The direct URL and delete URL of the uploaded image.
  */
-async function uploadImageToImgbb(file) {
-    if (!file) return null;
+/**
+ * Convert an image File to WebP and compress to max size.
+ * @param {File} file 
+ * @param {number} maxSizeMB 
+ * @returns {Promise<Blob>}
+ */
+async function processImage(file, maxSizeMB = 1) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
 
-    if (file.size > MAX_FILE_SIZE) throw new Error("Image file too large (max 5MB).");
+        reader.onload = (e) => { img.src = e.target.result; };
+        reader.onerror = reject;
+        img.onerror = reject;
 
-    const formData = new FormData();
-    formData.append('image', file);
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let { width, height } = img;
+            const MAX_DIMENSION = 1920;
 
-    const response = await fetch(IMGBB_UPLOAD_URL, {
-        method: 'POST',
-        body: formData
+            if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+                const ratio = Math.min(MAX_DIMENSION / width, MAX_DIMENSION / height);
+                width *= ratio;
+                height *= ratio;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            let quality = 0.92;
+            function attemptExport() {
+                canvas.toBlob(blob => {
+                    if (blob.size / 1024 / 1024 > maxSizeMB && quality > 0.1) {
+                        quality -= 0.05;
+                        attemptExport();
+                    } else {
+                        resolve(blob);
+                    }
+                }, 'image/webp', quality);
+            }
+            attemptExport();
+        };
+
+        reader.readAsDataURL(file);
     });
-
-    const result = await response.json();
-
-    if (!result.success) {
-        throw new Error(result.error?.message || "Failed to upload image");
-    }
-    
-    // MODIFIED: Return an object with both the URL and the delete_url
-    return {
-        url: result.data.url, 
-        deleteUrl: result.data.delete_url
-    };
 }
+
 
 /**
  * Handles the selection of multiple image files, performing validation.

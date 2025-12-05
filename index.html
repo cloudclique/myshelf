@@ -4,54 +4,43 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Community Gallery</title>
-<!-- Tailwind CSS for modern styling -->
+
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="../style.css">
 </head>
 <body>
-    <header class="main-header">
-        <nav class="header-nav">
-            <a href="../" class="header-logo">MyShelf</a>
-            <a href="../">Home</a>
-            <a href="../profiles/">Community</a>
-            <a href="../search/">Database</a>
-            <a href="../chat/" class="active">✉</a>
-        </nav>
-        <div class="header-tools" id="headerTools"></div>
-    </header>
+
+<header class="main-header">
+    <nav class="header-nav">
+        <a href="../" class="header-logo">MyShelf</a>
+        <a href="../">Home</a>
+        <a href="../profiles/">Community</a>
+        <a href="../search/">Database</a>
+        <a href="../chat/" class="active">✉</a>
+    </nav>
+    <div class="header-tools" id="headerTools"></div>
+</header>
 
 
-    <div class="item-header-bg">
-        <div class="item-header">
-            <div class="flex items-center space-x-3">
-                <input type="file" id="imageInput" accept="image/*" class="secondary-btn">
-                <button id="uploadBtn" class="action-btn">
-                    Upload Image
-                </button>
-            </div>
+<div class="item-header-bg">
+    <div class="item-header">
+        <div class="flex items-center space-x-3">
+            <input type="file" id="imageInput" accept="image/*" class="secondary-btn">
+            <button id="uploadBtn" class="action-btn">Upload Image</button>
+        </div>
 
-            <p id="statusMessage" class=""></p>
+        <p id="statusMessage"></p>
 
-            <div class="flex items-center space-x-3">
-                <button id="loadAllBtn" class="secondary-btn">
-                    Load All Images
-                </button>
-                <button id="loadMyBtn" class="action-btn">
-                    Load My Images
-                </button>
-            </div>
+        <div class="flex items-center space-x-3">
+            <button id="loadAllBtn" class="secondary-btn">Load All Images</button>
+            <button id="loadMyBtn" class="action-btn">Load My Images</button>
         </div>
     </div>
-
-
-
+</div>
 
 <div class="gallery-page-wrapper">
-    <div class=""></div>
-
     <h1 class="text-3xl font-bold mb-6 text-gray-800">Community Gallery</h1>
 
-    <!-- Gallery Grid -->
     <div class="gallery-wrapper">
         <div id="gallery">
             <p class="main-column">Loading images...</p>
@@ -62,16 +51,22 @@
 <!-- Lightbox -->
 <div id="lightbox" class="relative">
     <img src="" alt="Full size">
-    <button id="closeLightboxBtn" class="absolute top-4 right-4 text-white text-3xl p-2 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition duration-150">&times;</button>
+    <button id="closeLightboxBtn" class="absolute top-4 right-4 text-white text-3xl p-2 rounded-full bg-black bg-opacity-50">&times;</button>
 </div>
 
-<!-- Firebase SDK v8 -->
+<!-- Firebase SDK v8 (Firestore + Auth) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 
-<!-- Your module scripts -->
+<!-- Firebase Storage v9 module -->
+<script type="module">
+    import { getStorage } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
+    export const storage = getStorage();
+</script>
+
+<!-- Your app -->
 <script type="module" src="script.js"></script>
+
 </body>
 </html>

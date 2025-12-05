@@ -1,4 +1,5 @@
-import { db, auth } from "./firebase-config.js";
+import { db, auth, storage } from "./firebase-config.js";
+import { ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-storage.js";
 
 // DOM Elements
 const gallery = document.getElementById("gallery");
@@ -7,14 +8,12 @@ const uploadBtn = document.getElementById("uploadBtn");
 const statusMessage = document.getElementById("statusMessage");
 const loadMyBtn = document.getElementById("loadMyBtn");
 const loadAllBtn = document.getElementById("loadAllBtn");
-const shareIdContainer = document.getElementById("shareId");
-const copyIdBtn = document.getElementById("copyIdBtn");
 const closeLightboxBtn = document.getElementById("closeLightboxBtn");
 const lightbox = document.getElementById("lightbox");
 const lightboxImg = lightbox.querySelector("img");
 const headerTools = document.getElementById('headerTools');
 
-// Create delete button inside lightbox
+// Delete button inside lightbox
 const deleteBtn = document.createElement("button");
 deleteBtn.textContent = "Delete Image";
 deleteBtn.className = "absolute top-20 right-4 px-3 py-1 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition hidden";
@@ -29,7 +28,7 @@ uploadBtn.disabled = true;
 loadMyBtn.disabled = true;
 
 // --------------------------------------------------
-// Helpers
+// URL Helpers
 // --------------------------------------------------
 
 function getUserIdFromUrl() {
@@ -45,10 +44,10 @@ function updateUrl(userId) {
 }
 
 // --------------------------------------------------
-// Convert file → WebP → Base64
+// Convert file → WebP Blob
 // --------------------------------------------------
 
-async function fileToWebPBase64(file, quality = 0.8) {
+async function fileToWebPBlob(file, quality = 0.85) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
 
@@ -63,8 +62,11 @@ async function fileToWebPBase64(file, quality = 0.8) {
                 const ctx = canvas.getContext("2d");
                 ctx.drawImage(img, 0, 0);
 
-                const webpDataUrl = canvas.toDataURL("image/webp", quality);
-                resolve(webpDataUrl.split(",")[1]);
+                canvas.toBlob(
+                    (blob) => resolve(blob),
+                    "image/webp",
+                    quality
+                );
             };
 
             img.onerror = reject;
@@ -132,7 +134,7 @@ async function loadGallery(filterUserId = null) {
         gallery.innerHTML = "";
 
         if (snapshot.empty) {
-            gallery.innerHTML = `<p class="text-center text-gray-500 p-10">No images found for this filter.</p>`;
+            gallery.innerHTML = `<p class="text-center text-gray-500 p-10">No images found.</p>`;
             return;
         }
 
@@ -157,9 +159,9 @@ async function loadGallery(filterUserId = null) {
                     }
 
                     if (!canDelete) {
-                        const userDoc = await db.collection('artifacts')
+                        const userDoc = await db.collection("artifacts")
                             .doc(appId)
-                            .collection('user_profiles')
+                            .collection("user_profiles")
                             .doc(currentUser.uid)
                             .get();
 
@@ -182,12 +184,12 @@ async function loadGallery(filterUserId = null) {
 }
 
 // --------------------------------------------------
-// Upload Image
+// UPLOAD IMAGE (Now using Firebase Storage)
 // --------------------------------------------------
 
 uploadBtn.addEventListener("click", async () => {
     if (!currentUser) {
-        statusMessage.textContent = "You must be signed in to upload images.";
+        statusMessage.textContent = "Please sign in.";
         statusMessage.style.color = "red";
         return;
     }
@@ -203,31 +205,31 @@ uploadBtn.addEventListener("click", async () => {
     uploadBtn.disabled = true;
 
     try {
-        const base64 = await fileToWebPBase64(file);
+        // Convert to WebP
+        const webpBlob = await fileToWebPBlob(file);
 
-        statusMessage.textContent = "Uploading to server...";
+        statusMessage.textContent = "Uploading image...";
 
-        const response = await fetch("/.netlify/functions/upload-imgbb", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ base64Image: base64 })
-        });
+        // Upload to Firebase Storage
+        const filename = `gallery/${currentUser.uid}_${Date.now()}.webp`;
+        const fileRef = ref(storage, filename);
 
-        const data = await response.json();
-        if (!data.url) throw new Error("Upload failed");
+        await uploadBytes(fileRef, webpBlob);
 
-        const firebaseGlobal = window.firebase;
+        // Get the download URL
+        const downloadUrl = await getDownloadURL(fileRef);
 
+        // Save to Firestore
         await db.collection("artifacts")
             .doc("default-app-id")
             .collection("gallery")
             .add({
-                url: data.url,
-                createdAt: firebaseGlobal.firestore.FieldValue.serverTimestamp(),
-                uploaderId: currentUser.uid
+                url: downloadUrl,
+                uploaderId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             });
 
-        statusMessage.textContent = "Upload successful!";
+        statusMessage.textContent = "Upload complete!";
         statusMessage.style.color = "green";
 
         imageInput.value = "";
@@ -235,11 +237,11 @@ uploadBtn.addEventListener("click", async () => {
 
     } catch (err) {
         console.error(err);
-        statusMessage.textContent = "Error uploading image.";
+        statusMessage.textContent = "Upload failed.";
         statusMessage.style.color = "red";
-    } finally {
-        uploadBtn.disabled = false;
     }
+
+    uploadBtn.disabled = false;
 });
 
 // --------------------------------------------------
@@ -263,19 +265,24 @@ deleteBtn.addEventListener("click", async () => {
 
         lightbox.style.display = "none";
         loadGallery(getUserIdFromUrl());
+
     } catch (err) {
-        statusMessage.textContent = "Deletion error.";
+        statusMessage.textContent = "Deletion failed.";
         statusMessage.style.color = "red";
     }
 });
 
-// Lightbox
+// --------------------------------------------------
+// Lightbox Logic
+// --------------------------------------------------
+
 closeLightboxBtn.addEventListener("click", () => {
     lightbox.style.display = "none";
     lightboxImg.src = "";
     deleteBtn.classList.add("hidden");
 });
-lightbox.addEventListener("click", e => {
+
+lightbox.addEventListener("click", (e) => {
     if (e.target === lightbox) {
         lightbox.style.display = "none";
         lightboxImg.src = "";
@@ -283,8 +290,15 @@ lightbox.addEventListener("click", e => {
     }
 });
 
-// Buttons
-loadAllBtn.addEventListener("click", () => { updateUrl(null); loadGallery(); });
+// --------------------------------------------------
+// Filter buttons
+// --------------------------------------------------
+
+loadAllBtn.addEventListener("click", () => {
+    updateUrl(null);
+    loadGallery();
+});
+
 loadMyBtn.addEventListener("click", () => {
     if (!currentUser) {
         statusMessage.textContent = "Please sign in.";

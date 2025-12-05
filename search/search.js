@@ -201,6 +201,7 @@ auth.onAuthStateChanged(user => {
         headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
     fetchAllItems();
+    setupHeaderLogoRedirect();
 });
 
 // --- EVENT LISTENERS ---
@@ -213,3 +214,37 @@ searchInput.onkeypress = e => {
 
 prevPageBtn.onclick = prevPageBtnTop.onclick = handlePrev;
 nextPageBtn.onclick = nextPageBtnTop.onclick = handleNext;
+
+// --- Redirect to the logged-in user's profile when clicking the header logo ---
+function setupHeaderLogoRedirect() {
+    const logo = document.querySelector('.header-logo');
+    if (!logo) return;
+
+    logo.style.cursor = 'pointer'; // optional: show pointer on hover
+    logo.onclick = () => {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            alert("You must be logged in to view your profile."); 
+            return;
+        }
+        const userId = currentUser.uid;
+        window.location.href = `../user/?uid=${userId}`;
+    };
+}
+
+// --- Redirect to the logged-in user's profile when clicking the header logo ---
+function setupHeaderLogoRedirect() {
+    const logo = document.querySelector('.header-logo');
+    if (!logo) return;
+
+    logo.style.cursor = 'pointer'; // optional: show pointer on hover
+    logo.onclick = () => {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            alert("You must be logged in to view your profile."); 
+            return;
+        }
+        const userId = currentUser.uid;
+        window.location.href = `../user/?uid=${userId}`;
+    };
+}

@@ -220,6 +220,7 @@ document.addEventListener('DOMContentLoaded', () => {
         setupAuthUI(user);
         renderComments(itemId); 
         renderShops(itemId);
+        setupHeaderLogoRedirect();
     });
 
     if (submitCommentBtn) submitCommentBtn.addEventListener('click', postComment);
@@ -1610,4 +1611,22 @@ async function applyShopPermissions(itemData) {
     }
 
     window.__canUserCommentShop = canPost;
+}
+
+
+// --- Redirect to the logged-in user's profile when clicking the header logo ---
+function setupHeaderLogoRedirect() {
+    const logo = document.querySelector('.header-logo');
+    if (!logo) return;
+
+    logo.style.cursor = 'pointer'; // optional: show pointer on hover
+    logo.onclick = () => {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+            alert("You must be logged in to view your profile."); 
+            return;
+        }
+        const userId = currentUser.uid;
+        window.location.href = `../user/?uid=${userId}`;
+    };
 }

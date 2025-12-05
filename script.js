@@ -8,14 +8,15 @@ const statusMessage = document.getElementById("statusMessage");
 const loadMyBtn = document.getElementById("loadMyBtn");
 const loadAllBtn = document.getElementById("loadAllBtn");
 const shareIdContainer = document.getElementById("shareId");
-const currentUserIdDisplay = document.getElementById("currentUserIdDisplay");
 const copyIdBtn = document.getElementById("copyIdBtn");
 const closeLightboxBtn = document.getElementById("closeLightboxBtn");
 const lightbox = document.getElementById("lightbox");
 const lightboxImg = lightbox.querySelector("img");
+const headerTools = document.getElementById('headerTools');
 
 // --- NEW: Auth Button Reference ---
 const authBtn = document.getElementById("authBtn"); 
+const IMGBB_API_KEY = "f46392a52309bdc54b971eaeeb043e2f";
 
 // Create delete button in lightbox
 const deleteBtn = document.createElement("button");
@@ -23,11 +24,11 @@ deleteBtn.textContent = "Delete Image";
 deleteBtn.className = "absolute top-20 right-4 px-3 py-1 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition duration-150 hidden";
 lightbox.appendChild(deleteBtn);
 
-const IMGBB_API_KEY = "f46392a52309bdc54b971eaeeb043e2f";
-
 // Track current user
 let currentUser = null;
 let currentImageDocId = null;
+let currentUserId = null;
+
 let currentImageUploaderId = null;
 
 uploadBtn.disabled = true;
@@ -57,6 +58,7 @@ function updateUrl(userId) {
 // -------------------
 auth.onAuthStateChanged((user) => {
     currentUser = user;
+    headerTools.innerHTML = '';
     
     if (user) {
         // --- USER IS LOGGED IN ---
@@ -64,35 +66,17 @@ auth.onAuthStateChanged((user) => {
         loadMyBtn.disabled = false;
         
         // Display user ID for sharing
-        currentUserIdDisplay.textContent = user.uid;
-        shareIdContainer.classList.remove('hidden');
-
-        // Update Auth Button to "Logout"
-        if(authBtn) {
-            authBtn.textContent = "Logout";
-            authBtn.onclick = () => {
-                auth.signOut().then(() => {
-                    // Optional: Redirect or refresh after logout
-                    window.location.reload();
-                });
-            };
-        }
+        currentUserId = user.uid;
+        headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
+        document.getElementById('logoutBtn').onclick = () => auth.signOut();
 
     } else {
         // --- USER IS LOGGED OUT ---
-        statusMessage.textContent = "You must be signed in to upload or filter by your images.";
         uploadBtn.disabled = true;
         loadMyBtn.disabled = true;
-        shareIdContainer.classList.add('hidden');
 
-        // Update Auth Button to "Login"
-        if(authBtn) {
-            authBtn.textContent = "Login";
-            authBtn.onclick = () => {
-                // Redirect to your login page
-                window.location.href = 'login.html'; 
-            };
-        }
+        currentUserId = null;
+        headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
 
     // Load gallery after auth state is determined
@@ -313,4 +297,5 @@ uploadBtn.addEventListener("click", async () => {
     } finally {
         uploadBtn.disabled = false;
     }
+
 });

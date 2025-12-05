@@ -1,5 +1,5 @@
 import { auth, db, collectionName } from '../firebase-config.js';
-import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64 } from '../utils.js';
+import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64, itemimage } from '../utils.js';
 
 // --- 1. Constants & DOM ---
 const itemsCollectionName = collectionName;
@@ -120,9 +120,8 @@ auth.onAuthStateChanged(async (user) => {
 });
 
 // --- 4. Multi-Image Upload & Preview Logic ---
-
+const IMGBB_UPLOAD_URL = `https://api.imgbb.com/1/upload?key=${itemimage}`;
 /**
- * Uploads a single image file to ImgBB and returns the URL and delete_url.
  * @param {File} file The file object to upload.
  * @returns {Promise<{url: string, deleteUrl: string}>} The direct URL and delete URL of the uploaded image.
  */
@@ -142,7 +141,7 @@ async function uploadImageToImgbb(file) {
     const result = await response.json();
 
     if (!result.success) {
-        throw new Error(result.error?.message || "Failed to upload image to ImgBB");
+        throw new Error(result.error?.message || "Failed to upload image");
     }
     
     // MODIFIED: Return an object with both the URL and the delete_url
@@ -306,7 +305,7 @@ addItemForm.onsubmit = async (e) => {
 
     try {
         // Multi-image upload logic
-        uploadStatus.textContent = `Uploading ${selectedImageFiles.length} image(s) to ImgBB...`;
+        uploadStatus.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
         
         // The array is already correctly ordered by the user interaction
         const uploadPromises = selectedImageFiles.map(file => uploadImageToImgbb(file));

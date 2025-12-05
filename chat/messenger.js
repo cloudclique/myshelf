@@ -1,4 +1,5 @@
 import { auth, db } from '../firebase-config.js';
+import {Messimages} from '../utils.js';
 
 // --- DOM Elements ---
 
@@ -43,7 +44,7 @@ function getProfilesRef() {
 async function uploadImageToImgBB(file) {
     const formData = new FormData();
     formData.append('image', file);
-    formData.append('key', IMGBB_API_KEY);
+    formData.append('key', Messimages);
 
     try {
         const response = await fetch('https://api.imgbb.com/1/upload', {
@@ -53,13 +54,13 @@ async function uploadImageToImgBB(file) {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(`ImgBB upload failed: ${errorData.error?.message || response.statusText}`);
+            throw new Error(`upload failed: ${errorData.error?.message || response.statusText}`);
         }
 
         const data = await response.json();
         return data.data.url;
     } catch (error) {
-        console.error("Error uploading image to ImgBB:", error);
+        console.error("Error uploading image:", error);
         throw new Error("Image upload service failed.");
     }
 }

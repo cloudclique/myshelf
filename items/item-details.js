@@ -1,5 +1,5 @@
 import { auth, db, collectionName } from '../firebase-config.js';
-import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS } from '../utils.js';
+import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, itemimage } from '../utils.js';
 
 // --- Constants ---
 const VERTICAL_ALIGN_OPTIONS = ['top', 'center', 'bottom'];
@@ -226,9 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (submitShopBtn) submitShopBtn.addEventListener('click', postShop);
 });
 
-// --- Image Upload (ImgBB Integration) ---
+// --- Image Upload ---
+const IMGBB_UPLOAD_URL = `https://api.imgbb.com/1/upload?key=${itemimage}`;
 /**
- * Uploads a single image file to ImgBB.
+ * Uploads a single image file.
  * @param {File} imageFile The image file to upload.
  * @returns {Promise<{url: string, deleteUrl: string}>} Object containing the URL and delete URL.
  */
@@ -261,7 +262,7 @@ async function uploadImageToImgBB(imageFile) {
         };
 
     } catch (error) {
-        console.error("Error uploading to ImgBB:", error);
+        console.error("Error uploading:", error);
         throw new Error("Failed to upload image to hosting service: " + error.message);
     }
 }
@@ -357,7 +358,6 @@ function updateEditImagePreviews(existingImageObjects, newFiles) {
             
             // Remove the image object from the list of current images
             // The deleteUrl is still inside the object, which is now discarded from the array.
-            // Full ImgBB deletion logic would require calling the deleteUrl here or on save.
             currentItemImageUrls.splice(indexToRemove, 1);
             
             updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
@@ -676,7 +676,7 @@ editItemForm.addEventListener('submit', async (e) => {
     let retainedImageObjects = currentItemImageUrls; 
     
     if (selectedImageFiles.length > 0) {
-        editMessage.textContent = `Uploading ${selectedImageFiles.length} image(s) to ImgBB...`;
+        editMessage.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
         editMessage.className = 'form-message';
         
         try {

@@ -1,5 +1,5 @@
 // utils.js
-export const IMGBB_API_KEY = "f46392a52309bdc54b971eaeeb043e2f";
+
 
 // --- Constants for Dropdown Options ---
 
@@ -55,7 +55,9 @@ export function createItemCard(item, showEdit = false) {
 
     return card;
 }
-
+export const Gallery_Log = "f46392a52309bdc54b971eaeeb043e2f";
+export const Messimages = '640a9b0b335a81fa530a8b0251213416';
+export const itemimage = '1a10d80fa9d2e6bac4c89996119226b0';
 /**
  * Populates a select element with options from an array.
  * @param {string} selectId - The ID of the <select> element.

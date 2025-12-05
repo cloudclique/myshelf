@@ -228,18 +228,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // --- Image Upload ---
 const IMGBB_UPLOAD_URL = `https://api.imgbb.com/1/upload?key=${itemimage}`;
+
 /**
- * Uploads a single image file.
+ * Converts an image File to a WebP Blob.
+ * @param {File} file
+ * @returns {Promise<Blob>} A WebP blob.
+ */
+async function convertImageToWebP(file) {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(bitmap, 0, 0);
+
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(
+            blob => {
+                if (blob) resolve(blob);
+                else reject(new Error("Failed to convert to WebP"));
+            },
+            "image/webp",
+            0.9 // quality (0–1)
+        );
+    });
+}
+
+/**
+ * Uploads a single image file after converting it to WebP.
  * @param {File} imageFile The image file to upload.
- * @returns {Promise<{url: string, deleteUrl: string}>} Object containing the URL and delete URL.
+ * @returns {Promise<{url: string, deleteUrl: string}>}
  */
 async function uploadImageToImgBB(imageFile) {
-    const formData = new FormData();
-    formData.append("image", imageFile);
-
     try {
+        // 🔄 Convert to WebP
+        const webpBlob = await convertImageToWebP(imageFile);
+
+        const formData = new FormData();
+        formData.append("image", webpBlob, "converted.webp");
+
         const response = await fetch(IMGBB_UPLOAD_URL, {
-            method: 'POST',
+            method: "POST",
             body: formData
         });
 
@@ -247,17 +277,17 @@ async function uploadImageToImgBB(imageFile) {
             let errorMessage = `HTTP error! status: ${response.status}`;
             try {
                 const errorData = await response.json();
-                if (errorData.error && errorData.error.message) {
+                if (errorData.error?.message) {
                     errorMessage = errorData.error.message;
                 }
-            } catch (e) { }
+            } catch {}
             throw new Error(errorMessage);
         }
 
         const data = await response.json();
-        // MODIFIED: Return an object with both the URL and the delete_url
+
         return {
-            url: data.data.url, 
+            url: data.data.url,
             deleteUrl: data.data.delete_url
         };
 

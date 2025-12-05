@@ -1,4 +1,4 @@
-import { db, auth, storage } from "./firebase-config.js";
+import { db, auth } from "./firebase-config.js";
 
 // DOM Elements
 const gallery = document.getElementById("gallery");
@@ -22,6 +22,8 @@ const deleteBtn = document.createElement("button");
 deleteBtn.textContent = "Delete Image";
 deleteBtn.className = "absolute top-20 right-4 px-3 py-1 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition duration-150 hidden";
 lightbox.appendChild(deleteBtn);
+
+const IMGBB_API_KEY = "f46392a52309bdc54b971eaeeb043e2f";
 
 // Track current user
 let currentUser = null;
@@ -57,35 +59,43 @@ auth.onAuthStateChanged((user) => {
     currentUser = user;
     
     if (user) {
+        // --- USER IS LOGGED IN ---
         uploadBtn.disabled = false;
         loadMyBtn.disabled = false;
-
+        
+        // Display user ID for sharing
         currentUserIdDisplay.textContent = user.uid;
         shareIdContainer.classList.remove('hidden');
 
+        // Update Auth Button to "Logout"
         if(authBtn) {
             authBtn.textContent = "Logout";
             authBtn.onclick = () => {
                 auth.signOut().then(() => {
+                    // Optional: Redirect or refresh after logout
                     window.location.reload();
                 });
             };
         }
 
     } else {
+        // --- USER IS LOGGED OUT ---
         statusMessage.textContent = "You must be signed in to upload or filter by your images.";
         uploadBtn.disabled = true;
         loadMyBtn.disabled = true;
         shareIdContainer.classList.add('hidden');
 
+        // Update Auth Button to "Login"
         if(authBtn) {
             authBtn.textContent = "Login";
             authBtn.onclick = () => {
+                // Redirect to your login page
                 window.location.href = 'login.html'; 
             };
         }
     }
 
+    // Load gallery after auth state is determined
     loadGallery(getUserIdFromUrl());
 });
 
@@ -137,10 +147,12 @@ async function loadGallery(filterUserId = null) {
                 let canDelete = false;
 
                 if (currentUser) {
+                    // 1. Check Owner
                     if (currentUser.uid === currentImageUploaderId) {
                         canDelete = true;
                     } 
                     
+                    // 2. Check Admin/Mod
                     if (!canDelete) {
                         try {
                             const userProfileDoc = await db.collection('artifacts')
@@ -178,8 +190,23 @@ async function loadGallery(filterUserId = null) {
 }
 
 // -------------------
-// Lightbox closing
+// Event Listeners
 // -------------------
+
+loadAllBtn.addEventListener("click", () => {
+    updateUrl(null);
+    loadGallery();
+});
+
+loadMyBtn.addEventListener("click", () => {
+    if (!currentUser) {
+        statusMessage.textContent = "Please sign in to view only your images.";
+        statusMessage.style.color = "red";
+        return;
+    }
+    updateUrl(currentUser.uid);
+    loadGallery(currentUser.uid);
+});
 
 closeLightboxBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -203,7 +230,6 @@ lightbox.addEventListener("click", (e) => {
 // -------------------
 // Delete Logic
 // -------------------
-
 deleteBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     if (!currentImageDocId) return;
@@ -232,46 +258,8 @@ deleteBtn.addEventListener("click", async (e) => {
 });
 
 // -------------------
-// WEBP Converter
+// Upload Logic
 // -------------------
-
-function convertToWebP(file) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        const reader = new FileReader();
-
-        reader.onload = (e) => {
-            img.src = e.target.result;
-        };
-
-        img.onload = () => {
-            const canvas = document.createElement("canvas");
-            canvas.width = img.width;
-            canvas.height = img.height;
-
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(img, 0, 0);
-
-            canvas.toBlob(
-                (blob) => {
-                    if (blob) resolve(blob);
-                    else reject("WEBP conversion failed");
-                },
-                "image/webp",
-                0.9
-            );
-        };
-
-        img.onerror = reject;
-
-        reader.readAsDataURL(file);
-    });
-}
-
-// -------------------
-// UPLOAD TO FIREBASE STORAGE (NEW)
-// -------------------
-
 uploadBtn.addEventListener("click", async () => {
     if (!currentUser) {
         statusMessage.textContent = "You must be signed in to upload images.";
@@ -286,26 +274,25 @@ uploadBtn.addEventListener("click", async () => {
         return;
     }
 
-    statusMessage.textContent = "Converting to WEBP...";
+    statusMessage.textContent = "Uploading...";
     statusMessage.style.color = "black";
     uploadBtn.disabled = true;
 
     try {
-        const webpBlob = await convertToWebP(file);
+        const formData = new FormData();
+        formData.append("image", file);
 
-        const storageRef = storage.ref();
-        const fileRef = storageRef.child(
-            `gallery/${currentUser.uid}/${Date.now()}.webp`
-        );
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, {
+            method: "POST",
+            body: formData
+        });
 
-        statusMessage.textContent = "Uploading to Firebase Storage...";
+        const data = await response.json();
+        if (!data.success) throw new Error("ImgBB upload failed");
 
-        await fileRef.put(webpBlob);
-
-        const imageUrl = await fileRef.getDownloadURL();
-
-        const firebaseGlobal = window.firebase;
-
+        const imageUrl = data.data.url;
+        const firebaseGlobal = window.firebase; 
+        
         await db.collection("artifacts")
             .doc("default-app-id")
             .collection("gallery")
@@ -318,9 +305,7 @@ uploadBtn.addEventListener("click", async () => {
         statusMessage.textContent = "Upload successful!";
         statusMessage.style.color = "green";
         imageInput.value = "";
-
         loadGallery(getUserIdFromUrl());
-
     } catch (err) {
         console.error(err);
         statusMessage.textContent = "Error uploading image.";

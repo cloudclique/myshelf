@@ -237,12 +237,15 @@ async function renderStatusButtons() {
     button.textContent = `${status} (${counts[status] || 0})`;
     button.className = `status-tab ${status === currentStatusFilter ? 'active' : ''}`;
     
-    button.onclick = () => {
+    button.onclick = async () => { // ← make async
       currentStatusFilter = status;
       currentPage = 1;
       document.querySelectorAll('.status-tab').forEach(btn => btn.classList.remove('active'));
       button.classList.add('active');
-      fetchProfileItems(status);
+
+      // Await the fetch so items load properly
+      await fetchProfileItems(status);
+
       updateURLHash();
     };
     statusFilters.appendChild(button);
@@ -335,13 +338,6 @@ function renderProfileItem(doc, status) {
 
   // *** MODIFIED LOGIC START: Access the 'url' field of the first object in itemImageUrls ***
   let imageSrc = (item.itemImageUrls && item.itemImageUrls[0] && item.itemImageUrls[0].url) || DEFAULT_IMAGE_URL;
-
-  // REMOVED BASE64 LOGIC:
-  // if (item.itemImageBase64) {
-  //   const base64 = item.itemImageBase64.replace(/^data:image\/.*;base64,/, '').trim();
-  //   if (base64.length > 0) imageSrc = `data:${item.itemImageMimeType || 'image/jpeg'};base64,${base64}`;
-  // }
-  // *** MODIFIED LOGIC END ***
 
   const imageWrapper = document.createElement('div');
   imageWrapper.className = 'item-image-wrapper';

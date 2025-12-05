@@ -58,13 +58,6 @@ if (profileSearchBtn) profileSearchBtn.onclick = handleProfileSearch;
 if (profileClearSearchBtn) profileClearSearchBtn.onclick = handleProfileClearSearch;
 if (profileSearchInput) profileSearchInput.onkeypress = (e) => { if (e.key === 'Enter') handleProfileSearch(); };
 
-if (sortSelect) sortSelect.onchange = applySortAndFilter;
-if (tagFilterDropdown) tagFilterDropdown.onchange = applySortAndFilter;
-if (applyFilterBtn) applyFilterBtn.onclick = applySortAndFilter;
-if (clearFilterBtn) clearFilterBtn.onclick = () => {
-  if (tagFilterDropdown) tagFilterDropdown.value = '';
-  applySortAndFilter();
-};
 
 if (postCommentBtn) postCommentBtn.onclick = postComment;
 
@@ -75,19 +68,29 @@ function getUserIdFromUrl() {
 }
 
 function updateURLHash() {
-  history.replaceState(null, '', `?uid=${targetUserId}#${currentStatusFilter}+${currentPage}`);
+    const searchQuery = profileSearchInput.value.trim().replace(/\s+/g, '-'); // replace spaces with dashes
+    const searchPart = searchQuery ? `+search=${encodeURIComponent(searchQuery)}` : '';
+    history.replaceState(
+        null, 
+        '', 
+        `?uid=${targetUserId}#${currentStatusFilter}+${currentPage}${searchPart}`
+    );
 }
 
 function parseURLHash() {
-  const raw = location.hash.replace(/^#/, '');
-  if (!raw) return { status: 'Owned', page: 1 };
-  const match = raw.match(/^([A-Za-z]+)\+(\d+)$/);
-  if (match) {
-    const status = match[1];
-    const page = parseInt(match[2], 10) || 1;
-    if (STATUS_OPTIONS.includes(status)) return { status, page };
-  }
-  return { status: 'Owned', page: 1 };
+    const raw = location.hash.replace(/^#/, '');
+    if (!raw) return { status: 'Owned', page: 1, search: '' };
+
+    // Match status+page and optional search part
+    const match = raw.match(/^([A-Za-z]+)\+(\d+)(\+search=(.*))?$/);
+    if (match) {
+        const status = match[1];
+        const page = parseInt(match[2], 10) || 1;
+        const search = match[4] ? decodeURIComponent(match[4].replace(/-/g, ' ')) : '';
+        if (STATUS_OPTIONS.includes(status)) return { status, page, search };
+    }
+
+    return { status: 'Owned', page: 1, search: '' };
 }
 
 // --- Firestore Helpers ---
@@ -176,12 +179,10 @@ async function initializeProfile() {
 
     // Set up the "View Full Collection" button
     if (viewMoreGalleryBtn) {
-        // Link to the user's main collection page 
         viewMoreGalleryBtn.onclick = () => {
             window.location.href = `../?uid=${targetUserId}`;
         };
     }
-
 
     await fetchAndRenderBanner(targetUserId);
     targetUsername = await fetchUsername(targetUserId);
@@ -194,23 +195,30 @@ async function initializeProfile() {
         customizeHeaderForOwner(); 
     }
 
-    const { status: hashStatus, page: hashPage } = parseURLHash();
+    // --- Parse URL hash (status, page, search) ---
+    const { status: hashStatus, page: hashPage, search: hashSearch } = parseURLHash();
     currentStatusFilter = STATUS_OPTIONS.includes(hashStatus) ? hashStatus : 'Owned';
+    currentPage = hashPage || 1;
 
+    // --- Render Status Buttons ---
     await renderStatusButtons();
+
+    // --- Fetch Profile Items ---
     await fetchProfileItems(currentStatusFilter);
 
-    if (hashPage > 1) {
-        for (let i = 1; i < hashPage; i++) currentPage++;
-        applySortAndFilter();
+    // --- Apply search from hash if present ---
+    if (hashSearch) {
+        profileSearchInput.value = hashSearch;
+        await handleProfileSearch(); // triggers multi-keyword search
+    } else {
+        // Show the current page items if no search
+        renderPageItems(lastFetchedItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE));
     }
 
-    updateURLHash();
-
-    // Load comments
+    // --- Load comments ---
     await loadComments(targetUserId);
 
-    // Load gallery preview
+    // --- Load gallery preview ---
     await fetchAndRenderGalleryPreview(targetUserId);
 
     // --- HIDE LOADER ---
@@ -410,30 +418,43 @@ function renderPaginationButtons() {
   paginationContainer.appendChild(nextBtn);
 }
 
-// --- Search ---
+// --- Enhanced Search ---
 async function handleProfileSearch() {
-  const queryText = profileSearchInput.value.trim().toLowerCase();
-  if (!queryText || !targetUserId) { handleProfileClearSearch(); return; }
+    const queryText = profileSearchInput.value.trim().toLowerCase();
+    if (!targetUserId) return handleProfileClearSearch();
 
-  profileItemsGrid.innerHTML = '';
-  loadingStatus.textContent = `Searching ${currentStatusFilter.toLowerCase()} items...`;
+    profileItemsGrid.innerHTML = '';
+    loadingStatus.textContent = `Searching ${currentStatusFilter.toLowerCase()} items...`;
 
-  const filtered = lastFetchedItems.filter(item => {
-    const name = item.doc.data().itemName?.toLowerCase() || '';
-    const id = item.doc.id.toLowerCase();
-    return name.includes(queryText) || id.includes(queryText);
-  });
+    const keywords = queryText.split(/\s+/);
 
-  profileItemsGrid.innerHTML = '';
-  filtered.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item.doc, item.status)));
-  loadingStatus.textContent = `${filtered.length} item(s) found.`;
-  profileClearSearchBtn.style.display = 'inline-block';
+    const filtered = lastFetchedItems.filter(item => {
+        const data = item.doc.data();
+        const searchable = [
+            data.itemName || '',
+            (data.tags || []).join(' '),
+            data.itemCategory || '',
+            data.itemScale || '',
+            data.itemAgeRating || ''
+        ].join(' ').toLowerCase();
+
+        return keywords.every(kw => searchable.includes(kw));
+    });
+
+    profileItemsGrid.innerHTML = '';
+    filtered.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item.doc, item.status)));
+    loadingStatus.textContent = `${filtered.length} item(s) found.`;
+    profileClearSearchBtn.style.display = 'inline-block';
+
+    currentPage = 1; // Reset to page 1 for new search
+    updateURLHash(); // Include search in hash
 }
 
 function handleProfileClearSearch() {
-  profileSearchInput.value = '';
-  profileClearSearchBtn.style.display = 'none';
-  applySortAndFilter();
+    profileSearchInput.value = '';
+    profileClearSearchBtn.style.display = 'none';
+    renderPageItems(lastFetchedItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE));
+    updateURLHash(); // Clear search from hash
 }
 
 // --- Gallery Preview Functions ---
@@ -490,66 +511,32 @@ async function fetchAndRenderGalleryPreview(userId) {
     }
 }
 
-// --- Sort & Filter ---
-function applySortAndFilter() {
-  if (!lastFetchedItems.length) return;
-  currentSortValue = sortSelect?.value ?? '';
-
-  let items = [...lastFetchedItems];
-
-  const selectedTag = tagFilterDropdown?.value;
-  if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
-
-  items.sort((a, b) => {
-    const dataA = a.doc.data();
-    const dataB = b.doc.data();
-    const getNumber = (val) => {
-      if (typeof val === 'number') return val;
-      if (typeof val === 'string') {
-        const parsed = parseFloat(val.replace(/[^\d.]/g, ''));
-        return isNaN(parsed) ? 0 : parsed;
-      }
-      return 0;
-    };
-    switch (currentSortValue) {
-      case 'ageAsc': return getNumber(dataA.itemAgeRating) - getNumber(dataB.itemAgeRating);
-      case 'ageDesc': return getNumber(dataB.itemAgeRating) - getNumber(dataA.itemAgeRating);
-      case 'scaleDesc': return getNumber(dataA.itemScale) - getNumber(dataB.itemScale);
-      case 'scaleAsc': return getNumber(dataB.itemScale) - getNumber(dataA.itemScale);
-      case 'releaseAsc': return new Date(dataA.itemReleaseDate || 0) - new Date(dataB.itemReleaseDate || 0);
-      case 'releaseDesc': return new Date(dataB.itemReleaseDate || 0) - new Date(a.doc.data().itemReleaseDate || 0);
-      default: return 0;
-    }
-  });
-
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const pagedItems = items.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-
-  profileItemsGrid.innerHTML = '';
-  pagedItems.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item.doc, item.status)));
-  loadingStatus.textContent = `${items.length} item(s) shown after filter/sort.`;
-
-  renderPaginationButtons();
-}
-
 // --- Hash Navigation ---
 window.addEventListener('hashchange', async () => {
-  const newUserId = getUserIdFromUrl();
-  if (newUserId !== targetUserId) {
-    initializeProfile();
-    return;
-  }
-  
-  const { status, page } = parseURLHash();
-  if (status !== currentStatusFilter) { 
-    currentStatusFilter = status; 
-    await renderStatusButtons(); 
-    await fetchProfileItems(status); 
-  }
-  if (page !== currentPage) { 
-    currentPage = page; 
-    applySortAndFilter(); 
-  }
+    const newUserId = getUserIdFromUrl();
+    if (newUserId !== targetUserId) {
+        initializeProfile();
+        return;
+    }
+
+    const { status, page, search } = parseURLHash();
+
+    if (status !== currentStatusFilter) { 
+        currentStatusFilter = status; 
+        await renderStatusButtons(); 
+        await fetchProfileItems(status); 
+    }
+
+    if (page !== currentPage) { 
+        currentPage = page; 
+    }
+
+    if (search !== profileSearchInput.value.trim()) {
+        profileSearchInput.value = search;
+        await handleProfileSearch();
+    } else {
+        renderPageItems(lastFetchedItems.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE));
+    }
 });
 
 // --- Chat ---

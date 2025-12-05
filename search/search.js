@@ -137,20 +137,28 @@ function handleSearch(resetPage = true) {
     if (!query) {
         filteredItems = [...allItems];
     } else {
-        filteredItems = allItems.filter(item => {
-            const nameMatch = (item.itemName || '').toLowerCase().includes(query);
-            const tagMatch = (item.tags || []).some(tag => tag.includes(query));
-            const categoryMatch = (item.itemCategory || '').toLowerCase().includes(query);
-            const scaleMatch = (item.itemScale || '').toLowerCase().includes(query);
-            const ageRatingMatch = (item.itemAgeRating || '').toLowerCase().includes(query);
+        // Split into keywords, ignoring extra spaces
+        const keywords = query.split(/\s+/).filter(Boolean);
 
-            return (
-                nameMatch ||
-                tagMatch ||
-                categoryMatch ||
-                scaleMatch ||
-                ageRatingMatch
-            );
+        filteredItems = allItems.filter(item => {
+            const name = (item.itemName || '').toLowerCase();
+            const tags = (item.tags || []).map(t => t.toLowerCase());
+            const category = (item.itemCategory || '').toLowerCase();
+            const scale = (item.itemScale || '').toLowerCase();
+            const age = (item.itemAgeRating || '').toLowerCase();
+
+            // Convert everything into ONE searchable blob
+            const combinedText =
+                [
+                    name,
+                    category,
+                    scale,
+                    age,
+                    ...tags
+                ].join(" ");
+
+            // Every keyword must be found somewhere
+            return keywords.every(kw => combinedText.includes(kw));
         });
     }
 

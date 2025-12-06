@@ -238,27 +238,12 @@ async function renderStatusButtons() {
     button.className = `status-tab ${status === currentStatusFilter ? 'active' : ''}`;
     
     button.onclick = () => {
-        // 1️⃣ Update current status
-        currentStatusFilter = status;
-        currentPage = 1;
-
-        // 2️⃣ Update active button styling
-        document.querySelectorAll('.status-tab').forEach(btn => btn.classList.remove('active'));
-        button.classList.add('active');
-
-        // 3️⃣ Clear search input and show Clear Search button
-        profileSearchInput.value = '';
-        if (profileClearSearchBtn) profileClearSearchBtn.style.display = 'inline-block';
-
-        // 4️⃣ Reset pagination and cursors
-        pageCursors = [null];
-
-        // 5️⃣ Render items for the selected status without any search filtering
-        const filteredByStatus = lastFetchedItems.filter(item => item.status === currentStatusFilter);
-        renderPageItems(filteredByStatus.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE));
-
-        // 6️⃣ Update URL hash
-        updateURLHash();
+      currentStatusFilter = status;
+      currentPage = 1;
+      document.querySelectorAll('.status-tab').forEach(btn => btn.classList.remove('active'));
+      button.classList.add('active');
+      fetchProfileItems(status);
+      updateURLHash();
     };
     statusFilters.appendChild(button);
   });

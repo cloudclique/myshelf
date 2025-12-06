@@ -493,6 +493,48 @@ async function fetchAndRenderGalleryPreview(userId) {
     }
 }
 
+// --- Sort & Filter ---
+function applySortAndFilter() {
+  if (!lastFetchedItems.length) return;
+  currentSortValue = sortSelect?.value ?? '';
+
+  let items = [...lastFetchedItems];
+
+  const selectedTag = tagFilterDropdown?.value;
+  if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
+
+  items.sort((a, b) => {
+    const dataA = a.doc.data();
+    const dataB = b.doc.data();
+    const getNumber = (val) => {
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string') {
+        const parsed = parseFloat(val.replace(/[^\d.]/g, ''));
+        return isNaN(parsed) ? 0 : parsed;
+      }
+      return 0;
+    };
+    switch (currentSortValue) {
+      case 'ageAsc': return getNumber(dataA.itemAgeRating) - getNumber(dataB.itemAgeRating);
+      case 'ageDesc': return getNumber(dataB.itemAgeRating) - getNumber(dataA.itemAgeRating);
+      case 'scaleDesc': return getNumber(dataA.itemScale) - getNumber(dataB.itemScale);
+      case 'scaleAsc': return getNumber(dataB.itemScale) - getNumber(dataA.itemScale);
+      case 'releaseAsc': return new Date(dataA.itemReleaseDate || 0) - new Date(dataB.itemReleaseDate || 0);
+      case 'releaseDesc': return new Date(dataB.itemReleaseDate || 0) - new Date(a.doc.data().itemReleaseDate || 0);
+      default: return 0;
+    }
+  });
+
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const pagedItems = items.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+  profileItemsGrid.innerHTML = '';
+  pagedItems.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item.doc, item.status)));
+  loadingStatus.textContent = `${items.length} item(s) shown after filter/sort.`;
+
+  renderPaginationButtons();
+}
+
 // --- Hash Navigation ---
 window.addEventListener('hashchange', async () => {
     const newUserId = getUserIdFromUrl();
@@ -511,6 +553,7 @@ window.addEventListener('hashchange', async () => {
 
     if (page !== currentPage) { 
         currentPage = page; 
+        applySortAndFilter(); 
     }
 
     if (search !== profileSearchInput.value.trim()) {

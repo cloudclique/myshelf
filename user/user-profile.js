@@ -58,6 +58,14 @@ if (profileSearchBtn) profileSearchBtn.onclick = handleProfileSearch;
 if (profileClearSearchBtn) profileClearSearchBtn.onclick = handleProfileClearSearch;
 if (profileSearchInput) profileSearchInput.onkeypress = (e) => { if (e.key === 'Enter') handleProfileSearch(); };
 
+if (sortSelect) sortSelect.onchange = applySortAndFilter;
+if (tagFilterDropdown) tagFilterDropdown.onchange = applySortAndFilter;
+if (applyFilterBtn) applyFilterBtn.onclick = applySortAndFilter;
+if (clearFilterBtn) clearFilterBtn.onclick = () => {
+  if (tagFilterDropdown) tagFilterDropdown.value = '';
+  applySortAndFilter();
+};
+
 
 if (postCommentBtn) postCommentBtn.onclick = postComment;
 

@@ -238,14 +238,27 @@ async function renderStatusButtons() {
     button.className = `status-tab ${status === currentStatusFilter ? 'active' : ''}`;
     
     button.onclick = () => {
-      currentStatusFilter = status;
-      currentPage = 1;
-      profileSearchInput.value = ''; // clear search
-      profileClearSearchBtn.style.display = 'none'; // hide clear button
-      document.querySelectorAll('.status-tab').forEach(btn => btn.classList.remove('active'));
-      button.classList.add('active');
-      fetchProfileItems(status);
-      updateURLHash();
+        // 1️⃣ Update current status
+        currentStatusFilter = status;
+        currentPage = 1;
+
+        // 2️⃣ Update button active state
+        document.querySelectorAll('.status-tab').forEach(btn => btn.classList.remove('active'));
+        button.classList.add('active');
+
+        // 3️⃣ Reset search input but show the clear button
+        profileSearchInput.value = '';
+        if (profileClearSearchBtn) profileClearSearchBtn.style.display = 'inline-block';
+
+        // 4️⃣ Clear last fetched items and page cursors
+        lastFetchedItems = [];
+        pageCursors = [null];
+
+        // 5️⃣ Fetch items for the new status
+        fetchProfileItems(status);
+
+        // 6️⃣ Update URL hash
+        updateURLHash();
     };
     statusFilters.appendChild(button);
   });

@@ -498,7 +498,18 @@ function applySortAndFilter() {
   if (!lastFetchedItems.length) return;
   currentSortValue = sortSelect?.value ?? '';
 
+  const currentUser = auth.currentUser;
+  const allowNSFW = currentUser?.allowNSFW ?? false;
+
   let items = [...lastFetchedItems];
+
+  // --- NSFW Filter ---
+  items = items.filter(item => {
+    const ageRating = item.doc.data().itemAgeRating;
+    // Hide "18+" if user not logged in OR allowNSFW is false
+    if (ageRating === "18+" && (!currentUser || allowNSFW === false)) return false;
+    return true;
+  });
 
   const selectedTag = tagFilterDropdown?.value;
   if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
@@ -534,6 +545,7 @@ function applySortAndFilter() {
 
   renderPaginationButtons();
 }
+
 
 // --- Hash Navigation ---
 window.addEventListener('hashchange', async () => {

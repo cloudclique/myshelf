@@ -30,15 +30,11 @@ const clearSearchBtn = document.getElementById('clearSearchBtn');
 // --- HELPERS ---
 function createItemCard(itemData) {
     const link = document.createElement('a');
-    const isNSFW = itemData.itemAgeRating === '18+' && !allowNSFW;
-
-    link.href = isNSFW ? 'javascript:void(0);' : `../items/?id=${itemData.id}`;
+    link.href = `../items/?id=${itemData.id}`;
     link.className = 'item-card-link';
-    if (isNSFW) link.style.pointerEvents = 'none'; // Make it unclicable
 
     const card = document.createElement('div');
     card.className = 'item-card';
-    if (isNSFW) card.classList.add('blurred-card');
 
     let imageSource =
         (itemData.itemImageUrls &&
@@ -57,7 +53,6 @@ function createItemCard(itemData) {
     card.innerHTML = `
         <div class="item-image-wrapper">
             <img src="${imageSource}" alt="${itemData.itemName}" class="${imageClasses}">
-            ${isNSFW ? '<div class="nsfw-overlay">18+</div>' : ''}
         </div>
         <div class="item-info">
             <h3>${itemData.itemName || 'Untitled'}</h3>

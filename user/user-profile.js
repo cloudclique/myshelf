@@ -240,10 +240,11 @@ async function renderStatusButtons() {
     button.onclick = () => {
       currentStatusFilter = status;
       currentPage = 1;
+      profileSearchInput.value = ''; // clear search
+      profileClearSearchBtn.style.display = 'none'; // hide clear button
       document.querySelectorAll('.status-tab').forEach(btn => btn.classList.remove('active'));
       button.classList.add('active');
       fetchProfileItems(status);
-      renderPageItems((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
       updateURLHash();
     };
     statusFilters.appendChild(button);
@@ -286,7 +287,6 @@ async function fetchPage() {
     }));
 
     lastFetchedItems = detailedItems.filter(Boolean);
-    populateTagDropdown();
     applySortAndFilter();
   } catch (err) {
     console.error(err);
@@ -294,25 +294,7 @@ async function fetchPage() {
   }
 }
 
-// --- Populate Tag Dropdown ---
-function populateTagDropdown() {
-  if (!lastFetchedItems.length || !tagFilterDropdown) return;
 
-  const allTagsSet = new Set();
-  lastFetchedItems.forEach(item => {
-    const tags = item.doc.data().tags || [];
-    tags.forEach(tag => allTagsSet.add(tag));
-  });
-
-  const allTags = Array.from(allTagsSet).sort();
-  tagFilterDropdown.innerHTML = '<option value="">All tags</option>';
-  allTags.forEach(tag => {
-    const option = document.createElement('option');
-    option.value = tag;
-    option.textContent = tag;
-    tagFilterDropdown.appendChild(option);
-  });
-}
 
 // --- Render Items ---
 function renderPageItems(items) {

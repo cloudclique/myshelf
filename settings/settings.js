@@ -1,28 +1,30 @@
 import { auth, db } from '../firebase-config.js';
 
 // --- DOM Elements ---
-const usernameForm = document.getElementById('usernameForm');
-const usernameInput = document.getElementById('usernameInput');
-const usernameMessage = document.getElementById('usernameMessage');
+const usernameForm     = document.getElementById('usernameForm');
+const usernameInput    = document.getElementById('usernameInput');
+const usernameMessage  = document.getElementById('usernameMessage');
 const currentUsernameSpan = document.getElementById('currentUsername');
 
-const emailForm = document.getElementById('emailForm');
-const emailInput = document.getElementById('emailInput');
-const emailMessage = document.getElementById('emailMessage');
+const emailForm        = document.getElementById('emailForm');
+const emailInput       = document.getElementById('emailInput');
+const emailMessage     = document.getElementById('emailMessage');
 const currentEmailSpan = document.getElementById('currentEmail');
 
-const passwordForm = document.getElementById('passwordForm');
-const passwordInput = document.getElementById('passwordInput');
-const passwordMessage = document.getElementById('passwordMessage');
+const passwordForm     = document.getElementById('passwordForm');
+const passwordInput    = document.getElementById('passwordInput');
+const passwordMessage  = document.getElementById('passwordMessage');
 
-const currentRoleSpan = document.getElementById('currentRole');
-const logoutBtn = document.getElementById('logoutBtn');
+const currentRoleSpan  = document.getElementById('currentRole');
+const logoutBtn        = document.getElementById('logoutBtn');
 
-// Profile picture
-const profilePicInput = document.getElementById('profilePicInput');
+const profilePicInput   = document.getElementById('profilePicInput');
 const profilePicPreview = document.getElementById('profilePicPreview');
-const profilePicForm = document.getElementById('profilePicForm');
+const profilePicForm    = document.getElementById('profilePicForm');
 const profilePicMessage = document.getElementById('profilePicMessage');
+
+const allowNsfwCheckbox = document.getElementById('allowNsfwCheckbox');
+const allowNsfwMessage  = document.getElementById('allowNsfwMessage');
 
 let selectedFile = null;
 
@@ -67,6 +69,10 @@ auth.onAuthStateChanged(async (user) => {
     if (data.profilePic) {
       profilePicPreview.src = data.profilePic;
     }
+
+    // Set NSFW checkbox
+    allowNsfwCheckbox.checked = !!data.allowNSFW;
+
   } catch (err) {
     console.error("Error fetching user profile:", err);
     currentUsernameSpan.textContent = 'Error loading';
@@ -208,6 +214,28 @@ profilePicForm.addEventListener('submit', async (e) => {
   }
 });
 
+// --- Save NSFW preference when toggled ---
+allowNsfwCheckbox.addEventListener('change', async () => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  allowNsfwMessage.textContent = "Saving...";
+  allowNsfwMessage.className = "form-message";
+
+  try {
+    await getProfileRef(user.uid).set(
+      { allowNSFW: allowNsfwCheckbox.checked },
+      { merge: true }
+    );
+
+    allowNsfwMessage.textContent = "Saved!";
+    allowNsfwMessage.className = "form-message success-message";
+  } catch (err) {
+    allowNsfwMessage.textContent = `Error: ${err.message}`;
+    allowNsfwMessage.className = "form-message error-message";
+  }
+});
+
 // --- Logout ---
 logoutBtn.addEventListener('click', () => {
   auth.signOut().then(() => window.location.href = '../');
@@ -219,7 +247,7 @@ function setupHeaderLogoRedirect() {
     const logo = document.querySelector('.header-logo');
     if (!logo) return;
 
-    logo.style.cursor = 'pointer'; // optional: show pointer on hover
+    logo.style.cursor = 'pointer';
     logo.onclick = () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {

@@ -4,13 +4,13 @@ const PAGE_SIZE = 52;
 const DEFAULT_IMAGE_URL = 'path/to/your/default-image.jpg';
 
 let currentUserId = null;
+let allowNSFW = false; // <- NEW
 let currentPage = 1;
 let allItems = [];
 let filteredItems = [];
 let hasMore = true;
 
 // DOM elements
-
 const latestAdditionsGrid = document.getElementById('latestAdditionsGrid');
 const headerTools = document.getElementById('headerTools');
 const loadingStatus = document.getElementById('loadingStatus');
@@ -36,11 +36,19 @@ function createItemCard(itemData) {
     const card = document.createElement('div');
     card.className = 'item-card';
 
-    let imageSource = (itemData.itemImageUrls && itemData.itemImageUrls[0] && itemData.itemImageUrls[0].url) || DEFAULT_IMAGE_URL;
+    let imageSource =
+        (itemData.itemImageUrls &&
+            itemData.itemImageUrls[0] &&
+            itemData.itemImageUrls[0].url) ||
+        DEFAULT_IMAGE_URL;
 
     const horAlign = itemData['img-align-hor']?.toLowerCase() || 'center';
     const verAlign = itemData['img-align-ver']?.toLowerCase() || 'center';
-    const imageClasses = `item-image img-align-hor-${['left','center','right'].includes(horAlign)?horAlign:'center'} img-align-ver-${['top','center','bottom'].includes(verAlign)?verAlign:'center'}`;
+    const imageClasses = `item-image img-align-hor-${
+        ['left', 'center', 'right'].includes(horAlign) ? horAlign : 'center'
+    } img-align-ver-${
+        ['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'
+    }`;
 
     card.innerHTML = `
         <div class="item-image-wrapper">
@@ -52,6 +60,7 @@ function createItemCard(itemData) {
             <p><strong>Scale:</strong> ${itemData.itemScale || 'N/A'}</p>
         </div>
     `;
+
     link.appendChild(card);
     return link;
 }
@@ -74,9 +83,11 @@ function renderItemsWithPagination(items) {
     const isPrevDisabled = currentPage === 1;
     const isNextDisabled = !hasMore;
 
-    [prevPageBtn, prevPageBtnTop].forEach(btn => btn.disabled = isPrevDisabled);
-    [nextPageBtn, nextPageBtnTop].forEach(btn => btn.disabled = isNextDisabled);
-    [pageStatusElement, pageStatusElementTop].forEach(span => span.textContent = `Page ${currentPage}`);
+    [prevPageBtn, prevPageBtnTop].forEach(btn => (btn.disabled = isPrevDisabled));
+    [nextPageBtn, nextPageBtnTop].forEach(btn => (btn.disabled = isNextDisabled));
+    [pageStatusElement, pageStatusElementTop].forEach(
+        span => (span.textContent = `Page ${currentPage}`)
+    );
 }
 
 function getPageFromURL() {
@@ -104,13 +115,16 @@ function updateURLPage() {
 
 async function fetchAllItems() {
     loadingStatus.textContent = 'Loading items...';
+
     try {
-        const snapshot = await db.collection(collectionName).orderBy('createdAt', 'desc').get();
+        const snapshot = await db
+            .collection(collectionName)
+            .orderBy('createdAt', 'desc')
+            .get();
 
         allItems = snapshot.docs.map(doc => {
             const data = doc.data();
 
-            // Normalize tags to lowercase
             if (Array.isArray(data.tags)) {
                 data.tags = data.tags.map(tag => (tag || '').toLowerCase());
             }
@@ -119,7 +133,13 @@ async function fetchAllItems() {
             return data;
         });
 
-        filteredItems = [...allItems];
+        // --- APPLY NSFW FILTER ---
+        filteredItems = allItems.filter(item => {
+            if (!allowNSFW && item.itemAgeRating === '18+') {
+                return false;
+            }
+            return true;
+        });
 
         restoreStateFromURL();
         handleSearch(false);
@@ -135,29 +155,24 @@ function handleSearch(resetPage = true) {
     const query = searchInput.value.trim().toLowerCase();
 
     if (!query) {
-        filteredItems = [...allItems];
+        filteredItems = allItems.filter(item => {
+            if (!allowNSFW && item.itemAgeRating === '18+') return false;
+            return true;
+        });
     } else {
-        // Split into keywords, ignoring extra spaces
         const keywords = query.split(/\s+/).filter(Boolean);
 
         filteredItems = allItems.filter(item => {
+            if (!allowNSFW && item.itemAgeRating === '18+') return false;
+
             const name = (item.itemName || '').toLowerCase();
             const tags = (item.tags || []).map(t => t.toLowerCase());
             const category = (item.itemCategory || '').toLowerCase();
             const scale = (item.itemScale || '').toLowerCase();
             const age = (item.itemAgeRating || '').toLowerCase();
 
-            // Convert everything into ONE searchable blob
-            const combinedText =
-                [
-                    name,
-                    category,
-                    scale,
-                    age,
-                    ...tags
-                ].join(" ");
+            const combinedText = [name, category, scale, age, ...tags].join(' ');
 
-            // Every keyword must be found somewhere
             return keywords.every(kw => combinedText.includes(kw));
         });
     }
@@ -169,7 +184,11 @@ function handleSearch(resetPage = true) {
 
 function handleClearSearch() {
     searchInput.value = '';
-    filteredItems = [...allItems];
+    filteredItems = allItems.filter(item => {
+        if (!allowNSFW && item.itemAgeRating === '18+') return false;
+        return true;
+    });
+
     currentPage = 1;
     renderItemsWithPagination(filteredItems);
     updateURLPage();
@@ -189,22 +208,54 @@ function handlePrev() {
     updateURLPage();
 }
 
+// --- LOAD USER PROFILE + NSFW STATE ---
+async function loadUserProfile(uid) {
+    try {
+        const profileRef = db
+            .collection('artifacts')
+            .doc('default-app-id')
+            .collection('user_profiles')
+            .doc(uid);
+
+        const snap = await profileRef.get();
+
+        if (snap.exists) {
+            const data = snap.data();
+            allowNSFW = data.allowNSFW === true;
+        } else {
+            allowNSFW = false;
+        }
+    } catch (err) {
+        console.error('Error loading profile:', err);
+        allowNSFW = false;
+    }
+}
+
 // --- AUTH ---
-auth.onAuthStateChanged(user => {
+auth.onAuthStateChanged(async user => {
     headerTools.innerHTML = '';
+
     if (user) {
         currentUserId = user.uid;
+
+        // Load NSFW setting
+        await loadUserProfile(currentUserId);
+
         headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
         document.getElementById('logoutBtn').onclick = () => auth.signOut();
     } else {
+        // User is logged out → NSFW disabled
         currentUserId = null;
+        allowNSFW = false;
+
         headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
+
     fetchAllItems();
     setupHeaderLogoRedirect();
 });
 
-// --- EVENT LISTENERS ---
+// -- EVENT LISTENERS --
 searchBtn.onclick = () => handleSearch();
 clearSearchBtn.onclick = handleClearSearch;
 
@@ -215,19 +266,18 @@ searchInput.onkeypress = e => {
 prevPageBtn.onclick = prevPageBtnTop.onclick = handlePrev;
 nextPageBtn.onclick = nextPageBtnTop.onclick = handleNext;
 
-// --- Redirect to the logged-in user's profile when clicking the header logo ---
+// --- Redirect logo to user profile ---
 function setupHeaderLogoRedirect() {
     const logo = document.querySelector('.header-logo');
     if (!logo) return;
 
-    logo.style.cursor = 'pointer'; // optional: show pointer on hover
+    logo.style.cursor = 'pointer';
     logo.onclick = () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
-            alert("You must be logged in to view your profile."); 
+            alert('You must be logged in to view your profile.');
             return;
         }
-        const userId = currentUser.uid;
-        window.location.href = `../user/?uid=${userId}`;
+        window.location.href = `../user/?uid=${currentUser.uid}`;
     };
 }

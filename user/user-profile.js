@@ -292,13 +292,16 @@ async function fetchPage() {
       return { doc: itemDoc, status: doc.data().status }; 
     }));
 
-    lastFetchedItems = detailedItems.filter(Boolean);
+    // --- FILTER NSFW ON LOAD ---
+    lastFetchedItems = detailedItems.filter(Boolean).filter(canViewItem);
+
     applySortAndFilter();
   } catch (err) {
     console.error(err);
     loadingStatus.textContent = `Error loading collection: ${err.message}`;
   }
 }
+
 
 
 
@@ -410,16 +413,17 @@ async function handleProfileSearch() {
 
     const keywords = queryText.split(/\s+/);
 
-    const filtered = lastFetchedItems.filter(item => {
+    const filtered = lastFetchedItems
+      .filter(canViewItem) // <-- NSFW filter
+      .filter(item => {
         const data = item.doc.data();
         const searchable = [
-            data.itemName || '',
-            (data.tags || []).join(' '),
-            data.itemCategory || '',
-            data.itemScale || '',
-            data.itemAgeRating || ''
+          data.itemName || '',
+          (data.tags || []).join(' '),
+          data.itemCategory || '',
+          data.itemScale || '',
+          data.itemAgeRating || ''
         ].join(' ').toLowerCase();
-
         return keywords.every(kw => searchable.includes(kw));
     });
 
@@ -1066,4 +1070,12 @@ function setupHeaderLogoRedirect() {
         const userId = currentUser.uid;
         window.location.href = `../user/?uid=${userId}`;
     };
+}
+
+function canViewItem(item) {
+  const currentUser = auth.currentUser;
+  const allowNSFW = currentUser?.allowNSFW ?? false;
+  const ageRating = item.doc.data().itemAgeRating;
+  // Hide "18+" if not logged in or allowNSFW is false
+  return !(ageRating === "18+" && (!currentUser || allowNSFW === false));
 }

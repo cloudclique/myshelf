@@ -243,7 +243,7 @@ async function renderStatusButtons() {
       document.querySelectorAll('.status-tab').forEach(btn => btn.classList.remove('active'));
       button.classList.add('active');
       fetchProfileItems(status);
-      renderPageItems(items)
+      renderPageItems((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
       updateURLHash();
     };
     statusFilters.appendChild(button);

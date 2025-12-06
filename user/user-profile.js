@@ -322,42 +322,23 @@ function renderProfileItem(doc, status) {
   card.className = 'item-card';
   card.setAttribute('data-status', status.toLowerCase());
 
-  // Determine if the item is NSFW
-  const isNSFW = item.itemAgeRating === '18+' && !allowNSFW;
-  if (isNSFW) {
-      link.classList.add('blurred'); // make the card unclickable
-      link.href = 'javascript:void(0)'; // disable navigation
-  }
-
-  // Image setup
+  // *** MODIFIED LOGIC START: Access the 'url' field of the first object in itemImageUrls ***
   let imageSrc = (item.itemImageUrls && item.itemImageUrls[0] && item.itemImageUrls[0].url) || DEFAULT_IMAGE_URL;
+
   const imageWrapper = document.createElement('div');
   imageWrapper.className = 'item-image-wrapper';
-  
   const img = document.createElement('img');
   img.src = imageSrc;
   img.alt = item.itemName;
   img.className = 'item-image';
-  
+
   const horAlign = (item['img-align-hor'] || 'center').toLowerCase();
   const verAlign = (item['img-align-ver'] || 'center').toLowerCase();
-  img.classList.add(`img-align-hor-${['left','center','right'].includes(horAlign)?horAlign:'center'}`);
-  img.classList.add(`img-align-ver-${['top','center','bottom'].includes(verAlign)?verAlign:'center'}`);
-  
-  // Apply blur if NSFW
-  if (isNSFW) img.classList.add('blurred');
+  img.classList.add(`img-align-hor-${['left', 'center', 'right'].includes(horAlign) ? horAlign : 'center'}`);
+  img.classList.add(`img-align-ver-${['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'}`);
 
   imageWrapper.appendChild(img);
 
-  // Optional: overlay label for NSFW items
-  if (isNSFW) {
-      const overlay = document.createElement('div');
-      overlay.className = 'nsfw-overlay';
-      overlay.textContent = '18+ Content';
-      imageWrapper.appendChild(overlay);
-  }
-
-  // Info
   const info = document.createElement('div');
   info.className = 'item-info';
   const title = document.createElement('h3');
@@ -390,7 +371,6 @@ function renderProfileItem(doc, status) {
   link.appendChild(card);
   return link;
 }
-
 
 // --- Pagination ---
 function renderPaginationButtons() {

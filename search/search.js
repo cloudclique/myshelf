@@ -50,15 +50,9 @@ function createItemCard(itemData) {
         ['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'
     }`;
 
-    // Apply blur if item is 18+ and NSFW not allowed
-    const isNSFW = itemData.itemAgeRating === '18+' && !allowNSFW;
-    const finalImageClasses = isNSFW ? imageClasses + ' blurred' : imageClasses;
-
-    if (isNSFW) link.classList.add('blurred'); // make the entire card unclickable
-
     card.innerHTML = `
         <div class="item-image-wrapper">
-            <img src="${imageSource}" alt="${itemData.itemName}" class="${finalImageClasses}">
+            <img src="${imageSource}" alt="${itemData.itemName}" class="${imageClasses}">
         </div>
         <div class="item-info">
             <h3>${itemData.itemName || 'Untitled'}</h3>

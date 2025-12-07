@@ -124,6 +124,13 @@ function getGalleryCollectionRef() {
     return db.collection('artifacts').doc(appId).collection('gallery');
 }
 
+function canViewItem(item) {
+  const currentUser = auth.currentUser;
+  const allowNSFW = currentUser?.allowNSFW ?? false;
+  const ageRating = item.doc.data().itemAgeRating;
+  // Hide "18+" if not logged in or allowNSFW is false
+  return !(ageRating === "18+" && (!currentUser || allowNSFW === false));
+}
 
 async function fetchUsername(userId) {
     if (!userId) return 'Unknown User';
@@ -1072,10 +1079,3 @@ function setupHeaderLogoRedirect() {
     };
 }
 
-function canViewItem(item) {
-  const currentUser = auth.currentUser;
-  const allowNSFW = currentUser?.allowNSFW ?? false;
-  const ageRating = item.doc.data().itemAgeRating;
-  // Hide "18+" if not logged in or allowNSFW is false
-  return !(ageRating === "18+" && (!currentUser || allowNSFW === false));
-}

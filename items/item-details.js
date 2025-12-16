@@ -1,5 +1,5 @@
 import { auth, db, collectionName } from '../firebase-config.js';
-import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, itemimage } from '../utils.js';
+import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS} from '../utils.js';
 
 // --- Constants ---
 const VERTICAL_ALIGN_OPTIONS = ['top', 'center', 'bottom'];
@@ -228,7 +228,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- Image Upload ---
-const IMGBB_UPLOAD_URL = `https://api.imgbb.com/1/upload?key=${itemimage}`;
+// MODIFIED: Use the Cloudflare Worker URL
+const IMGBB_UPLOAD_URL = `https://imgbbapi.stanislav-zhukov.workers.dev/`;
 
 /**
  * Converts an image File to a WebP Blob.
@@ -267,11 +268,13 @@ async function uploadImageToImgBB(imageFile) {
         const webpBlob = await convertImageToWebP(imageFile);
 
         const formData = new FormData();
+        // The Cloudflare worker expects the file under the 'image' key
         formData.append("image", webpBlob, "converted.webp");
 
         const response = await fetch(IMGBB_UPLOAD_URL, {
             method: "POST",
             body: formData
+            // The ImgBB API Key is handled by the Cloudflare Worker, so we don't need to append it here.
         });
 
         if (!response.ok) {
@@ -287,6 +290,7 @@ async function uploadImageToImgBB(imageFile) {
 
         const data = await response.json();
 
+        // The Cloudflare Worker should return the ImgBB response structure
         return {
             url: data.data.url,
             deleteUrl: data.data.delete_url

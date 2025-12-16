@@ -1,5 +1,5 @@
 import { auth, db } from '../firebase-config.js';
-import {Messimages} from '../utils.js';
+// import {Messimages} from '../utils.js'; // REMOVED: Key is now in Cloudflare Worker
 
 // --- DOM Elements ---
 
@@ -91,30 +91,45 @@ async function processImage(file, maxSizeMB = 1) {
     });
 }
 
+// --- MODIFIED: UPLOAD FUNCTION NOW TARGETS CLOUDFLARE WORKER ---
 async function uploadImageToImgBB(file) {
     try {
         const processedBlob = await processImage(file, 1); // 1MB max
         const formData = new FormData();
+        
+        // Append the processed image. The Worker will add the API key.
         formData.append('image', processedBlob, file.name.replace(/\.\w+$/, '.webp'));
-        formData.append('key', Messimages);
+        
+        // REMOVED: formData.append('key', Messimages);
 
-        const response = await fetch('https://api.imgbb.com/1/upload', {
+        // Fetch the Cloudflare Worker endpoint (adjust URL if needed)
+        const response = await fetch('https://imgbbapi.stanislav-zhukov.workers.dev/', { 
             method: 'POST',
             body: formData,
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
+            // Attempt to parse the error response from the worker/ImgBB
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch (e) {
+                // If it's not JSON, use status text
+                throw new Error(`Upload failed: ${response.statusText}`);
+            }
+            // Use the error message from the proxied ImgBB response
             throw new Error(`Upload failed: ${errorData.error?.message || response.statusText}`);
         }
 
         const data = await response.json();
+        // The worker proxies the result, so we still expect data.data.url
         return data.data.url;
     } catch (error) {
         console.error("Error uploading image:", error);
-        throw new Error("Image upload service failed.");
+        throw new Error("Image upload service failed. Check network or Cloudflare Worker setup.");
     }
 }
+// -----------------------------------------------------------------
 
 
 window.openLightbox = function(url) {
@@ -144,6 +159,7 @@ function renderMessage(message) {
         contentHtml += '<div class="message-images">';
         message.imageUrls.forEach(url => {
             const placeholder = `https://placehold.co/100x100/000000/FFFFFF?text=IMG`;
+            // Added data-original-url for the lightbox click listener
             contentHtml += `<img src="${url}" data-original-url="${url}" alt="User image" loading="lazy" class="chat-image" onerror="this.onerror=null;this.src='${placeholder}';" style="max-width: 100px; max-height: 100px;">`;
         });
         contentHtml += '</div>';
@@ -172,6 +188,7 @@ imageUpload.onchange = function() {
 
     if (files.length > MAX_IMAGES) {
         filesToUse = files.slice(0, MAX_IMAGES);
+        // Reset the file input to only include the first MAX_IMAGES
         const dataTransfer = new DataTransfer();
         filesToUse.forEach(file => dataTransfer.items.add(file));
         imageUpload.files = dataTransfer.files;
@@ -206,7 +223,7 @@ imagePreviewContainer.onclick = function(e) {
             }
         });
         imageUpload.files = dataTransfer.files;
-        imageUpload.dispatchEvent(new Event('change')); 
+        imageUpload.dispatchEvent(new Event('change')); // Trigger change to update previews/button state
     }
 };
 
@@ -318,8 +335,10 @@ function startChat(userId, username) {
     messageInput.disabled = false;
     sendMessageBtn.disabled = false;
     
+    // Highlight the active chat item
     document.querySelectorAll('.chat-item').forEach(item => item.classList.remove('active'));
     Array.from(userList.children).forEach(el => {
+        // This is a crude way to check, relying on the username in the inner HTML
         if (el.querySelector('div')?.textContent.includes(username)) { 
             el.classList.add('active');
         }
@@ -341,6 +360,7 @@ function listenForMessages(targetUserId) {
                 messageList.innerHTML = `<p style="text-align: center; opacity: 0.6;">Start a conversation with ${currentChatUsername}!</p>`;
                 return;
             }
+            // Reverse to display chronologically from bottom up (since we are using flex-direction: column-reverse)
             snapshot.docs.reverse().forEach(doc => {
                  renderMessage(doc.data());
             });
@@ -367,17 +387,19 @@ async function sendMessage() {
     let failedUploads = 0;
 
     try {
+        // Upload all images concurrently
         const uploadPromises = files.map(file => uploadImageToImgBB(file).catch(e => {
             console.error(`Failed to upload file ${file.name}:`, e);
             failedUploads++;
-            return null;
+            return null; // Return null for failed uploads
         }));
         
         const results = await Promise.all(uploadPromises);
-        imageUrls = results.filter(url => url !== null);
+        imageUrls = results.filter(url => url !== null); // Filter out failed uploads
 
         if (files.length > 0 && imageUrls.length === 0) {
-            throw new Error("All images failed to upload. Please check your network or API key.");
+            // If the user only sent images and all of them failed
+            throw new Error("All images failed to upload. Please check your network or Worker endpoint.");
         }
         
         if (failedUploads > 0) {
@@ -386,32 +408,41 @@ async function sendMessage() {
 
         const chatId = getChatId(currentUserId, currentChatUserId);
         const chatDocRef = getChatRef(chatId);
+        // Use firebase.firestore.FieldValue.serverTimestamp() for reliable time
         const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+        // Determine message text content
         const messageText = text || (imageUrls.length > 0 ? `[${imageUrls.length} image(s) sent]` : '');
 
         const message = {
             senderId: currentUserId,
             text: messageText,
             timestamp: timestamp,
+            // Only include imageUrls if there are any successful uploads
             ...(imageUrls.length > 0 && { imageUrls: imageUrls }) 
         };
 
+        // 1. Add the message to the chat's message collection
         await chatDocRef.collection('messages').add(message);
+        
+        // 2. Update the parent chat document with the last message summary
         await chatDocRef.set({
             lastMessage: messageText,
             lastSent: timestamp,
             users: [currentUserId, currentChatUserId],
+            // Update last image data for contact list preview (optional, but good)
             ...(imageUrls.length > 0 && { imageUrls: imageUrls }) 
         }, { merge: true });
 
+        // Clear input fields and reset state
         messageInput.value = '';
-        imageUpload.value = null;
+        imageUpload.value = null; // Clear file input
         imagePreviewContainer.innerHTML = '';
-        fetchUserContacts(); 
+        fetchUserContacts(); // Refresh contact list to show the new message
 
     } catch (e) {
         console.error("Error sending message:", e);
         const errorMessage = e.message || "Failed to send message. Check console for details.";
+        // Simple error modal for user feedback
         const alertModal = document.createElement('div');
         alertModal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; background: white; border: 2px solid #f44336; z-index: 1000; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
         alertModal.innerHTML = `<p style="color: #f44336; font-weight: bold;">Error Sending Message</p><p>${errorMessage}</p><button onclick="this.parentNode.remove()" style="margin-top: 10px; padding: 5px 10px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>`;
@@ -421,6 +452,7 @@ async function sendMessage() {
         sendMessageBtn.textContent = originalBtnText;
         messageInput.disabled = false;
         imageUpload.disabled = false;
+        // Re-check button state based on current input values
         sendMessageBtn.disabled = !(messageInput.value.trim() || imageUpload.files.length > 0);
     }
 }
@@ -431,6 +463,7 @@ messageInput.onkeypress = (e) => {
     if (e.key === 'Enter' && !(messageInput.disabled || sendMessageBtn.disabled)) sendMessage();
 };
 
+// Event listener for opening the lightbox when clicking an image
 messageList.addEventListener('click', (e) => {
     if (e.target.tagName === 'IMG') {
         const url = e.target.getAttribute('data-original-url');
@@ -438,6 +471,7 @@ messageList.addEventListener('click', (e) => {
     }
 });
 
+// Event listener for closing the lightbox with the Escape key
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && lightboxOverlay.classList.contains('active')) {
         closeLightbox();
@@ -452,14 +486,16 @@ auth.onAuthStateChanged(async (user) => {
         headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
         document.getElementById('logoutBtn').onclick = () => auth.signOut().catch(console.error);
         await fetchUserContacts();
+        // Handle direct chat link from URL parameter
         const targetChatUserId = getChatTargetFromUrl();
         if (targetChatUserId) {
             setTimeout(async () => {
                 const username = await fetchUsername(targetChatUserId);
                 startChat(targetChatUserId, username);
-            }, 300);
+            }, 300); // Small delay to ensure contacts are loaded first
         }
     } else {
+        // User is logged out
         currentUserId = null;
         if (messageListener) messageListener();
         currentChatUserId = null;
@@ -494,7 +530,7 @@ function setupHeaderLogoRedirect() {
     const logo = document.querySelector('.header-logo');
     if (!logo) return;
 
-    logo.style.cursor = 'pointer'; // optional: show pointer on hover
+    logo.style.cursor = 'pointer'; 
     logo.onclick = () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {

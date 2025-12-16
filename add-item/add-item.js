@@ -1,5 +1,5 @@
 import { auth, db, collectionName } from '../firebase-config.js';
-import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64, itemimage } from '../utils.js';
+import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64,} from '../utils.js';
 
 // --- 1. Constants & DOM ---
 const itemsCollectionName = collectionName;
@@ -156,7 +156,9 @@ async function convertFileToWebp(file) {
 }
 
 // --- 4. Multi-Image Upload & Preview Logic ---
-const IMGBB_UPLOAD_URL = `https://api.imgbb.com/1/upload?key=${itemimage}`;
+// CHANGED: Use the Cloudflare Worker proxy URL instead of the direct imgBB API with the exposed key.
+const IMGBB_UPLOAD_URL = 'https://imgbbapi.stanislav-zhukov.workers.dev/'; 
+
 /**
  * @param {File} file The file object to upload.
  * @returns {Promise<{url: string, deleteUrl: string}>} The direct URL and delete URL of the uploaded image.
@@ -170,8 +172,11 @@ async function uploadImageToImgbb(file) {
     const webpFile = await convertFileToWebp(file);
 
     const formData = new FormData();
+    // The Cloudflare Worker is expected to receive 'image' in the POST body, 
+    // which it then forwards to the real ImgBB API.
     formData.append('image', webpFile);
 
+    // CHANGED: fetch call uses the new IMGBB_UPLOAD_URL (the Worker proxy)
     const response = await fetch(IMGBB_UPLOAD_URL, {
         method: 'POST',
         body: formData
@@ -180,7 +185,9 @@ async function uploadImageToImgbb(file) {
     const result = await response.json();
 
     if (!result.success) {
-        throw new Error(result.error?.message || "Failed to upload image");
+        // The worker should return the error structure from ImgBB.
+        const errorMessage = result.error?.message || `Failed to upload image. Status: ${response.status}`;
+        throw new Error(errorMessage);
     }
 
     return {

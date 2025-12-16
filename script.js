@@ -1,5 +1,7 @@
 import { db, auth } from "./firebase-config.js";
-import {Gallery_Log} from './utils.js';
+// --- NEW: Cloudflare Worker Endpoint ---
+const IMGBB_CLOUDFLARE_WORKER_URL = "https://imgbbapi.stanislav-zhukov.workers.dev/"; 
+// ---------------------------------------
 
 // DOM Elements
 const gallery = document.getElementById("gallery");
@@ -267,10 +269,14 @@ uploadBtn.addEventListener("click", async () => {
         const formData = new FormData();
         formData.append("image", file);
 
-        const response = await fetch(`https://api.imgbb.com/1/upload?key=${Gallery_Log}`, {
+        // --- Implementation of the requested change ---
+        // Fetch call now uses the Cloudflare Worker proxy endpoint.
+        const response = await fetch(IMGBB_CLOUDFLARE_WORKER_URL, {
             method: "POST",
             body: formData
         });
+        // Original line was: const response = await fetch(`https://api.imgbb.com/1/upload?key=${Gallery_Log}`, {
+        // ------------------------------------------------
 
         const data = await response.json();
         if (!data.success) throw new Error("upload failed");

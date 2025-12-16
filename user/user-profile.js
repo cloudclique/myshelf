@@ -381,7 +381,7 @@ function renderPaginationButtons() {
   if (totalItems <= ITEMS_PER_PAGE) return;
 
   const prevBtn = document.createElement('button');
-  prevBtn.textContent = 'Previous';
+  prevBtn.textContent = '\uF22D';
   prevBtn.className = 'action-btn';
   prevBtn.disabled = currentPage === 1;
   prevBtn.onclick = () => { currentPage--; applySortAndFilter(); updateURLHash(); };
@@ -393,7 +393,7 @@ function renderPaginationButtons() {
   paginationContainer.appendChild(pageIndicator);
 
   const nextBtn = document.createElement('button');
-  nextBtn.textContent = 'Next';
+  nextBtn.textContent = '\uF231';
   nextBtn.className = 'action-btn';
   nextBtn.disabled = (currentPage * ITEMS_PER_PAGE >= totalItems);
   nextBtn.onclick = () => { currentPage++; applySortAndFilter(); updateURLHash(); };
@@ -727,14 +727,14 @@ function renderCommentPagination(profileUserId) {
   const prevBtn = document.createElement('button');
   prevBtn.style.margin = '20px';
   prevBtn.className = 'action-btn';
-  prevBtn.textContent = 'Previous';
+  prevBtn.textContent = '\uF22D';
   prevBtn.disabled = commentsCurrentPage === 1;
   prevBtn.onclick = () => { commentsCurrentPage--; loadComments(profileUserId); };
 
   const nextBtn = document.createElement('button');
   nextBtn.style.margin = '20px';
   nextBtn.className = 'action-btn';
-  nextBtn.textContent = 'Next';
+  nextBtn.textContent = '\uF231';
   nextBtn.disabled = pageCursors.length <= commentsCurrentPage;
   nextBtn.onclick = () => { commentsCurrentPage++; loadComments(profileUserId); };
 
@@ -803,7 +803,7 @@ function customizeHeaderForOwner() {
     
     if (isProfileOwner) {
             // Change 'Message User' button to 'User Settings'
-            openChatBtn.textContent = 'User Settings';
+            openChatBtn.textContent = '\uF3E2';
             openChatBtn.onclick = () => {
                 // ⬇️ Replace the placeholder alert with the actual redirect ⬇️
                 window.location.href = '../settings';
@@ -814,7 +814,7 @@ function customizeHeaderForOwner() {
 
     } else {
         // If not the owner, keep it as 'Message User' and set up the chat function
-        openChatBtn.textContent = 'Message User';
+        openChatBtn.textContent = '\uF32C';
         openChatBtn.onclick = () => startChatWithUser();
     }
 }

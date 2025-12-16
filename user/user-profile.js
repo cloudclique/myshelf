@@ -381,7 +381,7 @@ function renderPaginationButtons() {
   if (totalItems <= ITEMS_PER_PAGE) return;
 
   const prevBtn = document.createElement('button');
-  prevBtn.textContent = '<i class="bi bi-caret-left-fill"></i>';
+  prevBtn.textContent = <i class="bi bi-caret-left-fill"></i>;
   prevBtn.className = 'action-btn';
   prevBtn.disabled = currentPage === 1;
   prevBtn.onclick = () => { currentPage--; applySortAndFilter(); updateURLHash(); };
@@ -393,7 +393,7 @@ function renderPaginationButtons() {
   paginationContainer.appendChild(pageIndicator);
 
   const nextBtn = document.createElement('button');
-  nextBtn.textContent = '<i class="bi bi-caret-right-fill"></i>';
+  nextBtn.textContent = <i class="bi bi-caret-right-fill"></i>;
   nextBtn.className = 'action-btn';
   nextBtn.disabled = (currentPage * ITEMS_PER_PAGE >= totalItems);
   nextBtn.onclick = () => { currentPage++; applySortAndFilter(); updateURLHash(); };
@@ -727,14 +727,14 @@ function renderCommentPagination(profileUserId) {
   const prevBtn = document.createElement('button');
   prevBtn.style.margin = '20px';
   prevBtn.className = 'action-btn';
-  prevBtn.textContent = '<i class="bi bi-caret-left-fill"></i>';
+  prevBtn.textContent = <i class="bi bi-caret-left-fill"></i>;
   prevBtn.disabled = commentsCurrentPage === 1;
   prevBtn.onclick = () => { commentsCurrentPage--; loadComments(profileUserId); };
 
   const nextBtn = document.createElement('button');
   nextBtn.style.margin = '20px';
   nextBtn.className = 'action-btn';
-  nextBtn.textContent = '<i class="bi bi-caret-right-fill"></i>';
+  nextBtn.textContent = <i class="bi bi-caret-right-fill"></i>;
   nextBtn.disabled = pageCursors.length <= commentsCurrentPage;
   nextBtn.onclick = () => { commentsCurrentPage++; loadComments(profileUserId); };
 
@@ -803,7 +803,7 @@ function customizeHeaderForOwner() {
     
     if (isProfileOwner) {
             // Change 'Message User' button to 'User Settings'
-            openChatBtn.textContent = '<i class="bi bi-gear-fill"></i>';
+            openChatBtn.textContent = <i class="bi bi-gear-fill"></i>;
             openChatBtn.onclick = () => {
                 // ⬇️ Replace the placeholder alert with the actual redirect ⬇️
                 window.location.href = '../settings';

@@ -21,7 +21,7 @@
     --mbl-scrn: 768px;
 }
 
-#profileTitle {
+h1 {
     font-family: "BBH Bogle", sans-serif;
     font-size: 32px;
     width: 100%;

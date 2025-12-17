@@ -779,14 +779,14 @@ function updateHeaderAuthButton(user) {
     if (user) {
         btn.textContent = 'Logout';
         btn.onclick = async () => { try { await auth.signOut(); } catch (err) { console.error(err); } };
-        addCommentBox.style.display = 'block';
+        addCommentBox.style.display = 'flex';
         loginToCommentMsg.style.display = 'none';
     } else {
         btn.className = 'login-btn';
         btn.textContent = 'Login';
         btn.onclick = () => { window.location.href = '../login'; };
         addCommentBox.style.display = 'none';
-        loginToCommentMsg.style.display = 'block';
+        loginToCommentMsg.style.display = 'flex';
     }
 
     headerTools.appendChild(btn);

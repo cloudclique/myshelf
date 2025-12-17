@@ -17,22 +17,26 @@
     --status-ordered-bg: #007bff; /* Blue */
     --status-remove-bg: #6c757d; /* Gray */
 
-    --border-radius: 10px
+    --border-radius: 10px;
+    --mbl-scrn: 768px;
 }
 
 #profileTitle {
     font-family: "BBH Bogle", sans-serif;
     font-size: 32px;
+    width: 100%;
+    line-height: 1;
 }
 
 /* --- Base Styles --- */
 body {
-    font-family: Monospace, Arial, sans-serif;
+    font-family: "Funnel Sans",Monospace, Arial, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-color);
     margin: 0;
     padding: 0;
     line-height: 1.6;
+    font-size: clamp(14px, 1.5vw, 16px);
 }
 
 * {
@@ -49,11 +53,22 @@ body {
     border-bottom: 1px solid var(--border-color);
 }
 
+.menu-btns {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    width: 100%;
+}
+
 .header-logo {
     font-weight: bold;
     font-size: 1.2em;
     color: var(--text-color);
     text-decoration: none;
+}
+
+.header-logo img{
+    height: 30px;
 }
 
 .header-nav a {
@@ -62,6 +77,26 @@ body {
     margin-left: 20px;
     padding: 5px 0;
     transition: color 0.2s;
+}
+
+
+
+@media (max-width: 768px) {
+    .header-nav a {
+        color: rgba(0, 0, 0, 0);
+        text-decoration: none;
+        margin-left: 20px;
+        padding: 5px 0;
+        transition: color 0.2s;
+        font-size:0px;
+    }
+}
+
+@media (max-width: 768px){
+    .header-nav a i {
+        color: var(--text-color-reverse);
+        font-size: 20px;
+    }
 }
 
 .header-nav a:hover {
@@ -110,8 +145,8 @@ body {
     background-color: var(--section-bg);
     padding: 20px;
     border-radius: 8px;
-    margin-bottom: 20px;
     box-shadow: 0 4px 8px var(--drop-shadow-clr);
+    min-width: 70%;
 }
 
 .section-header {
@@ -251,11 +286,10 @@ body {
 .status-tabs {
     display: flex;
     gap: 10px;
-    margin-bottom: 20px;
 }
 
 .status-tabs button {
-    width: 100px;
+    max-width: 100px;
     padding: 10px 15px;
     border: 1px solid var(--border-color);
     border-radius: 5px;
@@ -281,6 +315,15 @@ body {
     padding: 10px 0;
     justify-content: center; /* Center the grid items if the last row is incomplete */
 }
+
+@media (max-width: 500px){
+    .item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, 23%);
+    gap: 5px;
+    padding: 10px 0;
+    justify-content: center; 
+}}
 
 .item-image-wrapper {
     width: 100%;
@@ -863,18 +906,6 @@ body {
         width: 70%;
     }
 
-/* Responsive: reduce columns on smaller screens */
-/*@media (max-width: 1000px) {
-/*    .item-grid {
-/*        grid-template-columns: repeat(5, 1fr); /* 5 images per row */
-/*    }
-/*}
-/*@media (max-width: 600px) {
-/*    .item-grid {
-/*        grid-template-columns: repeat(3, 1fr); /* 3 images per row */
-/*    }
-/*}
-
 /* Responsive adjustments for controls bar */
 @media (max-width: 600px) {
     .controls-bar {
@@ -1312,7 +1343,18 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: -20px;
+    flex-wrap: wrap;
+    container-type: inline-size;
+}
+
+
+.profile-cntrl-btns {
+    display: flex;
+    gap: 5px;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap-reverse;
+    width: 100%;
 }
 
 
@@ -1799,6 +1841,12 @@ body {
     margin-bottom: 12px;
 }
 
+@media (max-width: 600px) {
+.user-card .user-uid {
+    display: none;
+}
+}
+
 .user-card-left {
     flex-shrink: 0;
 }
@@ -2000,6 +2048,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 
+
 /* Custom CSS for a better layout and image grid */
 
 .upload-container { 
@@ -2015,8 +2064,15 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 #gallery {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 202px)); /* Responsive grid */
+    grid-template-columns: repeat(auto-fit, minmax(auto, 200px)); /* Responsive grid */
     gap: 10px;
+}
+
+@media (max-width: 600px) {
+    #gallery {
+        grid-template-columns: repeat(auto-fit, minmax(auto, 48%)); /* Adjust for smaller screens */
+        justify-content: center;
+    }
 }
 
 #gallery img {
@@ -2065,7 +2121,6 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
             background-color: var(--section-bg);
             border-radius: 8px;
             box-shadow: 0 0px 5px var(--drop-shadow-clr);
-            margin-top: 20px;
         }
 
         .user-gallery-preview h2 {
@@ -2082,6 +2137,16 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
             grid-template-columns: repeat(2, 1fr);
             gap: 10px;
             margin-bottom: 15px;
+        }
+
+        @media screen and (max-width: 768px) {
+            
+        .preview-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+            }
         }
 
         /* Link container for the thumbnail, ensures it's square */
@@ -2117,12 +2182,6 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
             font-size: 1em;
         }
 
-        /* Responsive adjustment: 2x2 grid on smaller screens */
-        @media (max-width: 768px) {
-            .preview-grid {
-                grid-template-columns: repeat(2, 1fr); 
-            }
-        }
 
 
 
@@ -2139,6 +2198,16 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     gap: 20px;
 }
 
+.user-controlls {
+    overflow: hidden;
+    clear: both;
+    max-width: 1280px;
+    margin: auto;
+    padding: 16px 8px;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
 .gallery-page-wrapper {
     overflow: hidden;
     clear: both;
@@ -2151,12 +2220,13 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 .item-header{
     display: flex;
-    flex-flow: row nowrap;
+    flex-flow: row wrap;
     justify-content: space-between;
     align-items: center;
     max-width: 1280px;
     padding: 10px;
     margin: auto;
+    gap: 10px;
 }
 
 .item-title {
@@ -2213,7 +2283,21 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 .main-column {
-    width: 70%;
+    width: 100%;
+    display: grid;
+    grid-template-columns: 3fr 1fr;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+@media (max-width: 768px) {
+    .main-column {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: flex-start;
+    }
 }
 
 .block-row {

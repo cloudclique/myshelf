@@ -60,7 +60,7 @@ function createUserCard(user, container, isPinned = false) {
             <p class="username">
                 <strong>${user.username || "Unknown User"}${isPinned ? " (You)" : ""}</strong>
             </p>
-            <p><strong>UID:</strong> <span class="text-xs break-all">${user.uid}</span></p>
+            <p class="user-uid"><strong>UID:</strong> <span class="text-xs break-all">${user.uid}</span></p>
             <p><strong>Joined:</strong> ${createdAt}</p>
             <p><strong>Owned Items:</strong> ${ownedCount}</p>
         </div>

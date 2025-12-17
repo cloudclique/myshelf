@@ -6,16 +6,22 @@
     <title id="itemNamePlaceholder">Loading Item...</title>
     <link rel="stylesheet" href="../style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
 </head>
 <body>
     <header class="main-header">
-        <nav class="header-nav">
-            <a class="header-logo">MyShelf</a>
-            <a href="../">Gallery</a>
-            <a href="../profiles/">Community</a>
-            <a href="../search/">Database</a>
-            <a href="../chat/" class="active"><i class="bi bi-envelope-fill"></i></a>
-        </nav>
+        <div class="menu-btns"="display: flex; align-items: center; flex-wrap:wrap;">
+            <a class="header-logo"><img src="https://github.com/cloudclique/myshelf/blob/main/myshelf_logo_logo_color_2-11.png?raw=true" alt="MyShelf"></a>
+            <nav class="header-nav" style="display: flex; align-items: center; flex-wrap:nowrap;">            
+                <a href="../"><i class="bi bi-images"></i> Gallery</a>
+                <a href="../profiles/"><i class="bi bi-people-fill"></i> Community</a>
+                <a href="../search/"><i class="bi bi-calendar3"></i> Database</a>
+                <a href="../chat/" class="active"><i class="bi bi-envelope-fill"></i></a>           
+            </nav>
+        </div>
         <div class="header-tools" id="headerTools"></div>
     </header>
 

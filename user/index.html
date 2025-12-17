@@ -3,27 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Profile - Collection Status</title>
+    <title>User Profile - Collection Status</title>  
     <link rel="stylesheet" href="../style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
 </head>
 <body>
-
-
-
-
     <header class="main-header">
-        <nav class="header-nav">
-            <a class="header-logo">MyShelf</a>
-            <a href="../">Gallery</a>
-            <a href="../profiles/">Community</a>
-            <a href="../search/">Database</a>
-            <a href="../chat/" class="active"><i class="bi bi-envelope-fill"></i></a>
-            
-        </nav>
+        <div class="menu-btns"="display: flex; align-items: center; flex-wrap:wrap;">
+            <a class="header-logo"><img src="https://github.com/cloudclique/myshelf/blob/main/myshelf_logo_logo_color_2-11.png?raw=true" alt="MyShelf"></a>
+            <nav class="header-nav" style="display: flex; align-items: center; flex-wrap:nowrap;">            
+                <a href="../"><i class="bi bi-images"></i> Gallery</a>
+                <a href="../profiles/"><i class="bi bi-people-fill"></i> Community</a>
+                <a href="../search/"><i class="bi bi-calendar3"></i> Database</a>
+                <a href="../chat/" class="active"><i class="bi bi-envelope-fill"></i></a>           
+            </nav>
+        </div>
         <div class="header-tools" id="headerTools"></div>
     </header>
 
@@ -37,6 +35,21 @@
             </div>
             </div>
 
+        <div class="user-controlls">
+            <div class="profile-banner-container">
+                <img id="profileBanner" src="https://placehold.co/1000x200/555/eee?text=User+Profile+Banner" alt="User Profile Banner">
+            </div>
+
+            <div class="status-alignment">
+                <h1 id="profileTitle">User Profile</h1> 
+                <div class="profile-cntrl-btns">
+                    <section class="profile-header">        
+                        <div id="statusFilters" class="status-tabs"></div>
+                    </section>
+                    <button id="openChatBtn" class="action-btn">Message User</button>
+                </div>
+            </div>
+        </div>
 
     <div class="detail-page-wrapper">
 
@@ -45,18 +58,11 @@
             <p>Loading profile...</p>
         </div>
 
+
+
         <main class="main-column">
-            <div class="profile-banner-container">
-                <img id="profileBanner" src="https://placehold.co/1000x200/555/eee?text=User+Profile+Banner" alt="User Profile Banner">
-            </div>
-            <div class="status-alignment">
-                <section class="profile-header">
-                    <h1 id="profileTitle">User Profile</h1> 
-                    
-                    <div id="statusFilters" class="status-tabs"></div>
-                </section>
-                <button id="openChatBtn" class="action-btn" style="margin-left: 15px;">Message User</button>
-                </div>
+
+
 
             <section class="item-section" >
                 <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">   
@@ -71,6 +77,12 @@
                 <div id="paginationContainer" class="pagination-container">
                 </div>
             </section>
+
+            <div id="userGalleryPreview" class="user-gallery-preview">
+                <h2>User Gallery</h2>
+                <div id="previewGrid" class="preview-grid"></div>
+                <button id="viewMoreGalleryBtn" class="action-btn">View More</button>
+            </div>
 
             <div id="commentsSection" class="item-section">
 
@@ -88,13 +100,9 @@
             <!-- Comment list -->
             <div id="commentsList" class="comments-list"></div>
             <div id="commentPagination"></div>  
+            </div>
+
         </main>
-        <div class="side-column">
-        <div id="userGalleryPreview" class="user-gallery-preview" style="margin-top: 320px;">
-            <h2>User Gallery</h2>
-            <div id="previewGrid" class="preview-grid"></div>
-            <button id="viewMoreGalleryBtn" class="action-btn">View More</button>
-        </div>
         </div>
     </div>
 

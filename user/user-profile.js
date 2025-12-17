@@ -803,7 +803,7 @@ function customizeHeaderForOwner() {
     
     if (isProfileOwner) {
             // Change 'Message User' button to 'User Settings'
-            openChatBtn.textContent = '\uF3E2';
+            openChatBtn.innerHTML = '<i class="bi bi-gear-fill"></i>';
             openChatBtn.onclick = () => {
                 // ⬇️ Replace the placeholder alert with the actual redirect ⬇️
                 window.location.href = '../settings';
@@ -814,7 +814,7 @@ function customizeHeaderForOwner() {
 
     } else {
         // If not the owner, keep it as 'Message User' and set up the chat function
-        openChatBtn.textContent = '\uF32C';
+        openChatBtn.innerHTML = '<i class="bi bi-chat-left-dots-fill"></i>';
         openChatBtn.onclick = () => startChatWithUser();
     }
 }

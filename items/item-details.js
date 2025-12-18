@@ -13,6 +13,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
 const itemNamePlaceholder = document.getElementById('itemNamePlaceholder');
 const itemNamePlaceholderTitle = document.getElementById('itemNamePlaceholderTitle');
 const itemDetailsContent = document.getElementById('itemDetailsContent');
+const nsfwCover = document.getElementById('nsfw-cover');
 const tagsBox = document.getElementById('tagsBox');
 const deleteContainer = document.getElementById('deleteContainer');
 const authMessage = document.getElementById('authMessage');
@@ -107,7 +108,7 @@ function closeConfirmationModal() {
 // NEW: Edit Modal Handlers
 function showEditModal() {
     if (editModal) {
-        editModal.style.display = 'block';
+        editModal.style.display = 'flex';
     }
 }
 
@@ -489,6 +490,39 @@ async function fetchItemDetails(id) {
 
         const itemData = itemDoc.data();
         itemData.id = itemDoc.id;
+
+        // --- NSFW CHECK START ---
+        const itemAgeRating = itemData.itemAgeRating || '';
+        if (itemAgeRating === '18+') {
+            let allowNSFW = false;
+            if (auth.currentUser) {
+                const userId = auth.currentUser.uid;
+                const profileRef = db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(userId);
+                const profileSnap = await profileRef.get();
+                if (profileSnap.exists) {
+                    allowNSFW = profileSnap.data().allowNSFW === true;
+                }
+            }
+
+            if (!allowNSFW) {
+                nsfwCover.innerHTML = `
+                    <div class="nsfw-blocked-message" style="padding: 40px; text-align: center; background: #222; border: 1px solid #444; height: 100%; width: 100%; position: absolute;">
+                        <h2 style="color: #ff4444; margin-bottom: 15px;">NSFW Content Hidden</h2>
+                        <p style="color: #ddd; line-height: 1.6;">You have disabled NSFW content in your user settings, if you like to view this item - go to settings on your profile page and enable NSFW content!</p>
+                        <button onclick="window.location.href='../user/?uid=${auth.currentUser ? auth.currentUser.uid : ''}'" class="action-btn primary-btn" style="margin-top: 20px;">Go to Profile</button>
+                    </div>
+                `;
+
+                itemDetailsContent.innerHTML = '';
+                // Hide other UI elements that might contain sensitive info
+                if (tagsBox) tagsBox.innerHTML = '';
+                if (deleteContainer) deleteContainer.innerHTML = '';
+                if (editToggleBtn) editToggleBtn.style.display = 'none';
+                return; // Stop execution
+            }
+        }
+        // --- NSFW CHECK END ---
+
         applyShopPermissions(itemData);
         
         // MODIFIED: Store the array of image objects or convert legacy URLs to objects
@@ -633,7 +667,7 @@ function renderItemDetails(item, userStatus) {
 // --- Edit Form ---
 function toggleEditForm() {
     // MODIFIED: Use the modal functions
-    if (editModal.style.display === 'block') {
+    if (editModal.style.display === 'flex') {
         closeEditModal();
         editToggleBtn.textContent = '✏️';
     } else {
@@ -1382,7 +1416,7 @@ function createShopElement(shopId, userId, domain, url, timestamp) {
         <div style="position:relative;">
             ${deleteButtonHtml}
             <span class="shop-author"></span>
-            <span style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
+            <span class="shop-timestamp" style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
         </div>
         <div class="shop-text"><a href="${url}" target="_blank">${domain}</a></div>
     `;
@@ -1471,7 +1505,7 @@ async function renderShops(itemId) {
                 <div style="position:relative;">
                     ${deleteButtonHtml}
                     <span class="shop-author"></span>
-                    <span style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
+                    <span class="shop-timestamp"style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
                 </div>
                 <div class="shop-text"><a href="${data.url}" target="_blank">${data.domain}</a></div>
             `;

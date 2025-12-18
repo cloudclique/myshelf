@@ -20,12 +20,16 @@
     --border-radius: 10px;
     --mbl-scrn: 768px;
 }
+.shop-timestamp {
+    display: none;
+}
 
 h1 {
-    font-family: "BBH Bogle", sans-serif;
+    font-family: "Funnel Sans", sans-serif;
     font-size: 32px;
     width: 100%;
-    line-height: 1;
+    line-height: 1.2;
+    font-weight: 800;
 }
 
 /* --- Base Styles --- */
@@ -68,7 +72,7 @@ body {
 }
 
 .header-logo img{
-    height: 30px;
+    max-height: 30px;
 }
 
 .header-nav a {
@@ -81,23 +85,7 @@ body {
 
 
 
-@media (max-width: 768px) {
-    .header-nav a {
-        color: rgba(0, 0, 0, 0);
-        text-decoration: none;
-        margin-left: 20px;
-        padding: 5px 0;
-        transition: color 0.2s;
-        font-size:0px;
-    }
-}
 
-@media (max-width: 768px){
-    .header-nav a i {
-        color: var(--text-color-reverse);
-        font-size: 20px;
-    }
-}
 
 .header-nav a:hover {
     color: var(--accent-color);
@@ -169,13 +157,6 @@ body {
     flex-grow: 1;
 }
 
-.item-title {
-    font-size: 1em;
-    margin: 0 0 5px 0;
-    white-space: wrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
 
 .item-manufacturer, .item-price {
     font-size: 0.8em;
@@ -252,9 +233,9 @@ body {
 
 .form-message {
     padding: 10px;
-    border-radius: 4px;
-    margin-top: 10px;
+    border-radius: 10px;
     text-align: center;
+    font-weight: bold;
 }
 
 .success-message {
@@ -316,14 +297,7 @@ body {
     justify-content: center; /* Center the grid items if the last row is incomplete */
 }
 
-@media (max-width: 500px){
-    .item-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, 23%);
-    gap: 5px;
-    padding: 10px 0;
-    justify-content: center; 
-}}
+
 
 .item-image-wrapper {
     width: 100%;
@@ -592,14 +566,6 @@ body {
 }
 
 
-/* --- Messages --- */
-.form-message {
-    padding: 10px;
-    margin-top: 15px;
-    border-radius: 6px;
-    font-weight: bold;
-}
-
 .info-message {
     background-color: rgba(0, 123, 255, 0.2);
     color: var(--accent-color);
@@ -726,14 +692,6 @@ body {
 .status-n\/a { background-color: var(--status-remove-bg); color: white; }
 
 
-/* --- Status Button Group Styling (NEW) --- */
-.status-buttons-group {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 10px;
-}
-
 .status-radio-btn {
     display: none; /* Hide the actual radio button */
 }
@@ -761,16 +719,12 @@ body {
 }
 
 /* Status Action Buttons */
-.status-actions {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 20px;
-}
 
 .save-status-btn {
     background-color: var(--accent-color);
     flex-grow: 1;
-    margin-right: 10px;
+    padding: 8px 15px;
+    font-size: 0.9em;
 }
 
 .remove-status-btn {
@@ -906,41 +860,18 @@ body {
         width: 70%;
     }
 
-/* Responsive adjustments for controls bar */
-@media (max-width: 600px) {
-    .controls-bar {
-        justify-content: space-between;
-        gap: 15px;
-    }
-    .control-group {
-        width: 100%; /* Make each group take full width */
-        justify-content: space-between;
-    }
-}
 
-/* Responsive adjustments for details page */
-@media (min-width: 800x) {
-    .item-details-display {
-        flex-direction: row;
-    }
-    .item-image-large {
-        width: 40%;
-        max-height: none;
-        margin-right: 0px;
-        margin-bottom: 0px;
-        
-
-    }
-    .item-metadata {
-        width: 60px;
-    }
-    .item-info-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
 
 /* --- Item Details Page Styling --- */
-
+.item-comments-section {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    background-color: var(--section-bg);
+    border-radius: 12px;
+    box-shadow: 0 0px 10px var(--drop-shadow-clr);
+    padding: 20px;
+}
 
 .item-details-display {
     display: flex;
@@ -950,8 +881,10 @@ body {
     border-radius: 12px;
     box-shadow: 0 0px 10px var(--drop-shadow-clr);
     padding: 20px;
-    margin-bottom: 30px;
 }
+
+
+
 
 .item-image-large {
     width: auto;
@@ -1048,10 +981,11 @@ body {
     background-color: var(--section-bg);
     padding: 10px 20px;
     border-radius: 8px;
-    margin-bottom: 20px;
     box-shadow: 0 2px 5px var(--drop-shadow-clr);
     flex-wrap: wrap; /* Allow wrapping on small screens */
     border: none;
+    width: 100%;
+    justify-content: space-between;
 }
 
 .status-header-label {
@@ -1065,7 +999,7 @@ body {
 /* Updated Status Button Group Styling */
 .status-buttons-group {
     display: flex;
-    gap: 10px;
+    gap: 30px;
     flex-wrap: wrap;
     margin: 0px;
 }
@@ -1078,15 +1012,15 @@ body {
     display: flex; 
     justify-content: center;
     align-items: center;
-    border-radius: 6px; 
-    
+    border-radius: 6px;  
     cursor: pointer;
     font-weight: bold;
     transition: background-color 0.2s, box-shadow 0.2s, color 0.2s;
     text-align: center;
     border: 2px solid transparent;
     color: var(--text-color);
-    background-color: var(--section-bg) /* Default inactive color */
+    background-color: var(--section-bg);
+    font-size: 1.2em;
 }
 
 .status-label .icon {
@@ -1119,13 +1053,7 @@ body {
 .status-actions {
     display: flex;
     gap: 10px;
-    /* Pushes action buttons to the right side of the flex container */
-    margin-left: auto; 
-}
-
-.save-status-btn {
-    padding: 8px 15px;
-    font-size: 0.9em;
+    justify-content: space-between;
 }
 
 .remove-status-btn {
@@ -1133,29 +1061,7 @@ body {
     font-size: 0.9em;
 }
 
-/* Responsive Adjustments */
-@media (max-width: 600px) {
-    .status-header-bar {
-        /* Stack the label and buttons/actions on small screens */
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .status-buttons-group {
-        width: 100%;
-        justify-content: space-around;
-    }
-    
-    .status-actions {
-        /* Ensure actions stack nicely or are centered */
-        margin-left: 0;
-        width: 100%;
-        justify-content: space-between;
-        margin-top: 10px;
-        
-    }
-}
-/* END Status Header Bar Styling */
+
 
 #authMessage {
     display: none !important; /* Use !important to ensure it overrides any existing display rules */
@@ -1206,7 +1112,7 @@ body {
             background-color: var(--primary-hover);
         }
         .form-message {
-            margin-top: 15px;
+            margin: 0px;
             padding: 10px;
             border-radius: 6px;
             text-align: center;
@@ -1239,6 +1145,12 @@ body {
     grid-template-columns: repeat(4, 1fr); 
     gap: 20px; /* 3. Adds spacing between the columns */
     margin-bottom: 20px; /* Optional: Adds space below the row */
+}
+
+@media (max-width: 600px) {
+    .four-column-row {
+        grid-template-columns: repeat(2, 1fr); /* Stacks to 2 columns on small screens */
+    }
 }
 
 .two-column-row {
@@ -1375,10 +1287,6 @@ body {
 
 .edit-form-framing {
     background-color: #fefefe;
-    position: fixed;
-    left: 25vw;
-    top: -15vh;
-    margin: 15% auto; /* 15% from the top and centered */
     height: auto;
     padding: 20px;
     border: 1px solid #888;
@@ -1392,7 +1300,7 @@ body {
 .edit-form-modal {
     display: none; /* Hidden by default */
     position: fixed;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     z-index: 1000; 
     left: 0;
@@ -1733,6 +1641,8 @@ body {
     margin: 20px;
 }
 
+
+
 #mainGalleryImage {
     max-width: 100%;
     height: 350px;
@@ -1767,22 +1677,7 @@ body {
     border-color: var(--primary-color);
 }
 
-/* Edit Form Previews */
-.image-previews-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 10px;
-}
 
-.image-preview-item {
-    position: relative;
-    width: 100px; /* Size for edit previews */
-    height: 100px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    overflow: hidden;
-}
 
 .image-preview-item .image-preview {
     width: 100%;
@@ -1847,11 +1742,7 @@ body {
     margin-bottom: 12px;
 }
 
-@media (max-width: 600px) {
-.user-card .user-uid {
-    display: none;
-}
-}
+
 
 .user-card-left {
     flex-shrink: 0;
@@ -1948,11 +1839,12 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     background-color: #f9f9f9;
 }
 
+
 /* Individual image preview item */
 .image-preview-item {
     position: relative;
-    width: 120px;
-    height: 120px;
+    max-width: 120px;
+    aspect-ratio: 1;
     border: 2px solid transparent;
     border-radius: 5px;
     overflow: hidden;
@@ -1962,6 +1854,22 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     justify-content: center;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
     transition: all 0.2s;
+}
+
+@media (max-width: 510px) {
+    .image-preview-item {
+        position: relative;
+        max-width: calc(50% - 10px);
+        border: 2px solid transparent;
+        border-radius: 5px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        transition: all 0.2s;
+    }
 }
 
 /* Style for the image itself */
@@ -2037,6 +1945,13 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     z-index: 9;
 }
 
+@media (max-width: 510px) {
+    .set-primary-btn {
+        opacity: 1;
+    }
+}
+
+
 .image-preview-item:hover .set-primary-btn {
     opacity: 1; /* Show on hover */
     color: black;
@@ -2074,12 +1989,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     gap: 10px;
 }
 
-@media (max-width: 600px) {
-    #gallery {
-        grid-template-columns: repeat(auto-fit, minmax(auto, 48%)); /* Adjust for smaller screens */
-        justify-content: center;
-    }
-}
+
 
 #gallery img {
     width: 100%;
@@ -2117,7 +2027,6 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 /* Status messages */
 #statusMessage {
-    margin-top: 10px;
     font-weight: 500;
 }
 
@@ -2145,15 +2054,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
             margin-bottom: 15px;
         }
 
-        @media screen and (max-width: 768px) {
-            
-        .preview-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
-            }
-        }
+
 
         /* Link container for the thumbnail, ensures it's square */
         .gallery-thumbnail-link {
@@ -2202,6 +2103,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     margin: auto;
     padding: 16px 8px;
     gap: 20px;
+    flex-wrap: wrap;
 }
 
 .user-controlls {
@@ -2237,7 +2139,11 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 .item-title {
     color: var(--text-color);
-    font-size: x-large;
+    font-size: clamp(18px, 4vw, 22px);
+    margin: 0 0 5px 0;
+    white-space: wrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .item-header-bg{
@@ -2285,8 +2191,12 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 .side-column {
-    width: 30%;
+    max-width: 28%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
 }
+
 
 .main-column {
     width: 100%;
@@ -2296,15 +2206,17 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     align-items: flex-start;
 }
 
-@media (max-width: 768px) {
-    .main-column {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
+
+
+.item-detail-container {
+    width: 70%;
+    display: flex;
+    gap: 20px;
     align-items: flex-start;
-    }
+    flex-direction: column;
 }
+
+
 
 .block-row {
     display: flex;
@@ -2327,3 +2239,177 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     gap: 5px;
 }
 
+
+
+/* --- Mobile --- */
+
+@media (max-width: 768px) {
+    .header-nav a {
+        color: rgba(0, 0, 0, 0);
+        text-decoration: none;
+        margin-left: 20px;
+        padding: 5px 0;
+        transition: color 0.2s;
+        font-size:0px;
+    }
+}
+
+@media (max-width: 768px){
+    .header-nav a i {
+        color: var(--text-color-reverse);
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 1174px) {
+    .item-detail-container {
+    max-width: 100%;
+    width: 100%;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    flex-direction: column;
+    }
+}
+
+@media (max-width: 768px) {
+    .main-column {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+    align-items: flex-start;
+    }
+}
+
+@media (max-width: 500px){
+    .item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, 23%);
+    gap: 5px;
+    padding: 10px 0;
+    justify-content: center; 
+}}
+
+/* Responsive adjustments for controls bar */
+@media (max-width: 600px) {
+    .controls-bar {
+        justify-content: space-between;
+        gap: 15px;
+    }
+    .control-group {
+        width: 100%; /* Make each group take full width */
+        justify-content: space-between;
+    }
+}
+
+/* Responsive adjustments for details page */
+@media (max-width: 800x) {
+
+    .item-image-large {
+        width: 100%;
+        max-height: none;
+        margin-right: 0px;
+        margin-bottom: 0px;
+        
+
+    }
+    .item-metadata {
+        width: 60px;
+    }
+    .item-info-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 437px) {
+    .item-metadata {
+        width: 100%;
+    }
+}
+
+@media (max-width: 800px) {
+    .item-details-display {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+/* Responsive Adjustments */
+@media (max-width: 600px) {
+    .status-header-bar {
+        /* Stack the label and buttons/actions on small screens */
+        flex-direction: column;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+}
+/* END Status Header Bar Styling */
+
+@media (max-width: 800px) {
+    .image-gallery-container {
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+.user-card .user-uid {
+    display: none;
+}
+}
+
+@media (max-width: 600px) {
+    #gallery {
+        grid-template-columns: repeat(auto-fit, minmax(auto, 48%)); /* Adjust for smaller screens */
+        justify-content: center;
+    }
+}
+
+@media screen and (max-width: 768px) {           
+    .preview-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+}
+
+@media (max-width: 1174px) {
+    .side-column {
+    max-width: 100%;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-x: auto;
+    }
+}
+
+
+
+
+/* Blurs the image inside the wrapper */
+.item-image-wrapper.nsfw-blur img {
+    filter: blur(20px) brightness(0.7);
+    pointer-events: none; /* Prevents interaction with the blurred image */
+}
+
+/* Optional styling for the "18+" text overlay */
+.nsfw-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    z-index: 2;
+}
+
+.item-image-wrapper {
+    position: relative;
+    overflow: hidden;
+}

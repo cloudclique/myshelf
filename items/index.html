@@ -10,23 +10,20 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
+    <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="main-header">
-        <div class="menu-btns"="display: flex; align-items: center; flex-wrap:wrap;">
-            <a class="header-logo"><img src="https://github.com/cloudclique/myshelf/blob/main/myshelf_logo_logo_color_2-11.png?raw=true" alt="MyShelf"></a>
-            <nav class="header-nav" style="display: flex; align-items: center; flex-wrap:nowrap;">            
-                <a href="../"><i class="bi bi-images"></i> Gallery</a>
-                <a href="../profiles/"><i class="bi bi-people-fill"></i> Community</a>
-                <a href="../search/"><i class="bi bi-calendar3"></i> Database</a>
-                <a href="../chat/" class="active"><i class="bi bi-envelope-fill"></i></a>           
-            </nav>
-        </div>
-        <div class="header-tools" id="headerTools"></div>
-    </header>
+<div style="position: relative;">
+    <div id="header"></div>
+    <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
+</div>
+<script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
+
+
+<div id="nsfw-cover"></div>
 
                     <div class="item-header-bg"> 
-                    <div class=" item-header">
+                    <div class="item-header">
                         <h1 class="item-title" id="itemNamePlaceholderTitle">Item Title</h1>
                         
 
@@ -110,30 +107,31 @@
         </div>
         <div class="detail-page-wrapper">
                 
-            <main class="main-column item-detail-container">
+            <main class="item-detail-container">
                 
                         <form id="collectionStatusForm" class="status-header-bar" style="display: none;">
-                            <p id="statusMessage" class="form-message" style="margin-right: 0px;"></p>
+                            
                             <span class="status-header-label">Set Status:</span>
                             
                                 <div class="status-buttons-group">
                                     <input type="radio" id="statusOwned" name="collectionStatus" value="Owned" class="status-radio-btn" style="display: none;">
                                     <label for="statusOwned" class="status-label secondary-btn">
-                                        🏠
+                                        <i class="bi bi-house-check-fill"></i>
                                     </label>
 
                                     <input type="radio" id="statusWished" name="collectionStatus" value="Wished" class="status-radio-btn" style="display: none;">
                                     <label for="statusWished" class="status-label secondary-btn">
-                                        ⭐
+                                        <i class="bi bi-star-fill"></i>
                                     </label>
 
                                     <input type="radio" id="statusOrdered" name="collectionStatus" value="Ordered" class="status-radio-btn" style="display: none;">
                                     <label for="statusOrdered" class="status-label secondary-btn">
-                                        📦
+                                        <i class="bi bi-box-seam-fill" ></i>
                                     </label>                  
                                 </div>
 
                                 <div class="status-actions">
+                                    <p id="statusMessage" class="form-message" style="margin-right: 0px;"></p>
                                     <button type="submit" class="action-btn save-status-btn">Save</button>
                                     <button type="button" id="removeStatusBtn" class="action-btn secondary-btn remove-status-btn">🗑️</button>
                                 </div>
@@ -148,13 +146,13 @@
                             </div>
                         </section>
 
-                    <section class="item-details-display">
+                    <section class="item-comments-section">
                         <div id="commentSection" class="comment-section">
                             <h3>Comments</h3>
                         
                             <div id="commentFormContainer" class="comment-form-container">
                                 <textarea id="commentInput" placeholder="Write a comment..." rows="3" class="modern_text_field""></textarea>
-                                <button id="submitCommentBtn" class="action-btn" style="margin-bottom: 20px;"><i class="bi bi-send-fill"></i></button>
+                                <button id="submitCommentBtn" class="action-btn" style="margin-bottom: 10px;"><i class="bi bi-send-fill"></i></button>
                             </div>
 
                             <div id="commentsList" class="comments-list"></div>
@@ -174,8 +172,6 @@
             </main> 
 
             <div class="side-column">   
-                
-                
                     <section class="item-details-display">
                         <div id="ShopSection" class="comment-section">
                             <h3>Shops</h3>

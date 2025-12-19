@@ -1326,14 +1326,16 @@ body {
 }
 .modal-content {
     background-color: #fefefe;
-    margin: 15% auto; /* 15% from the top and centered */
-    height: 200px;
+    /*margin: 15% auto;  15% from the top and centered */
+    height: fit-content;
     padding: 20px;
     border: 1px solid #888;
     width: 80%; 
     max-width: 400px;
     border-radius: 8px;
     text-align: center;
+    margin-top: 20vh;
+    
 }
 .modal-actions button {
     margin: 10px;

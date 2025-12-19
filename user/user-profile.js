@@ -3,13 +3,15 @@ import { auth, db, collectionName } from '../firebase-config.js';
 // --- Constants ---
 const ITEMS_PER_PAGE = 32;
 const COMMENTS_PER_PAGE = 10;
-
-let commentsCurrentPage = 1;
-let pageCursors = [null]; // cursors for Firestore pagination
-
 const STATUS_OPTIONS = ['Owned', 'Wished', 'Ordered'];
 const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
 const DEFAULT_BANNER_URL = 'https://placehold.co/1000x200/555/eee?text=User+Profile+Banner'; 
+
+const ROLE_HIERARCHY = {
+    'admin': { assigns: ['mod', "shop", "og", 'user'] },
+    'mod': { assigns: ["shop", "og", 'user'] },
+    'user': { assigns: [] }
+};
 
 // --- Variables ---
 let targetUserId = null;
@@ -19,7 +21,9 @@ let currentPage = 1;
 let lastFetchedItems = []; 
 let currentSortValue = ''; 
 let isProfileOwner = false;
-let isNsfwAllowed = false; // New global state for NSFW preference
+let isNsfwAllowed = false;
+let commentsCurrentPage = 1;
+let pageCursors = [null];
 
 // --- DOM Elements ---
 const profileLoader = document.getElementById('profileLoader');
@@ -39,7 +43,12 @@ const openChatBtn = document.getElementById('openChatBtn');
 const profileBanner = document.getElementById('profileBanner');
 const viewMoreGalleryBtn = document.getElementById('viewMoreGalleryBtn');
 
-// --- Comment / Auth DOM ---
+// Role Modal Elements
+const staffActionBtn = document.getElementById('staffActionBtn');
+const roleModal = document.getElementById('roleModal');
+const roleModalOptions = document.getElementById('roleModalOptions');
+const closeRoleModal = document.getElementById('closeRoleModal');
+
 const addCommentBox = document.getElementById('addCommentBox');
 const loginToCommentMsg = document.getElementById('loginToComment');
 const postCommentBtn = document.getElementById('postCommentBtn');
@@ -52,10 +61,7 @@ if (profileSearchInput) profileSearchInput.onkeypress = (e) => { if (e.key === '
 if (sortSelect) sortSelect.onchange = applySortAndFilter;
 if (tagFilterDropdown) tagFilterDropdown.onchange = applySortAndFilter;
 if (applyFilterBtn) applyFilterBtn.onclick = applySortAndFilter;
-if (clearFilterBtn) clearFilterBtn.onclick = () => {
-  if (tagFilterDropdown) tagFilterDropdown.value = '';
-  applySortAndFilter();
-};
+if (clearFilterBtn) clearFilterBtn.onclick = () => { if (tagFilterDropdown) tagFilterDropdown.value = ''; applySortAndFilter(); };
 if (postCommentBtn) postCommentBtn.onclick = postComment;
 
 // --- URL Hash and Query Helpers ---
@@ -63,6 +69,8 @@ function getUserIdFromUrl() {
     const urlParams = new URLSearchParams(window.location.search);
     return urlParams.get('uid');
 }
+
+
 
 function updateURLHash() {
     const searchQuery = profileSearchInput.value.trim().replace(/\s+/g, '-');
@@ -154,9 +162,17 @@ async function initializeProfile() {
     await fetchAndRenderBanner(targetUserId);
     targetUsername = await fetchUsername(targetUserId);
     profileTitle.textContent = `${targetUsername}'s Collection`;
+    
     const currentUser = auth.currentUser;
     isProfileOwner = currentUser && targetUserId === currentUser.uid;
+    
     if (openChatBtn) customizeHeaderForOwner(); 
+
+    // Initialize Staff Modal if not profile owner
+    if (currentUser && !isProfileOwner) {
+        setupRoleModal(currentUser.uid);
+    }
+
     const { status: hashStatus, page: hashPage, search: hashSearch } = parseURLHash();
     currentStatusFilter = STATUS_OPTIONS.includes(hashStatus) ? hashStatus : 'Owned';
     currentPage = hashPage || 1;
@@ -171,6 +187,65 @@ async function initializeProfile() {
     await loadComments(targetUserId);
     await fetchAndRenderGalleryPreview(targetUserId);
     if (profileLoader) profileLoader.classList.add('hidden');
+}
+
+// --- Staff Role Logic ---
+async function setupRoleModal(currentUid) {
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    try {
+        // Get current user's role
+        const myDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(currentUid).get();
+        const myRole = myDoc.data()?.role || 'user';
+
+        // Get target user's role
+        const targetDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(targetUserId).get();
+        const targetRole = targetDoc.data()?.role || 'user';
+
+        // Compute roles that current user can assign
+        const allowedRoles = ROLE_HIERARCHY[myRole]?.assigns || [];
+
+        // Hide button if no assignable roles OR target user is at same/higher level
+        const targetAssignable = allowedRoles.filter(role => {
+            // prevent mod assigning anything to another mod/admin
+            if (myRole === 'mod') return !['admin', 'mod'].includes(targetRole);
+            return true; // admin can assign anything
+        });
+
+        if (targetAssignable.length === 0) {
+            staffActionBtn.style.display = 'none';
+            return;
+        }
+
+        staffActionBtn.style.display = 'inline-block';
+        staffActionBtn.onclick = () => {
+            roleModalOptions.innerHTML = '';
+            targetAssignable.forEach(role => {
+                const btn = document.createElement('button');
+                btn.className = 'action-btn';
+                btn.textContent = `Set as ${role.toUpperCase()}`;
+                btn.onclick = () => {
+                    roleModal.style.display = 'none';
+                    showConfirmationModal(`Change this user's role to ${role.toUpperCase()}?`, async () => {
+                        try {
+                            await db.collection('artifacts').doc(appId).collection('user_profiles').doc(targetUserId).set({
+                                role: role
+                            }, { merge: true });
+                            alert("Role updated to " + role);
+                        } catch (err) {
+                            console.error("Error updating role:", err);
+                            alert("Failed to update role.");
+                        }
+                    });
+                };
+                roleModalOptions.appendChild(btn);
+            });
+            roleModal.style.display = 'flex';
+        };
+
+        closeRoleModal.onclick = () => { roleModal.style.display = 'none'; };
+        window.onclick = (event) => { if (event.target === roleModal) roleModal.style.display = 'none'; };
+
+    } catch (err) { console.error("Error setting up role tools:", err); }
 }
 
 // --- Status Buttons ---
@@ -240,8 +315,6 @@ function renderPageItems(items) {
 function renderProfileItem(doc, status) {
   const item = doc.data();
   const itemId = doc.id;
-  
-  // --- NSFW Blur Logic ---
   const isAdultContent = (item.itemAgeRating === '18+' || item.itemAgeRating === 'Adult');
   const shouldBlur = isAdultContent && !isNsfwAllowed;
 
@@ -254,14 +327,10 @@ function renderProfileItem(doc, status) {
   card.setAttribute('data-status', status.toLowerCase());
 
   let imageSrc = (item.itemImageUrls && item.itemImageUrls[0] && item.itemImageUrls[0].url) || DEFAULT_IMAGE_URL;
-
   const imageWrapper = document.createElement('div');
   imageWrapper.className = 'item-image-wrapper';
   
-  // Apply blur class if necessary
-  if (shouldBlur) {
-      imageWrapper.classList.add('nsfw-blur');
-  }
+  if (shouldBlur) imageWrapper.classList.add('nsfw-blur');
 
   const img = document.createElement('img');
   img.src = imageSrc;
@@ -272,10 +341,8 @@ function renderProfileItem(doc, status) {
   const verAlign = (item['img-align-ver'] || 'center').toLowerCase();
   img.classList.add(`img-align-hor-${['left', 'center', 'right'].includes(horAlign) ? horAlign : 'center'}`);
   img.classList.add(`img-align-ver-${['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'}`);
-
   imageWrapper.appendChild(img);
 
-  // Optional: Add overlay label for blurred items
   if (shouldBlur) {
       const badgeOverlay = document.createElement('div');
       badgeOverlay.className = 'nsfw-overlay';
@@ -596,29 +663,17 @@ function updateHeaderAuthButton(user) {
     headerTools.appendChild(btn);
 }
 
-// --- UPDATED AUTH LISTENER ---
 auth.onAuthStateChanged(async (user) => {
     if (user) {
         try {
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            // Explicitly fetch allowNSFW boolean from current user profile
             const profileDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(user.uid).get();
             isNsfwAllowed = profileDoc.data()?.allowNSFW === true;
-        } catch (err) {
-            console.error("Error fetching NSFW preference:", err);
-            isNsfwAllowed = false;
-        }
-    } else {
-        isNsfwAllowed = false;
-    }
-    
+        } catch (err) { console.error("Error fetching NSFW preference:", err); isNsfwAllowed = false; }
+    } else { isNsfwAllowed = false; }
     updateHeaderAuthButton(user);
     setupHeaderLogoRedirect();
-
-    // Trigger re-render of current items with new blur/no-blur state
-    if (lastFetchedItems.length > 0) {
-        applySortAndFilter();
-    }
+    if (lastFetchedItems.length > 0) applySortAndFilter();
 });
 
 function customizeHeaderForOwner() {

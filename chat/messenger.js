@@ -144,7 +144,7 @@ window.closeLightbox = function() {
     document.body.style.overflow = '';
 }
 
-function renderMessage(message) {
+function renderMessage(message, docId = null) {
     const isSent = message.senderId === currentUserId;
     const time = message.timestamp 
         ? new Date(message.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -152,6 +152,7 @@ function renderMessage(message) {
 
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+    messageDiv.style.position = 'relative'; // For menu positioning
     
     let contentHtml = '';
 
@@ -159,7 +160,6 @@ function renderMessage(message) {
         contentHtml += '<div class="message-images">';
         message.imageUrls.forEach(url => {
             const placeholder = `https://placehold.co/100x100/000000/FFFFFF?text=IMG`;
-            // Added data-original-url for the lightbox click listener
             contentHtml += `<img src="${url}" data-original-url="${url}" alt="User image" loading="lazy" class="chat-image" onerror="this.onerror=null;this.src='${placeholder}';" style="max-width: 100px; max-height: 100px;">`;
         });
         contentHtml += '</div>';
@@ -173,10 +173,94 @@ function renderMessage(message) {
             contentHtml += textContent;
         }
     }
-    
+
     if (contentHtml.length === 0) return;
 
-    messageDiv.innerHTML = `${contentHtml}<span class="message-time">${time}</span>`;
+    messageDiv.innerHTML = `
+        ${contentHtml}
+        <span class="message-time">${time}</span>
+        ${isSent ? '<button class="message-menu-btn">⋯</button>' : ''}
+    `;
+
+    if (isSent && docId) {
+        const menuBtn = messageDiv.querySelector('.message-menu-btn');
+        menuBtn.style.position = 'absolute';
+        menuBtn.style.top = '4px';
+        menuBtn.style.right = '4px';
+        menuBtn.style.border = 'none';
+        menuBtn.style.background = 'transparent';
+        menuBtn.style.cursor = 'pointer';
+        menuBtn.style.fontSize = '16px';
+        menuBtn.style.lineHeight = '1'; // horizontal dots
+
+        const menu = document.createElement('div');
+        menu.className = 'message-context-menu';
+        menu.style.position = 'absolute';
+        menu.style.top = '24px';
+        menu.style.right = '4px';
+        menu.style.background = '#fff';
+        menu.style.border = '1px solid #ccc';
+        menu.style.padding = '4px 0';
+        menu.style.borderRadius = '4px';
+        menu.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+        menu.style.display = 'none';
+        menu.style.zIndex = 10;
+        menu.innerHTML = `<div class="menu-item" style="padding: 4px 12px; cursor: pointer;">Delete</div>`;
+        messageDiv.appendChild(menu);
+
+        menuBtn.onclick = (e) => {
+            e.stopPropagation();
+            menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+        };
+
+        // Hide menu when clicking elsewhere
+        document.addEventListener('click', () => {
+            menu.style.display = 'none';
+        });
+
+        // Delete message immediately on click and update lastMessage
+        menu.querySelector('.menu-item').onclick = async () => {
+            try {
+                const chatId = getChatId(currentUserId, currentChatUserId);
+                const chatRef = getChatRef(chatId);
+
+                // Delete the message from Firestore
+                await chatRef.collection('messages').doc(docId).delete();
+                messageDiv.remove();
+
+                // Recompute the last message for the chat
+                const messagesSnap = await chatRef.collection('messages')
+                    .orderBy('timestamp', 'desc')
+                    .limit(1)
+                    .get();
+
+                if (!messagesSnap.empty) {
+                    const lastMsg = messagesSnap.docs[0].data();
+                    await chatRef.set({
+                        lastMessage: lastMsg.text || (lastMsg.imageUrls?.length ? `[${lastMsg.imageUrls.length} image(s) sent]` : ''),
+                        lastSent: lastMsg.timestamp || firebase.firestore.FieldValue.serverTimestamp(),
+                        users: [currentUserId, currentChatUserId],
+                        ...(lastMsg.imageUrls?.length > 0 && { imageUrls: lastMsg.imageUrls })
+                    }, { merge: true });
+                } else {
+                    // If no messages left, clear lastMessage
+                    await chatRef.set({
+                        lastMessage: '',
+                        lastSent: firebase.firestore.FieldValue.serverTimestamp(),
+                        users: [currentUserId, currentChatUserId],
+                        imageUrls: []
+                    }, { merge: true });
+                }
+
+                // Refresh the contact list
+                fetchUserContacts();
+
+            } catch (err) {
+                console.error("Failed to delete message:", err);
+            }
+        };
+    }
+
     messageList.prepend(messageDiv);
 }
 
@@ -288,12 +372,14 @@ async function fetchUserContacts() {
         });
 
         let contacts = (await Promise.all(profileFetches)).filter(Boolean);
+        // Sort by last sent timestamp descending (most recent first)
         contacts.sort((a, b) => b.lastSent.getTime() - a.lastSent.getTime());
 
         userList.innerHTML = ''; 
         contacts.forEach(user => {
             const chatItem = document.createElement('div');
             chatItem.className = 'chat-item';
+            chatItem.id = "chatItem";
             
             const lastMessageTime = user.lastSent.getTime() === 0 
                                   ? '' 
@@ -315,7 +401,9 @@ async function fetchUserContacts() {
             `;
 
             chatItem.onclick = () => startChat(user.uid, user.username);
-            userList.appendChild(chatItem);
+            
+            // Prepend to show most recent chat on top
+            userList.prepend(chatItem);
         });
 
     } catch (e) {
@@ -362,7 +450,7 @@ function listenForMessages(targetUserId) {
             }
             // Reverse to display chronologically from bottom up (since we are using flex-direction: column-reverse)
             snapshot.docs.reverse().forEach(doc => {
-                 renderMessage(doc.data());
+                renderMessage(doc.data(), doc.id); // pass doc.id for deletion
             });
         }, error => {
             console.error("Error listening to messages:", error);
@@ -541,3 +629,40 @@ function setupHeaderLogoRedirect() {
         window.location.href = `../user/?uid=${userId}`;
     };
 }
+
+function handleLayout() {
+    const chatArea = document.getElementById('chatArea');
+    const userList = document.getElementById('userList');
+    const sidebar = document.querySelector('.sidebar');
+
+    if (window.innerWidth <= 768) {
+        // Mobile behavior
+        document.getElementById('backBtn').onclick = function() {
+            chatArea.style.display = 'none';
+            userList.style.display = 'flex';
+        }
+
+        userList.onclick = function() {
+            chatArea.style.display = 'flex';
+            userList.style.display = 'none';
+        }
+
+        // Optional: hide sidebar for mobile if needed
+        if (sidebar) sidebar.style.display = 'none';
+    } else {
+        // Desktop behavior: remove mobile click events
+        document.getElementById('backBtn').onclick = null;
+        userList.onclick = null;
+
+        // Always show everything
+        if (sidebar) sidebar.style.display = 'flex';
+        chatArea.style.display = 'flex';
+        userList.style.display = 'flex';
+    }
+}
+
+// Run on load
+handleLayout();
+
+// Run on resize
+window.addEventListener('resize', handleLayout);

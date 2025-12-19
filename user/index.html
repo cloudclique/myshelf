@@ -20,46 +20,55 @@
 </div>
 <script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
 
-            <div id="confirmationModal" class="modal" style="display:none;">
-            <div class="modal-content">
-                <p id="confirmationText"></p>
-                <div class="modal-actions">
+    <div id="roleModal" class="modal" style="display:none; justify-content: center;">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <h2 style="margin-top: 0;">Manage User Role</h2>
+            <p style="color: #888; font-size: 0.9em;">Select a new role for this user:</p>
+            <div id="roleModalOptions" style="display: flex; flex-direction: column; gap: 10px; margin: 20px 0;">
+                </div>
+            <button id="closeRoleModal" class="secondary-btn">Cancel</button>
+        </div>
+    </div>
+
+    <div id="confirmationModal" class="modal" style="display:none; justify-content: center;">
+        <div class="modal-content">
+            <p id="confirmationText"></p>
+            <div class="modal-actions">
                 <button id="confirmYesBtn" class="action-btn">Yes</button>
                 <button id="confirmNoBtn" class="action-btn">No</button>
-                </div>
             </div>
-            </div>
+        </div>
+    </div>
 
-        <div class="user-controlls">
-            <div class="profile-banner-container">
-                <img id="profileBanner" src="https://placehold.co/1000x200/555/eee?text=User+Profile+Banner" alt="User Profile Banner">
-            </div>
+    <div class="user-controlls">
+        <div class="profile-banner-container">
+            <img id="profileBanner" src="https://placehold.co/1000x200/555/eee?text=User+Profile+Banner" alt="User Profile Banner">
+        </div>
 
-            <div class="status-alignment">
-                <h1 id="profileTitle">User Profile</h1> 
-                <div class="profile-cntrl-btns">
-                    <section class="profile-header">        
-                        <div id="statusFilters" class="status-tabs"></div>
-                    </section>
+        <div class="status-alignment">
+            <h1 id="profileTitle">User Profile</h1> 
+            <div class="profile-cntrl-btns">
+                <section class="profile-header">        
+                    <div id="statusFilters" class="status-tabs"></div>
+                </section>
+                <div style="display: flex; gap: 10px;">
                     <button id="openChatBtn" class="action-btn">Message User</button>
+                    <button id="staffActionBtn" class="action-btn" style="display: none; background-color: #d9534f;">
+                        <i class="bi bi-shield-lock-fill"></i> Staff
+                    </button>
                 </div>
             </div>
         </div>
+    </div>
 
     <div class="detail-page-wrapper">
-
         <div id="profileLoader" class="profile-loader">
             <div class="spinner"></div>
             <p>Loading profile...</p>
         </div>
 
-
-
         <main class="main-column">
-
-
-
-            <section class="item-section" >
+            <section class="item-section">
                 <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">   
                     <input type="text" id="profileSearchInput" class="modern_text_field" placeholder="Search by name or ID" />
                     <button id="profileSearchBtn" class="action-btn"><i class="bi bi-search"></i></button>
@@ -69,8 +78,7 @@
                 <div id="profileItemsGrid" class="item-grid">
                     <p id="loadingStatus">Loading user collection...</p>
                 </div>
-                <div id="paginationContainer" class="pagination-container">
-                </div>
+                <div id="paginationContainer" class="pagination-container"></div>
             </section>
 
             <div id="userGalleryPreview" class="user-gallery-preview">
@@ -80,35 +88,23 @@
             </div>
 
             <div id="commentsSection" class="item-section">
-
-            <h2>Comments</h2>
-
-            <!-- Only shown if user is logged in -->
-            <div id="addCommentBox" class="comment-form-container" style="display:none;">
-                <textarea id="commentInput" placeholder="Write a comment..." maxlength="800" class="modern_text_field"></textarea>
-                <button id="postCommentBtn" class="action-btn" style="margin-bottom: 10px;"><i class="bi bi-send-fill"></i></button>
+                <h2>Comments</h2>
+                <div id="addCommentBox" class="comment-form-container" style="display:none;">
+                    <textarea id="commentInput" placeholder="Write a comment..." maxlength="800" class="modern_text_field"></textarea>
+                    <button id="postCommentBtn" class="action-btn" style="margin-bottom: 10px;"><i class="bi bi-send-fill"></i></button>
+                </div>
+                <p id="loginToComment" style="display:none;">You must log in to post comments.</p>
+                <div id="commentsList" class="comments-list"></div>
+                <div id="commentPagination"></div>  
             </div>
-
-            <!-- Login reminder if not logged in -->
-            <p id="loginToComment" style="display:none;">You must log in to post comments.</p>
-
-            <!-- Comment list -->
-            <div id="commentsList" class="comments-list"></div>
-            <div id="commentPagination"></div>  
-            </div>
-
         </main>
-        </div>
     </div>
-
 
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
 <script type="module" src="../firebase-config.js"></script>
 <script type="module" src="user-profile.js"></script>
-
-
 
 </body>
 </html>

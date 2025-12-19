@@ -634,30 +634,40 @@ function handleLayout() {
     const chatArea = document.getElementById('chatArea');
     const userList = document.getElementById('userList');
     const sidebar = document.querySelector('.sidebar');
+    const backBtn = document.getElementById('backBtn');
 
-    if (window.innerWidth <= 768) {
-        // Mobile behavior
-        document.getElementById('backBtn').onclick = function() {
-            chatArea.style.display = 'none';
-            userList.style.display = 'flex';
+    const isMobile = window.innerWidth <= 768;
+
+    if (isMobile) {
+        // MOBILE START STATE
+        sidebar.style.display = 'flex';
+        userList.style.display = 'flex';
+        chatArea.style.display = 'none';
+
+        // Back button → show chat list
+        if (backBtn) {
+            backBtn.onclick = () => {
+                chatArea.style.display = 'none';
+                userList.style.display = 'flex';
+            };
         }
 
-        userList.onclick = function() {
+        // Click chat → show chat area
+        userList.onclick = (e) => {
+            // prevent random clicks triggering it
+            if (!e.target.closest('.chat-item')) return;
             chatArea.style.display = 'flex';
             userList.style.display = 'none';
-        }
+        };
 
-        // Optional: hide sidebar for mobile if needed
-        if (sidebar) sidebar.style.display = 'none';
     } else {
-        // Desktop behavior: remove mobile click events
-        document.getElementById('backBtn').onclick = null;
-        userList.onclick = null;
-
-        // Always show everything
-        if (sidebar) sidebar.style.display = 'flex';
-        chatArea.style.display = 'flex';
+        // DESKTOP STATE (always show both)
+        sidebar.style.display = 'flex';
         userList.style.display = 'flex';
+        chatArea.style.display = 'flex';
+
+        if (backBtn) backBtn.onclick = null;
+        userList.onclick = null;
     }
 }
 

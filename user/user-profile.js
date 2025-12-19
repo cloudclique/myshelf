@@ -8,8 +8,8 @@ const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
 const DEFAULT_BANNER_URL = 'https://placehold.co/1000x200/555/eee?text=User+Profile+Banner'; 
 
 const ROLE_HIERARCHY = {
-    'admin': { assigns: ['mod', "shop", "og", 'user'] },
-    'mod': { assigns: ["shop", "og", 'user'] },
+    'admin': { assigns: ['mod', "shop", "manufacturer", "og", 'user'] },
+    'mod': { assigns: ["shop", "manufacturer", "og", 'user'] },
     'user': { assigns: [] }
 };
 
@@ -737,35 +737,87 @@ function showCropPopup(base64Image) {
         popup.style.cssText = `background:#fff; border-radius:8px; padding:10px; position: relative; max-width: 90%; max-height: 80%; overflow:hidden;`;
         overlay.appendChild(popup);
         document.body.appendChild(overlay);
+
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const img = new Image();
         img.src = base64Image;
+
         img.onload = () => {
-            const canvasWidth = 1000; const canvasHeight = 200;
-            canvas.width = canvasWidth; canvas.height = canvasHeight;
-            const scale = Math.max(canvasWidth / img.width, canvasHeight / img.height);
-            const scaledWidth = img.width * scale; const scaledHeight = img.height * scale;
-            let offsetX = (canvasWidth - scaledWidth) / 2; let offsetY = 0;
+            const canvasWidth = 1000;
+            const canvasHeight = 200;
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            let scale = Math.max(canvasWidth / img.width, canvasHeight / img.height);
+            let scaledWidth = img.width * scale;
+            let scaledHeight = img.height * scale;
+            let offsetX = (canvasWidth - scaledWidth) / 2;
+            let offsetY = 0;
             const maxOffsetY = Math.max(0, scaledHeight - canvasHeight);
-            const draw = () => { ctx.clearRect(0, 0, canvasWidth, canvasHeight); ctx.drawImage(img, 0, offsetY / scale, img.width, canvasHeight / scale, offsetX, 0, scaledWidth, canvasHeight); };
+
+            const draw = () => {
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+                ctx.drawImage(img, 0, offsetY / scale, img.width, canvasHeight / scale, offsetX, 0, scaledWidth, canvasHeight);
+            };
             draw();
-            let dragging = false; let startY = 0;
+
+            let dragging = false;
+            let startY = 0;
+
+            // --- Mouse events ---
             canvas.onmousedown = (e) => { dragging = true; startY = e.clientY; };
-            const onMouseMove = (e) => { if (!dragging) return; const delta = e.clientY - startY; offsetY = Math.min(Math.max(offsetY - delta, 0), maxOffsetY); startY = e.clientY; draw(); };
-            const onMouseUp = () => { dragging = false; };
-            window.addEventListener('mousemove', onMouseMove);
-            window.addEventListener('mouseup', onMouseUp);
-            const cleanup = () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
+            window.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                const delta = e.clientY - startY;
+                offsetY = Math.min(Math.max(offsetY - delta, 0), maxOffsetY);
+                startY = e.clientY;
+                draw();
+            });
+            window.addEventListener('mouseup', () => { dragging = false; });
+
+            // --- Touch events for mobile ---
+            canvas.addEventListener('touchstart', (e) => {
+                if (e.touches.length !== 1) return;
+                dragging = true;
+                startY = e.touches[0].clientY;
+                e.preventDefault();
+            });
+            canvas.addEventListener('touchmove', (e) => {
+                if (!dragging || e.touches.length !== 1) return;
+                const delta = e.touches[0].clientY - startY;
+                offsetY = Math.min(Math.max(offsetY - delta, 0), maxOffsetY);
+                startY = e.touches[0].clientY;
+                draw();
+                e.preventDefault();
+            }, { passive: false });
+            canvas.addEventListener('touchend', () => { dragging = false; });
+
+            const cleanup = () => {
+                document.body.removeChild(overlay);
+            };
+
             const btnContainer = document.createElement('div');
             btnContainer.style.cssText = "text-align:center; margin-top:10px;";
-            const okBtn = document.createElement('button'); okBtn.textContent = "Save";
-            const cancelBtn = document.createElement('button'); cancelBtn.textContent = "Cancel"; cancelBtn.style.marginLeft = "10px";
-            btnContainer.appendChild(okBtn); btnContainer.appendChild(cancelBtn); popup.appendChild(btnContainer);
-            okBtn.onclick = () => { const finalBase64 = canvas.toDataURL('image/jpeg', 0.9); cleanup(); document.body.removeChild(overlay); resolve(finalBase64); };
-            cancelBtn.onclick = () => { cleanup(); document.body.removeChild(overlay); resolve(null); };
+
+            const okBtn = document.createElement('button');
+            okBtn.textContent = "Save";
+            okBtn.onclick = () => {
+                const finalBase64 = canvas.toDataURL('image/jpeg', 0.9);
+                cleanup();
+                resolve(finalBase64);
+            };
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.textContent = "Cancel";
+            cancelBtn.style.marginLeft = "10px";
+            cancelBtn.onclick = () => { cleanup(); resolve(null); };
+
+            btnContainer.appendChild(okBtn);
+            btnContainer.appendChild(cancelBtn);
+            popup.appendChild(canvas);
+            popup.appendChild(btnContainer);
         };
-        popup.appendChild(canvas);
     });
 }
 
@@ -800,3 +852,105 @@ function setupHeaderLogoRedirect() {
 }
 
 initializeProfile();
+
+// --- DOM for suggestions ---
+const profileSearchSuggestions = document.createElement('div');
+profileSearchSuggestions.id = 'profileSearchSuggestions';
+profileSearchSuggestions.className = 'search-suggestions';
+
+profileSearchInput.parentNode.appendChild(profileSearchSuggestions);
+
+// --- Icon mapping ---
+const ICONS = {
+    name: '<i class="bi bi-sticky-fill"></i>',
+    category: '<i class="bi bi-folder-fill"></i>',
+    scale: '<i class="bi bi-arrows-fullscreen"></i>',
+    age: '<i class="bi bi-exclamation-octagon"></i>',
+    tag: '<i class="bi bi-tag-fill"></i>'
+};
+
+// --- Live suggestions function ---
+function updateProfileSearchSuggestions() {
+    const query = profileSearchInput.value.trim().toLowerCase();
+    profileSearchSuggestions.innerHTML = '';
+    if (!query) return;
+
+    const matchesByType = { tag: [], age: [], scale: [], category: [], name: [] };
+    const addedItemIds = new Set();
+    const addedTexts = new Set();
+
+    for (let item of lastFetchedItems) {
+        const data = item.doc.data();
+        if (addedItemIds.has(item.doc.id)) continue;
+
+        // Tag match
+        const tagMatch = (data.tags || []).find(t => t.toLowerCase().includes(query));
+        if (tagMatch && !addedTexts.has(tagMatch.toLowerCase())) {
+            matchesByType.tag.push({ type: 'tag', text: tagMatch, item });
+            addedTexts.add(tagMatch.toLowerCase());
+            addedItemIds.add(item.doc.id);
+            continue;
+        }
+
+        // Age match
+        if ((data.itemAgeRating || '').toLowerCase().includes(query) && !addedTexts.has(data.itemAgeRating.toLowerCase())) {
+            matchesByType.age.push({ type: 'age', text: data.itemAgeRating, item });
+            addedTexts.add(data.itemAgeRating.toLowerCase());
+            addedItemIds.add(item.doc.id);
+            continue;
+        }
+
+        // Scale match
+        if ((data.itemScale || '').toLowerCase().includes(query) && !addedTexts.has(data.itemScale.toLowerCase())) {
+            matchesByType.scale.push({ type: 'scale', text: data.itemScale, item });
+            addedTexts.add(data.itemScale.toLowerCase());
+            addedItemIds.add(item.doc.id);
+            continue;
+        }
+
+        // Category match
+        if ((data.itemCategory || '').toLowerCase().includes(query) && !addedTexts.has(data.itemCategory.toLowerCase())) {
+            matchesByType.category.push({ type: 'category', text: data.itemCategory, item });
+            addedTexts.add(data.itemCategory.toLowerCase());
+            addedItemIds.add(item.doc.id);
+            continue;
+        }
+
+        // Name match (can repeat)
+        if ((data.itemName || '').toLowerCase().includes(query)) {
+            matchesByType.name.push({ type: 'name', text: data.itemName, item });
+            addedItemIds.add(item.doc.id);
+        }
+
+        if (Object.values(matchesByType).flat().length >= 10) break;
+    }
+
+    const orderedMatches = [
+        ...matchesByType.tag,
+        ...matchesByType.age,
+        ...matchesByType.scale,
+        ...matchesByType.category,
+        ...matchesByType.name
+    ].slice(0, 10);
+
+    // Render suggestions
+    orderedMatches.forEach(match => {
+        const div = document.createElement('div');
+        div.className = 'search-suggestion-item';
+        div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type]}</span> <span class="suggestion-text">${match.text}</span>`;
+        div.onclick = () => {
+            profileSearchInput.value = match.text;
+            handleProfileSearch();
+            profileSearchSuggestions.innerHTML = '';
+        };
+        profileSearchSuggestions.appendChild(div);
+    });
+}
+
+// --- Event listener ---
+profileSearchInput.addEventListener('input', updateProfileSearchSuggestions);
+document.addEventListener('click', (e) => {
+    if (!profileSearchSuggestions.contains(e.target) && e.target !== profileSearchInput) {
+        profileSearchSuggestions.innerHTML = '';
+    }
+});

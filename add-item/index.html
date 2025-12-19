@@ -91,6 +91,12 @@
 
         </main>
     </div>
+    
+<div style="position: relative;">
+    <div id="footer"></div>
+</div>
+<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
+
 
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>

@@ -69,9 +69,12 @@
 
         <main class="main-column">
             <section class="item-section">
-                <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">   
-                    <input type="text" id="profileSearchInput" class="modern_text_field" placeholder="Search by name or ID" />
-                    <button id="profileSearchBtn" class="action-btn"><i class="bi bi-search"></i></button>
+                <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">
+                    <div class="search-func-div" style="position: relative;">
+                        <input type="text" id="profileSearchInput" class="modern_text_field" placeholder="Search..." />
+                        <button id="profileSearchBtn" class="action-btn" style="width: fit-content; flex-shrink: 0; background: #27272721; color: var(--accent-clr);"><i class="bi bi-search"></i></button>
+                        <div id="searchSuggestions" class="search-suggestions"></div>
+                    </div>
                     <button id="profileClearSearchBtn" class="secondary-btn" style="display:none;"><i class="bi bi-x-square-fill"></i></button>
                 </div>
 
@@ -99,6 +102,11 @@
             </div>
         </main>
     </div>
+
+<div style="position: relative;">
+    <div id="footer"></div>
+</div>
+<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
 
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>

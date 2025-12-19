@@ -506,7 +506,7 @@ async function fetchItemDetails(id) {
 
             if (!allowNSFW) {
                 nsfwCover.innerHTML = `
-                    <div class="nsfw-blocked-message" style="padding: 40px; text-align: center; background: #222; border: 1px solid #444; height: 100%; width: 100%; position: absolute;">
+                    <div class="nsfw-blocked-message" style="padding: 40px; text-align: center; background: #222; border: 1px solid #444; height: calc(100% - 65px); width: 100%; position: absolute;">
                         <h2 style="color: #ff4444; margin-bottom: 15px;">NSFW Content Hidden</h2>
                         <p style="color: #ddd; line-height: 1.6;">You have disabled NSFW content in your user settings, if you like to view this item - go to settings on your profile page and enable NSFW content!</p>
                         <button onclick="window.location.href='../user/?uid=${auth.currentUser ? auth.currentUser.uid : ''}'" class="action-btn primary-btn" style="margin-top: 20px;">Go to Profile</button>

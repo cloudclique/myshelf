@@ -179,29 +179,30 @@ function renderMessage(message, docId = null) {
     messageDiv.innerHTML = `
         ${contentHtml}
         <span class="message-time">${time}</span>
-        ${isSent ? '<button class="message-menu-btn">⋯</button>' : ''}
+        ${isSent ? '<button class="message-menu-btn"><i class="bi bi-three-dots"></i></button>' : ''}
     `;
 
     if (isSent && docId) {
         const menuBtn = messageDiv.querySelector('.message-menu-btn');
         menuBtn.style.position = 'absolute';
         menuBtn.style.top = '4px';
-        menuBtn.style.right = '4px';
+        menuBtn.style.left = '-25px';
         menuBtn.style.border = 'none';
         menuBtn.style.background = 'transparent';
         menuBtn.style.cursor = 'pointer';
-        menuBtn.style.fontSize = '16px';
+        menuBtn.style.fontSize = '20px';
         menuBtn.style.lineHeight = '1'; // horizontal dots
+        menuBtn.style.color = "#1f1f1fff";
 
         const menu = document.createElement('div');
         menu.className = 'message-context-menu';
         menu.style.position = 'absolute';
-        menu.style.top = '24px';
-        menu.style.right = '4px';
-        menu.style.background = '#fff';
-        menu.style.border = '1px solid #ccc';
+        menu.style.top = '26px';
+        menu.style.left = '-30px';
+        menu.style.background = '#242424ff';
+        menu.style.border = 'none';
         menu.style.padding = '4px 0';
-        menu.style.borderRadius = '4px';
+        menu.style.borderRadius = '15px';
         menu.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
         menu.style.display = 'none';
         menu.style.zIndex = 10;
@@ -316,101 +317,125 @@ messageInput.oninput = function() {
 };
 
 async function fetchUserContacts() {
-    userList.innerHTML = '';
-    
-    if (!currentUserId) {
-        userList.innerHTML = '<p style="padding: 10px;">Please log in to view contacts.</p>';
-        return;
-    }
-
-    userList.innerHTML = '<p style="padding: 10px;">Loading conversations...</p>';
+    if (!currentUserId) return;
 
     try {
-        const chatsRef = db.collection('artifacts').doc(appId).collection('chats');
-        const chatsSnap = await chatsRef.where('users', 'array-contains', currentUserId).get();
-        
-        if (chatsSnap.empty) {
-            userList.innerHTML = '<p style="padding: 10px;">No ongoing conversations. Search for a user to start one!</p>';
-            return;
-        }
+        const chatsRef = db
+            .collection('artifacts')
+            .doc(appId)
+            .collection('chats');
 
+        const chatsSnap = await chatsRef
+            .where('users', 'array-contains', currentUserId)
+            .get();
+
+        // Build data FIRST (no DOM touching yet)
         const contactUids = new Set();
-        const chatData = {}; 
+        const chatData = {};
 
         chatsSnap.forEach(doc => {
             const data = doc.data();
-            const users = data.users || [];
-            const otherUserId = users.find(uid => uid !== currentUserId);
-            
-            if (otherUserId) {
-                contactUids.add(otherUserId);
-                const lastMessageText = data.lastMessage || (data.imageUrls?.length ? `[${data.imageUrls.length} image(s) sent]` : 'No recent messages.');
-                chatData[otherUserId] = { 
-                    lastMessage: lastMessageText, 
-                    lastSent: data.lastSent ? data.lastSent.toDate() : new Date(0) 
-                };
-            }
+            const otherUserId = data.users?.find(uid => uid !== currentUserId);
+            if (!otherUserId) return;
+
+            contactUids.add(otherUserId);
+            chatData[otherUserId] = {
+                lastMessage:
+                    data.lastMessage ||
+                    (data.imageUrls?.length
+                        ? `[${data.imageUrls.length} image(s) sent]`
+                        : ''),
+                lastSent: data.lastSent
+                    ? data.lastSent.toDate()
+                    : new Date(0)
+            };
         });
 
-        const profilesToFetch = Array.from(contactUids);
-        if (profilesToFetch.length === 0) {
-             userList.innerHTML = '<p style="padding: 10px;">No valid contacts found in chats.</p>';
-             return;
+        if (contactUids.size === 0) {
+            // Only update UI if it's actually empty
+            if (userList.children.length === 0) {
+                userList.innerHTML =
+                    '<p style="padding:10px;">No conversations yet.</p>';
+            }
+            return;
         }
 
-        const profileFetches = profilesToFetch.map(async uid => {
-            const profileSnap = await getProfilesRef().doc(uid).get();
-            if (profileSnap.exists) {
-                return { 
-                    uid: uid, 
-                    username: profileSnap.data().username || `User ID: ${uid.substring(0, 8)}...`,
-                    profilePic: profileSnap.data().profilePic || null,
+        // Fetch profiles in parallel
+        const profiles = await Promise.all(
+            [...contactUids].map(async uid => {
+                const snap = await getProfilesRef().doc(uid).get();
+                if (!snap.exists) return null;
+
+                return {
+                    uid,
+                    username:
+                        snap.data().username ||
+                        `User ${uid.slice(0, 6)}`,
+                    profilePic:
+                        snap.data().profilePic ||
+                        'https://placehold.co/40x40',
                     ...chatData[uid]
                 };
-            }
-            return null;
-        });
+            })
+        );
 
-        let contacts = (await Promise.all(profileFetches)).filter(Boolean);
-        // Sort by last sent timestamp descending (most recent first)
-        contacts.sort((a, b) => b.lastSent.getTime() - a.lastSent.getTime());
+        const contacts = profiles
+            .filter(Boolean)
+            .sort(
+                (a, b) => b.lastSent.getTime() - a.lastSent.getTime()
+            );
 
-        userList.innerHTML = ''; 
+        // ===== DOM UPDATE PHASE (single paint) =====
+        const fragment = document.createDocumentFragment();
+
         contacts.forEach(user => {
-            const chatItem = document.createElement('div');
-            chatItem.className = 'chat-item';
-            chatItem.id = "chatItem";
-            
-            const lastMessageTime = user.lastSent.getTime() === 0 
-                                  ? '' 
-                                  : user.lastSent.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const item = document.createElement('div');
+            item.className = 'chat-item';
 
-            const profilePicUrl = user.profilePic || 'https://placehold.co/40x40/cccccc/ffffff?text=User';
+            const lastTime =
+                user.lastSent.getTime() === 0
+                    ? ''
+                    : user.lastSent.toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                      });
 
-            chatItem.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 8px;">
-                    <img src="${profilePicUrl}" alt="${user.username}" class="small-user-avatar">
-                    <div style="flex: 1;">
-                        <div style="font-weight: bold;">${user.username}</div>
-                        <div style="font-size: 0.8em; color: #555; display: flex; justify-content: space-between;">
-                            <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 80%;">${user.lastMessage}</span>
-                            <span>${lastMessageTime}</span>
+            item.innerHTML = `
+                <div style="display:flex;align-items:center;gap:8px">
+                    <img
+                        src="${user.profilePic}"
+                        class="small-user-avatar"
+                        loading="lazy"
+                    >
+                    <div style="flex:1">
+                        <div style="font-weight:bold">
+                            ${user.username}
+                        </div>
+                        <div style="font-size:.8em;color:#555;display:flex;justify-content:space-between">
+                            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:75%">
+                                ${user.lastMessage}
+                            </span>
+                            <span>${lastTime}</span>
                         </div>
                     </div>
                 </div>
             `;
 
-            chatItem.onclick = () => startChat(user.uid, user.username);
-            
-            // Prepend to show most recent chat on top
-            userList.prepend(chatItem);
+            item.onclick = () =>
+                startChat(user.uid, user.username);
+
+            fragment.appendChild(item);
         });
 
-    } catch (e) {
-        console.error("Error fetching contacts:", e);
-        userList.innerHTML = '<p style="padding: 10px; color: red;">Failed to load conversations.</p>';
+        // Replace content AT ONCE (no flicker)
+        userList.replaceChildren(fragment);
+
+    } catch (err) {
+        console.error('Failed to refresh contacts:', err);
+        // IMPORTANT: do NOT clear existing UI on error
     }
 }
+
 
 function startChat(userId, username) {
     if (messageListener) messageListener();

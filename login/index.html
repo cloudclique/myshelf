@@ -63,6 +63,11 @@
   </form>
 </div>
 
+<div style="position: relative;">
+    <div id="footer"></div>
+</div>
+<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
+
 <!-- Firebase v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>

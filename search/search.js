@@ -10,6 +10,15 @@ let allItems = [];
 let filteredItems = [];
 let hasMore = true;
 
+const ICONS = {
+    name: '<i class="bi bi-sticky-fill"></i>',
+    category: '<i class="bi bi-folder-fill"></i>',
+    scale: '<i class="bi bi-arrows-fullscreen"></i>',
+    age: '<i class="bi bi-exclamation-octagon"></i>',
+    tag: '<i class="bi bi-tag-fill"></i>'
+};
+
+
 // DOM elements
 const latestAdditionsGrid = document.getElementById('latestAdditionsGrid');
 const headerTools = document.getElementById('headerTools');
@@ -152,6 +161,7 @@ async function fetchAllItems() {
 }
 
 function handleSearch(resetPage = true) {
+    
     const query = searchInput.value.trim().toLowerCase();
 
     if (!query) {
@@ -180,6 +190,7 @@ function handleSearch(resetPage = true) {
     if (resetPage) currentPage = 1;
     renderItemsWithPagination(filteredItems);
     updateURLPage();
+    
 }
 
 function handleClearSearch() {
@@ -281,3 +292,113 @@ function setupHeaderLogoRedirect() {
         window.location.href = `../user/?uid=${currentUser.uid}`;
     };
 }
+
+
+const searchSuggestions = document.getElementById('searchSuggestions');
+
+function updateSearchSuggestions() {
+    const query = searchInput.value.trim().toLowerCase();
+    if (!query) {
+        searchSuggestions.innerHTML = '';
+        return;
+    }
+
+    const matchesByType = {
+        tag: [],
+        age: [],
+        scale: [],
+        category: [],
+        name: []
+    };
+
+    const addedItemIds = new Set();
+    const addedTexts = new Set(); // track unique text for tag/age/scale/category
+
+    for (let item of allItems) {
+        if (!allowNSFW && item.itemAgeRating === '18+') continue;
+        if (addedItemIds.has(item.id)) continue;
+
+        // Check tags
+        const tagMatch = (item.tags || []).find(t => t.toLowerCase().includes(query));
+        if (tagMatch && !addedTexts.has(tagMatch.toLowerCase())) {
+            matchesByType.tag.push({ type: 'tag', text: tagMatch, item });
+            addedTexts.add(tagMatch.toLowerCase());
+            addedItemIds.add(item.id);
+            continue;
+        }
+
+        // Check age rating
+        if ((item.itemAgeRating || '').toLowerCase().includes(query) && !addedTexts.has(item.itemAgeRating.toLowerCase())) {
+            matchesByType.age.push({ type: 'age', text: item.itemAgeRating, item });
+            addedTexts.add(item.itemAgeRating.toLowerCase());
+            addedItemIds.add(item.id);
+            continue;
+        }
+
+        // Check scale
+        if ((item.itemScale || '').toLowerCase().includes(query) && !addedTexts.has(item.itemScale.toLowerCase())) {
+            matchesByType.scale.push({ type: 'scale', text: item.itemScale, item });
+            addedTexts.add(item.itemScale.toLowerCase());
+            addedItemIds.add(item.id);
+            continue;
+        }
+
+        // Check category
+        if ((item.itemCategory || '').toLowerCase().includes(query) && !addedTexts.has(item.itemCategory.toLowerCase())) {
+            matchesByType.category.push({ type: 'category', text: item.itemCategory, item });
+            addedTexts.add(item.itemCategory.toLowerCase());
+            addedItemIds.add(item.id);
+            continue;
+        }
+
+        // Check name (name can repeat, don't filter by text uniqueness)
+        if ((item.itemName || '').toLowerCase().includes(query)) {
+            matchesByType.name.push({ type: 'name', text: item.itemName, item });
+            addedItemIds.add(item.id);
+        }
+
+        // Stop if we already have 10 results
+        const totalCount = Object.values(matchesByType).flat().length;
+        if (totalCount >= 10) break;
+    }
+
+    // Merge results in priority order and limit to 10
+    const orderedMatches = [
+        ...matchesByType.tag,
+        ...matchesByType.age,
+        ...matchesByType.scale,
+        ...matchesByType.category,
+        ...matchesByType.name
+    ].slice(0, 10);
+
+    renderSearchSuggestions(orderedMatches);
+}
+
+function renderSearchSuggestions(matches) {
+    searchSuggestions.innerHTML = '';
+
+    matches.forEach(match => {
+        const div = document.createElement('div');
+        div.className = 'search-suggestion-item';
+        div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type]}</span> ${match.text}`;
+
+        // Clicking a suggestion will fill the search bar and trigger full search
+        div.onclick = () => {
+            searchInput.value = match.text;
+            handleSearch();
+            searchSuggestions.innerHTML = '';
+        };
+
+        searchSuggestions.appendChild(div);
+    });
+}
+
+// Hide suggestions when clicking outside
+document.addEventListener('click', e => {
+    if (!searchSuggestions.contains(e.target) && e.target !== searchInput) {
+        searchSuggestions.innerHTML = '';
+    }
+});
+
+// Attach to input event
+searchInput.addEventListener('input', updateSearchSuggestions);

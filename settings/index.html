@@ -168,6 +168,11 @@
   <button id="logoutBtn" class="action-btn logout-btn">Logout</button>
 </div>
 
+<div style="position: relative;">
+    <div id="footer"></div>
+</div>
+<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
+
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script> 
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>

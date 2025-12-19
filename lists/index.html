@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title id="listTitlePlaceholder">User List</title>  
+    <link rel="stylesheet" href="../style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+</head>
+<body>
+
+<div style="position: relative;">
+    <div id="header"></div>
+    <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
+</div>
+<script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
+
+    <div class="user-controlls">
+        <div class="status-alignment">
+            <h1 id="listTitle">Loading List...</h1> 
+            <div class="profile-cntrl-btns" style="justify-content: left;" >
+                <p id="listOwnerInfo" style="color: var(--accent-clr);"></p>
+                <div style="display: flex; gap: 10px;">
+                    <button id="openRouletteBtn" class="action-btn"><i class="bi bi-dice-5"></i> Roll</button>
+                    <button id="shareListBtn" class="action-btn"><i class="bi bi-share-fill"></i> Share</button>
+                    <button id="listSettingsBtn" class="action-btn" style="display: none;"><i class="bi bi-gear-fill"></i> Settings</button>
+                    <button id="deleteListBtn" class="action-btn" style="display: none; background-color: #d9534f;"><i class="bi bi-trash-fill"></i> Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<div id="rouletteModal" class="modal" style="display: none;">
+    <div class="modal-content roulette-content">
+        <h3>Figure Roulette</h3>
+        <div class="tiles-unified roulette-container">
+            <div class="roulette-pointer"></div>
+            <div id="rouletteTrack" class="roulette-track"></div>
+        </div>
+        <div id="winnerDisplay" class="winner-display"></div>
+        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+            <button id="rollBtn" class="action-btn">Spin!</button>
+            <button id="closeRouletteModal" class="secondary-btn">Close</button>
+        </div>
+    </div>
+</div>
+
+<div class="detail-page-wrapper">
+    <div id="listLoader" class="profile-loader">
+        <div class="spinner"></div>
+        <p>Loading list content...</p>
+    </div>
+
+    <main class="tiles-unified main-column" style="height: fit-content; width: 100%;">
+        <section class="item-section">
+            <div class="profile-search-container">
+                <div class="search-input-wrapper" style="position: relative;">
+                    <i class="bi bi-search" style="position: absolute; right: 15px; top: 7px; cursor: pointer;"></i>
+                    <input type="text" id="listSearchInput" placeholder="Search items in this list..." class="modern_text_field">
+                    <div id="listSearchSuggestions" class="search-suggestions"></div>
+                </div>
+            </div>
+        </section>
+
+        <section class="item-section">
+            <div id="listItemsGrid" class="item-grid">
+                </div>
+        </section>
+    </main>
+</div>
+
+    <div id="editListModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Edit List Settings</h3>
+            <div class="form-group">
+                <label>List Name</label>
+                <input type="text" id="editListName" class="modern_text_field">
+            </div>
+            <div class="form-group">
+                <label>Privacy</label>
+                <div style="display: flex; gap: 20px; margin-top: 10px;">
+                    <label><input type="radio" name="editPrivacy" value="public"> Public</label>
+                    <label><input type="radio" name="editPrivacy" value="private"> Private</label>
+                </div>
+            </div>
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button id="saveListChanges" class="action-btn">Save Changes</button>
+                <button id="closeEditModal" class="secondary-btn">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+<div style="position: relative;">
+    <div id="footer"></div>
+</div>
+<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
+
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+<script type="module" src="lists.js"></script>
+
+</body>
+</html>

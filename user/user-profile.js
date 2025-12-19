@@ -3,6 +3,9 @@ import { auth, db, collectionName } from '../firebase-config.js';
 // --- Constants ---
 const ITEMS_PER_PAGE = 32;
 const COMMENTS_PER_PAGE = 10;
+let listsCurrentPage = 1;
+const LISTS_PER_PAGE = 6;
+let allUserLists = []; 
 const STATUS_OPTIONS = ['Owned', 'Wished', 'Ordered'];
 const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
 const DEFAULT_BANNER_URL = 'https://placehold.co/1000x200/555/eee?text=User+Profile+Banner'; 
@@ -178,6 +181,7 @@ async function initializeProfile() {
     currentPage = hashPage || 1;
     await renderStatusButtons();
     await fetchProfileItems(currentStatusFilter);
+    await fetchUserLists(targetUserId);
     if (hashSearch) {
         profileSearchInput.value = hashSearch;
         await handleProfileSearch();
@@ -187,6 +191,109 @@ async function initializeProfile() {
     await loadComments(targetUserId);
     await fetchAndRenderGalleryPreview(targetUserId);
     if (profileLoader) profileLoader.classList.add('hidden');
+}
+
+async function fetchUserLists(userId) {
+    const profileListsGrid = document.getElementById('profileListsGrid');
+    profileListsGrid.innerHTML = '<p>Loading lists...</p>';
+
+    try {
+        // 1. Prepare references
+        const publicRef = db.collection('public_lists').where('userId', '==', userId);
+        const privateRef = db.collection('artifacts').doc('default-app-id')
+                             .collection('user_profiles').doc(userId)
+                             .collection('lists');
+
+        // 2. Fetch both (Private only if viewing own profile)
+        let queries = [publicRef.get()];
+        if (isProfileOwner) {
+            queries.push(privateRef.get());
+        }
+
+        const snapshots = await Promise.all(queries);
+        allUserLists = [];
+
+        // Process Public Lists
+        snapshots[0].forEach(doc => {
+            allUserLists.push({ id: doc.id, type: 'public', ...doc.data() });
+        });
+
+        // Process Private Lists
+        if (snapshots[1]) {
+            snapshots[1].forEach(doc => {
+                allUserLists.push({ id: doc.id, type: 'private', ...doc.data() });
+            });
+        }
+
+        // Sort by creation date (newest first)
+        allUserLists.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+        renderListsPage(1);
+
+    } catch (error) {
+        console.error("Error fetching lists:", error);
+        profileListsGrid.innerHTML = '<p>Error loading lists.</p>';
+    }
+}
+
+function renderListsPage(page) {
+    listsCurrentPage = page;
+    const grid = document.getElementById('profileListsGrid');
+    const pagination = document.getElementById('listsPagination');
+    grid.innerHTML = '';
+
+    const start = (page - 1) * LISTS_PER_PAGE;
+    const end = start + LISTS_PER_PAGE;
+    const paginatedLists = allUserLists.slice(start, end);
+
+    if (paginatedLists.length === 0) {
+        grid.innerHTML = '<p>No lists created yet.</p>';
+        pagination.innerHTML = '';
+        return;
+    }
+
+    paginatedLists.forEach(list => {
+        const card = document.createElement('a');
+        card.href = `../lists/?list=${list.id}&type=${list.type}`;
+        card.className = 'item-card-link';
+
+        
+        card.innerHTML = `
+            <div class="list-card">
+                <div class="list-image-wrapper">
+                    <div class="list-stack-effect">
+                         <i class="bi bi-journal-bookmark-fill" style="font-size: clamp(1.4rem, 2vw, 1.8rem); color: var(--accent-clr);"></i>
+                    </div>
+                    ${list.type === 'private' ? '<span class="nsfw-overlay" style="background:rgba(0,0,0,0.5);  display: none;"><i class="bi bi-lock-fill;"></i> Private</span>' : ''}
+                </div>
+                <div class="list-info">
+                    <h3>${list.name || 'Untitled List'}</h3>
+                    <span>${list.items?.length || 0} Items • ${list.type}</span>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+
+    renderListsPagination();
+}
+
+function renderListsPagination() {
+    const container = document.getElementById('listsPagination');
+    container.innerHTML = '';
+    const totalPages = Math.ceil(allUserLists.length / LISTS_PER_PAGE);
+
+    if (totalPages <= 1) return;
+
+    for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.innerText = i;
+        btn.className = `action-btn ${i === listsCurrentPage ? 'active' : ''}`;
+        btn.onclick = () => {
+            renderListsPage(i);          
+        };
+        container.appendChild(btn);
+    }
 }
 
 // --- Staff Role Logic ---
@@ -629,6 +736,7 @@ function renderCommentPagination(profileUserId) {
   container.appendChild(prevBtn);
   container.appendChild(pageIndicator);
   container.appendChild(nextBtn);
+  pageIndicator.style.alignContent ="center";
 }
 
 function showConfirmationModal(message, onConfirm) {
@@ -954,3 +1062,6 @@ document.addEventListener('click', (e) => {
         profileSearchSuggestions.innerHTML = '';
     }
 });
+
+
+

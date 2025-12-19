@@ -134,12 +134,13 @@
                                     <p id="statusMessage" class="form-message" style="margin-right: 0px;"></p>
                                     <button type="submit" class="action-btn save-status-btn">Save</button>
                                     <button type="button" id="removeStatusBtn" class="action-btn secondary-btn remove-status-btn">🗑️</button>
+                                    <button id="addToListToggleBtn" class="item-manage-btn" title="Add to List">➕</button>
                                 </div>
                         </form>
                     
 
 
-                        <section id="itemDetailsContent" class="item-details-display">
+                        <section id="itemDetailsContent" class="tiles-unified item-details-display">
                             <div class="loading-state">
                                 <div class="spinner"></div>
                                 <p>Loading details...</p>
@@ -172,7 +173,7 @@
             </main> 
 
             <div class="side-column">   
-                    <section class="item-details-display">
+                    <section class="tiles-unified item-details-display">
                         <div id="ShopSection" class="comment-section">
                             <h3>Shops</h3>
                         
@@ -195,12 +196,43 @@
         </div>
 
 
+
+
+
+<div id="listModal" class="edit-form-modal" style="display:none;">
+    <div class="edit-form-framing">
+        <span class="close-btn" id="closeListModal">&times;</span>
+        <div class="action-form">
+            <h2>Add to List</h2>
+            
+            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #444;">
+                <input type="text" id="newListName" placeholder="New list name..." class="modern_text_field">
+                <div style="margin-top:10px;">
+                    <label><input type="radio" name="listPrivacy" value="public" checked> Public</label>
+                    <label style="margin-left:15px;"><input type="radio" name="listPrivacy" value="private"> Private</label>
+                </div>
+                <button id="createNewListBtn" class="action-btn" style="margin-top:10px; width:100%;">Create & Add</button>
+            </div>
+
+            <label>Or select an existing list:</label>
+            <select id="existingListsDropdown" class="modern_dropdown">
+                <option value="">-- Loading Lists --</option>
+            </select>
+            <button id="addToListBtn" class="action-btn" style="margin-top:15px; width:100%;">Add to Selected List</button>
+            
+            <p id="listMessage" class="form-message"></p>
+        </div>
+    </div>
+</div>        
+
+
 <div id="lightboxOverlay" class="lightbox-overlay" style="display:none;">
     <span class="lightbox-close">&times;</span>
     <img class="lightbox-image" src="" alt="Lightbox Image">
     <a class="lightbox-prev">&#10094;</a>
     <a class="lightbox-next">&#10095;</a>
 </div>
+
 
 <div style="position: relative;">
     <div id="footer"></div>

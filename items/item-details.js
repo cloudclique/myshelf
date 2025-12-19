@@ -10,6 +10,15 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
 
 
 // --- DOM Elements ---
+// --- DOM Elements ---
+const listModal = document.getElementById('listModal');
+const closeListModalBtn = document.getElementById('closeListModal');
+const addToListToggleBtn = document.getElementById('addToListToggleBtn');
+const createNewListBtn = document.getElementById('createNewListBtn');
+const addToListBtn = document.getElementById('addToListBtn');
+const existingListsDropdown = document.getElementById('existingListsDropdown');
+const listMessage = document.getElementById('listMessage');
+
 const itemNamePlaceholder = document.getElementById('itemNamePlaceholder');
 const itemNamePlaceholderTitle = document.getElementById('itemNamePlaceholderTitle');
 const itemDetailsContent = document.getElementById('itemDetailsContent');
@@ -1668,3 +1677,150 @@ function setupHeaderLogoRedirect() {
         window.location.href = `../user/?uid=${userId}`;
     };
 }
+
+
+
+// --- Event Listeners ---
+addToListToggleBtn.onclick = () => {
+    if (!auth.currentUser) {
+        alert("Please log in to manage lists.");
+        return;
+    }
+    listModal.style.display = 'flex';
+    loadUserLists();
+};
+
+closeListModalBtn.onclick = () => listModal.style.display = 'none';
+
+// --- Functions ---
+
+async function loadUserLists() {
+    const userId = auth.currentUser.uid;
+    
+    // 1. Reference for Private Lists
+    const privateListsRef = db.collection('artifacts').doc('default-app-id')
+                               .collection('user_profiles').doc(userId)
+                               .collection('lists');
+                               
+    // 2. Reference for Public Lists owned by this user
+    const publicListsRef = db.collection('public_lists').where('userId', '==', userId);
+    
+    try {
+        existingListsDropdown.innerHTML = '<option value="">-- Select a List --</option>';
+        
+        // Fetch both simultaneously for better performance
+        const [privateSnap, publicSnap] = await Promise.all([
+            privateListsRef.get(),
+            publicListsRef.get()
+        ]);
+
+        // Populate Private Lists
+        privateSnap.forEach(doc => {
+            const list = doc.data();
+            // Store type in value: "type|id"
+            existingListsDropdown.innerHTML += `<option value="private|${doc.id}">${list.name} (Private)</option>`;
+        });
+
+        // Populate Public Lists
+        publicSnap.forEach(doc => {
+            const list = doc.data();
+            // Store type in value: "type|id"
+            existingListsDropdown.innerHTML += `<option value="public|${doc.id}">${list.name} (Public)</option>`;
+        });
+
+    } catch (error) {
+        console.error("Error loading lists:", error);
+    }
+}
+
+async function addItemToList(combinedValue) {
+    if (!combinedValue || !itemId) return;
+    
+    // Split the combined value (e.g., "public|12345")
+    const [type, listId] = combinedValue.split('|');
+    const userId = auth.currentUser.uid;
+    let listRef;
+
+    // Use the explicit type to build the path
+    if (type === 'public') {
+        listRef = db.collection('public_lists').doc(listId);
+    } else {
+        listRef = db.collection('artifacts').doc('default-app-id')
+                    .collection('user_profiles').doc(userId)
+                    .collection('lists').doc(listId);
+    }
+
+    try {
+        await listRef.update({
+            items: firebase.firestore.FieldValue.arrayUnion(itemId),
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        
+        listMessage.textContent = "Item added to list!";
+        listMessage.className = "form-message success-message";
+        
+        setTimeout(() => {
+            listModal.style.display = 'none';
+            // Optional: Redirect to the list immediately
+            window.location.href = `../lists/?list=${listId}&type=${type}`;
+        }, 1000);
+    } catch (error) {
+        listMessage.textContent = "Error: " + error.message;
+        listMessage.className = "form-message error-message";
+    }
+}
+
+// --- Event Listeners ---
+
+createNewListBtn.onclick = async () => {
+    const nameInput = document.getElementById('newListName');
+    const name = nameInput.value.trim();
+    const privacy = document.querySelector('input[name="listPrivacy"]:checked').value; 
+    const userId = auth.currentUser.uid;
+
+    if (!name) {
+        listMessage.textContent = "Please enter a name.";
+        return;
+    }
+
+    try {
+        let newListRef;
+        if (privacy === 'public') {
+            newListRef = db.collection('public_lists').doc(); 
+        } else {
+            newListRef = db.collection('artifacts').doc('default-app-id')
+                           .collection('user_profiles').doc(userId)
+                           .collection('lists').doc();
+        }
+        
+        const newListId = newListRef.id;
+
+        await newListRef.set({
+            name: name,
+            privacy: privacy,
+            items: [itemId],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            userId: userId
+        });
+
+        listMessage.textContent = "List created! Redirecting...";
+        listMessage.className = "form-message success-message";
+
+        // URL matches your reworked lists.js expectations
+        setTimeout(() => {
+            window.location.href = `../lists/?list=${newListId}&type=${privacy}`;
+        }, 800);
+
+    } catch (error) {
+        listMessage.textContent = "Error: " + error.message;
+    }
+};
+
+addToListBtn.onclick = () => {
+    const selectedValue = existingListsDropdown.value; // This is "type|id"
+    if (!selectedValue) {
+        listMessage.textContent = "Please select a list.";
+        return;
+    }
+    addItemToList(selectedValue);
+};

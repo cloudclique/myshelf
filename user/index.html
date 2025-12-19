@@ -68,7 +68,8 @@
         </div>
 
         <main class="main-column">
-            <section class="item-section">
+        
+            <section class="tiles-unified item-section">
                 <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">
                     <div class="search-func-div" style="position: relative;">
                         <input type="text" id="profileSearchInput" class="modern_text_field" placeholder="Search..." />
@@ -84,13 +85,7 @@
                 <div id="paginationContainer" class="pagination-container"></div>
             </section>
 
-            <div id="userGalleryPreview" class="user-gallery-preview">
-                <h2>User Gallery</h2>
-                <div id="previewGrid" class="preview-grid"></div>
-                <button id="viewMoreGalleryBtn" class="action-btn">View More</button>
-            </div>
-
-            <div id="commentsSection" class="item-section">
+            <div id="commentsSection" class="tiles-unified item-section">
                 <h2>Comments</h2>
                 <div id="addCommentBox" class="comment-form-container" style="display:none;">
                     <textarea id="commentInput" placeholder="Write a comment..." maxlength="800" class="modern_text_field"></textarea>
@@ -98,9 +93,28 @@
                 </div>
                 <p id="loginToComment" style="display:none;">You must log in to post comments.</p>
                 <div id="commentsList" class="comments-list"></div>
-                <div id="commentPagination"></div>  
-            </div>
+                <div id="commentPagination" style="justify-content: center;display: flex;"></div>  
+            </div>        
         </main>
+
+        <section class="side-column">
+            <section class="tiles-unified">
+                <div class="status-alignment">
+                    <h2>Lists</h2>
+                </div>
+                <div id="profileListsGrid" class="list-grid">
+                    </div>
+                <div id="listsPagination" class="pagination-container">
+                    </div>
+            </section>            
+
+            <div id="userGalleryPreview" class="user-gallery-preview">
+                <h2>User Gallery</h2>
+                <div id="previewGrid" class="preview-grid"></div>
+                <button id="viewMoreGalleryBtn" class="action-btn">View More</button>
+            </div>
+        </section>
+
     </div>
 
 <div style="position: relative;">

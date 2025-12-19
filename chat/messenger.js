@@ -458,6 +458,7 @@ function startChat(userId, username) {
     });
 
     listenForMessages(userId);
+    handleLayout();
 }
 
 function listenForMessages(targetUserId) {
@@ -664,35 +665,36 @@ function handleLayout() {
     const isMobile = window.innerWidth <= 768;
 
     if (isMobile) {
-        // MOBILE START STATE
-        sidebar.style.display = 'flex';
-        userList.style.display = 'flex';
-        chatArea.style.display = 'none';
-
-        // Back button → show chat list
-        if (backBtn) {
-            backBtn.onclick = () => {
-                chatArea.style.display = 'none';
-                userList.style.display = 'flex';
-            };
+        // If we are currently chatting with someone, keep the chat open
+        if (currentChatUserId) {
+            sidebar.style.display = 'none';
+            userList.style.display = 'none';
+            chatArea.style.display = 'flex';
+        } else {
+            // Otherwise, show the contact list
+            sidebar.style.display = 'flex';
+            userList.style.display = 'flex';
+            chatArea.style.display = 'none';
         }
 
-        // Click chat → show chat area
-        userList.onclick = (e) => {
-            // prevent random clicks triggering it
-            if (!e.target.closest('.chat-item')) return;
-            chatArea.style.display = 'flex';
-            userList.style.display = 'none';
-        };
-
+        // Back button functionality
+        if (backBtn) {
+            backBtn.onclick = () => {
+                currentChatUserId = null; // Clear state so layout knows we're back at list
+                chatArea.style.display = 'none';
+                userList.style.display = 'flex';
+                sidebar.style.display = 'flex';
+                // Remove active class from list items
+                document.querySelectorAll('.chat-item').forEach(item => item.classList.remove('active'));
+            };
+        }
     } else {
-        // DESKTOP STATE (always show both)
+        // DESKTOP STATE: Always show both
         sidebar.style.display = 'flex';
         userList.style.display = 'flex';
         chatArea.style.display = 'flex';
-
+        
         if (backBtn) backBtn.onclick = null;
-        userList.onclick = null;
     }
 }
 

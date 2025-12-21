@@ -28,11 +28,11 @@
                         
 
                         <div class="item-btn-container">
-                            <button id="statusToggleBtn" class="item-manage-btn" title="Toggle Collection Status Manager" disabled>+</button>
+                            <button id="statusToggleBtn" class="item-manage-btn" title="Toggle Collection Status Manager" disabled><i class="bi bi-folder-plus"></i></button>
 
                             
                             <p id="authMessage" class="form-message"></p>
-                                <button id="editToggleBtn" class="item-manage-btn" style="display:none;">✏️</button>
+                                <button id="editToggleBtn" class="item-manage-btn" style="display:none;"><i class="bi bi-gear-wide-connected"></i></button>
                                 <div id="deleteContainer"></div>
                             </div>
                         </div>
@@ -129,13 +129,17 @@
                                         <i class="bi bi-box-seam-fill" ></i>
                                     </label>                  
                                 </div>
-
+                                
+<div id="privateStatusFields" style="display: none; margin-top: 15px; border-top: 1px solid #444; padding-top: 10px; width: 100%;">
+    <p style="font-size: 0.8em; color: #888; margin-bottom: 10px;"><i class="bi bi-lock-fill"></i> Private Info (Only visible to you)</p>
+    <div id="dynamicPrivateInputs"></div>
+</div>
                                 <div class="status-actions">
                                     <p id="statusMessage" class="form-message" style="margin-right: 0px;"></p>
-                                    <button type="submit" class="action-btn save-status-btn">Save</button>
-                                    <button type="button" id="removeStatusBtn" class="action-btn secondary-btn remove-status-btn">🗑️</button>
-                                    <button id="addToListToggleBtn" class="item-manage-btn" title="Add to List">➕</button>
+                                    <button type="submit" class="action-btn save-status-btn"><i class="bi bi-floppy2-fill"></i></button>
+                                    <button type="button" id="removeStatusBtn" class="action-btn remove-status-btn"><i class="bi bi-folder-minus"></i></button>
                                 </div>
+
                         </form>
                     
 
@@ -189,6 +193,18 @@
                     </section>  
 
 
+                    <section class="tiles-unified">
+                        <div class="status-alignment">
+                            <h2>Lists</h2>
+                            <button id="addToListToggleBtn" class="action-btn" title="Add to List"><i class="bi bi-journal-plus"></i></button>
+                        </div>
+                        <div id="profileListsGrid" class="list-grid">
+                            </div>
+                        <div id="listsPagination" class="pagination-container">
+                            </div>
+                    </section>
+
+
                 <section class="side-block"> 
                     <section id="tagsBox" class="tagsBox"></section>
                 </section>
@@ -223,7 +239,7 @@
             <p id="listMessage" class="form-message"></p>
         </div>
     </div>
-</div>        
+</div>
 
 
 <div id="lightboxOverlay" class="lightbox-overlay" style="display:none;">

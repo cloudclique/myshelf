@@ -7,9 +7,14 @@ const HORIZONTAL_ALIGN_OPTIONS = ['left', 'center', 'right'];
 const MAX_IMAGE_COUNT = 6; // NEW: Max number of images allowed
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
 
+// --- Constants for Lists ---
+const LISTS_PER_PAGE = 6;
+let allPublicListsForThisItem = [];
+let listsCurrentPage = 1;
+let currentPrivateData = {};
 
 
-// --- DOM Elements ---
+
 // --- DOM Elements ---
 const listModal = document.getElementById('listModal');
 const closeListModalBtn = document.getElementById('closeListModal');
@@ -231,6 +236,7 @@ document.addEventListener('DOMContentLoaded', () => {
         renderComments(itemId); 
         renderShops(itemId);
         setupHeaderLogoRedirect();
+        fetchAndRenderPublicLists(itemId);
     });
 
     if (submitCommentBtn) submitCommentBtn.addEventListener('click', postComment);
@@ -487,7 +493,6 @@ function toggleStatusForm() {
     statusMessage.textContent = '';
 }
 
-// --- Fetch and Render Item ---
 async function fetchItemDetails(id) {
     try {
         const docRef = db.collection('items').doc(id);
@@ -523,43 +528,48 @@ async function fetchItemDetails(id) {
                 `;
 
                 itemDetailsContent.innerHTML = '';
-                // Hide other UI elements that might contain sensitive info
                 if (tagsBox) tagsBox.innerHTML = '';
                 if (deleteContainer) deleteContainer.innerHTML = '';
                 if (editToggleBtn) editToggleBtn.style.display = 'none';
-                return; // Stop execution
+                return; 
             }
         }
         // --- NSFW CHECK END ---
 
         applyShopPermissions(itemData);
         
-        // MODIFIED: Store the array of image objects or convert legacy URLs to objects
         currentItemImageUrls = Array.isArray(itemData.itemImageUrls) && itemData.itemImageUrls.length > 0
             ? itemData.itemImageUrls
             : [itemData.itemImageUrl, itemData.itemImageBase64, itemData.itemImage]
-              .filter(url => url) // Filter out null/undefined
-              .map(url => typeof url === 'string' ? { url: url } : url) // Convert legacy string URLs to {url: string} object
-              .filter(obj => obj && obj.url); // Ensure we only keep valid objects
-
+              .filter(url => url)
+              .map(url => typeof url === 'string' ? { url: url } : url)
+              .filter(obj => obj && obj.url);
 
         let userStatus = null;
         let canEdit = false;
+        let privateData = {};
 
         if (auth.currentUser) {
             const userId = auth.currentUser.uid;
             const userStatusDocRef = getUserCollectionRef(db, userId).doc(id);
             const userStatusSnap = await userStatusDocRef.get();           
-            if (userStatusSnap.exists) userStatus = userStatusSnap.data().status;
-            updateStatusSelection(userStatus);
+            
+            if (userStatusSnap.exists) {
+                const userData = userStatusSnap.data();
+                userStatus = userData.status;
+                privateData = userData.privateNotes || {}; 
+                currentPrivateData = privateData;
+            }
+            
+            updateStatusSelection(userStatus, privateData);
+            renderItemDetails(itemData, userStatus, privateData);
 
             const userRole = await checkUserPermissions(userId);
             const isUploader = userId === itemData.uploaderId;
             const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
             canEdit = isUploader || isAdminOrMod;
-        }
 
-        renderItemDetails(itemData, userStatus);
+        }
 
         if (canEdit) {
             editToggleBtn.style.display = 'inline-block';
@@ -568,7 +578,7 @@ async function fetchItemDetails(id) {
             setupDeleteButton(itemData.id);
         } else {
             editToggleBtn.style.display = 'none';
-            deleteContainer.innerHTML = ''; // Ensure delete button is hidden if no permission
+            deleteContainer.innerHTML = '';
         }
     } catch (error) {
         itemDetailsContent.innerHTML = `<p class="error-message">Error fetching details: ${error.message}</p>`;
@@ -577,7 +587,8 @@ async function fetchItemDetails(id) {
 }
 
 // MODIFIED: Render image gallery instead of single image
-function renderItemDetails(item, userStatus) {
+// MODIFIED: Render image gallery and status-correlated private info
+function renderItemDetails(item, userStatus, privateData = {}) {
     const titleText = item.itemName || 'Untitled Item';
     itemNamePlaceholder.textContent = titleText;
     itemNamePlaceholderTitle.textContent = titleText;
@@ -599,6 +610,45 @@ function renderItemDetails(item, userStatus) {
         galleryHtml += `</div>`;
     }
 
+    // --- NEW: Correlating Private Info Section ---
+    let privateInfoHtml = '';
+    // Only show if a status is set and there is private data available
+    if (userStatus && Object.keys(privateData).length > 0) {
+        let fieldsHtml = '';
+
+        // Logic for Owned/Ordered display
+        if (userStatus === 'Owned' || userStatus === 'Ordered') {
+            fieldsHtml += `
+                ${privateData.amount ? `<div><span class="info-label">Amount:</span><span class="info-value">${privateData.amount}</span></div>` : ''}
+                ${privateData.price ? `<div><span class="info-label">Price:</span><span class="info-value">${privateData.price}</span></div>` : ''}
+                ${privateData.shipping ? `<div><span class="info-label">Shipping:</span><span class="info-value">${privateData.shipping}</span></div>` : ''}
+                ${privateData.score ? `<div><span class="info-label">Score:</span><span class="info-value">${privateData.score}/10</span></div>` : ''}
+            `;
+            
+            if (userStatus === 'Owned' && privateData.location) {
+                fieldsHtml += `<div><span class="info-label">Location:</span><span class="info-value">${privateData.location}</span></div>`;
+            } else if (userStatus === 'Ordered') {
+                if (privateData.tracking) fieldsHtml += `<div><span class="info-label">Tracking:</span><span class="info-value">${privateData.tracking}</span></div>`;
+                if (privateData.store) fieldsHtml += `<div><span class="info-label">Store:</span><span class="info-value">${privateData.store}</span></div>`;
+            }
+        } else if (userStatus === 'Wished') {
+            fieldsHtml += `
+                ${privateData.priority ? `<div><span class="info-label">Priority:</span><span class="info-value">${privateData.priority}/10</span></div>` : ''}
+            `;
+        }
+
+        privateInfoHtml = `
+            <div class="private-metadata-box" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #555;">
+                <p style="font-size: 0.85em; color: var(--accent-clr); margin-bottom: 10px;">
+                    <i class="bi bi-lock-fill"></i> Your Private Details
+                </p>
+                <div class="two-column-row">
+                    ${fieldsHtml}
+                </div>
+            </div>
+        `;
+    }
+
     itemDetailsContent.innerHTML = `
         <div class="image-gallery-container" id="imageGalleryContainer">
             ${galleryHtml}
@@ -618,7 +668,7 @@ function renderItemDetails(item, userStatus) {
                 </div>
                 <div><span class="info-label">Item ID:</span><span class="info-value">${item.id}</span></div>
             </div>
-            
+            ${privateInfoHtml}
         </div>
     `;
 
@@ -626,51 +676,30 @@ function renderItemDetails(item, userStatus) {
         <div><span class="info-label">Tags:</span><span class="tags">${(item.tags && item.tags.join(', ')) || 'None'}</span></div>
     `;
 
-    // Thumbnail click handler
-    window.changeMainImage = (thumbnail) => {
-        const mainImage = document.getElementById('mainGalleryImage');
-        if (mainImage) {
-            mainImage.src = thumbnail.src;
-            mainImage.dataset.index = thumbnail.dataset.index; // update index for lightbox
-            document.querySelectorAll('.item-thumbnail').forEach(t => t.classList.remove('selected-thumbnail'));
-            thumbnail.classList.add('selected-thumbnail');
-        }
-    };
-
-    // Main image click to open lightbox
+    // Re-attach listeners for gallery
     const mainImage = document.getElementById('mainGalleryImage');
     if (mainImage) {
         mainImage.onclick = () => {
             const index = parseInt(mainImage.dataset.index || 0, 10);
-            openLightbox(index); // open at currently selected image
+            openLightbox(index);
         };
     }
 
-    // Uploader name
+    // Uploader name logic
     const uploaderId = item.uploaderId;
     const uploaderEl = document.getElementById("uploaderName");
-
-    if (!uploaderId) {
-        if (uploaderEl) uploaderEl.textContent = "Unknown user";
-    } else {
+    if (uploaderId && uploaderEl) {
         getUploaderUsername(uploaderId).then(name => {
-            if (uploaderEl) {
-                const profileLink = document.createElement('a');
-                profileLink.href = `../user/?uid=${uploaderId}`;
-                profileLink.textContent = name;
-                profileLink.className = 'info-value-link';
-                uploaderEl.innerHTML = '';
-                uploaderEl.appendChild(profileLink);
-            }
-        }).catch(error => {
-            console.error("Error fetching uploader name:", error);
-            if (uploaderEl) uploaderEl.textContent = "Error loading user";
+            const profileLink = document.createElement('a');
+            profileLink.href = `../user/?uid=${uploaderId}`;
+            profileLink.textContent = name;
+            profileLink.className = 'info-value-link';
+            uploaderEl.innerHTML = '';
+            uploaderEl.appendChild(profileLink);
         });
     }
 
-    if (statusToggleBtn && !auth.currentUser) statusToggleBtn.disabled = true;
-    else if (statusToggleBtn) statusToggleBtn.disabled = false;
-
+    if (statusToggleBtn) statusToggleBtn.disabled = !auth.currentUser;
 }
 
 // --- Edit Form ---
@@ -678,13 +707,13 @@ function toggleEditForm() {
     // MODIFIED: Use the modal functions
     if (editModal.style.display === 'flex') {
         closeEditModal();
-        editToggleBtn.textContent = '✏️';
+        editToggleBtn.innerHTML = '<i class="bi bi-gear-wide-connected"></i>';
     } else {
         // Re-setup form content before showing modal to ensure fresh data
         fetchItemDetails(itemId).then(() => {
              // setupEditForm is called inside fetchItemDetails for re-setup
              showEditModal();
-             editToggleBtn.textContent = '✏️';
+             editToggleBtn.innerHTML = '<i class="bi bi-gear-wide-connected"></i>';
         });
     }
 }
@@ -804,7 +833,7 @@ editItemForm.addEventListener('submit', async (e) => {
         // NEW: Close the modal and refresh details
         setTimeout(() => {
             closeEditModal();
-            editToggleBtn.textContent = '✏️';
+            editToggleBtn.innerHTML = '<i class="bi bi-gear-wide-connected"></i>';
             fetchItemDetails(itemId);
         }, 100);
 
@@ -819,7 +848,7 @@ editItemForm.addEventListener('submit', async (e) => {
 function setupDeleteButton(id) {
     // MODIFIED: The structure in HTML for deleteContainer is now simpler and in the title bar
     deleteContainer.innerHTML = `
-        <button id="deleteBtn" class="item-manage-btn" title="Delete Item Permanently">🗑️</button>
+        <button id="deleteBtn" class="item-manage-btn" title="Delete Item Permanently"><i class="bi bi-trash3-fill"></i></button>
     `;
     document.getElementById('deleteBtn').onclick = () => showConfirmDelete(id);
 }
@@ -880,23 +909,60 @@ async function handleStatusUpdate(e) {
 
     const userId = auth.currentUser.uid;
     const newStatus = selectedStatus.value;
-    statusMessage.textContent = `Saving status...`;
-    statusMessage.className = 'form-message';
-
     const userItemDocRef = getUserCollectionRef(db, userId).doc(itemId);
 
+    statusMessage.textContent = `Saving...`;
+    statusMessage.className = 'form-message';
+
     try {
+        // --- Get existing data first so we don't overwrite other status info ---
+        const existingDoc = await userItemDocRef.get();
+        let privateData = {};
+        if (existingDoc.exists && existingDoc.data().privateNotes) {
+            privateData = existingDoc.data().privateNotes;
+        }
+
+        // Merge visible UI fields into privateData
+        if (newStatus === 'Owned' || newStatus === 'Ordered') {
+            privateData.amount = document.getElementById('privAmount')?.value || '1';
+            privateData.price = document.getElementById('privPrice')?.value || '';
+            privateData.shipping = document.getElementById('privShipping')?.value || '';
+            // Capture the Score field
+            privateData.score = document.getElementById('privScore')?.value || ''; 
+
+            if (newStatus === 'Owned') {
+                privateData.location = document.getElementById('privLocation')?.value || '';
+            } else {
+                privateData.tracking = document.getElementById('privTracking')?.value || '';
+                privateData.store = document.getElementById('privStore')?.value || '';
+            }
+        } else if (newStatus === 'Wished') {
+            privateData.priority = document.getElementById('privPriority')?.value || '';
+            privateData.target = document.getElementById('privTarget')?.value || '';
+        }
+
         await userItemDocRef.set({
             itemId: itemId,
             status: newStatus,
+            privateNotes: privateData,
             addedDate: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        }, { merge: true });
 
         await updateProfileCounters(userId);
-
-        statusMessage.textContent = 'Status saved.';
+        
+        // Update success message
+        statusMessage.textContent = 'Status saved! Closing...';
         statusMessage.className = 'form-message success-message';
-        fetchItemDetails(itemId);
+        currentPrivateData = privateData;
+
+        // Auto-close logic: Wait 0.8 seconds, then hide form and refresh UI
+        setTimeout(() => {
+            collectionStatusForm.style.display = 'none';
+            if (statusToggleBtn) statusToggleBtn.classList.remove('active');
+            statusMessage.textContent = '';
+            fetchItemDetails(itemId); 
+        }, 800);
+
     } catch (error) {
         statusMessage.textContent = `Error: ${error.message}`;
         statusMessage.className = 'form-message error-message';
@@ -1056,7 +1122,7 @@ async function createCommentElement(commentId, userId, text, timestamp) {
     return commentEl;
 }
 
-async function deleteCommentByElement(commentEl, commentId) {
+/*async function deleteCommentByElement(commentEl, commentId) {
     const btn = commentEl.querySelector('.delete-comment-btn');
     btn.disabled = true;
 
@@ -1079,7 +1145,7 @@ async function deleteCommentByElement(commentEl, commentId) {
         commentMessage.className = 'form-message error-message';
     }
 }
-
+*/
 
 function linkify(text) {
     const urlPattern = /(\b(https?:\/\/|www\.)[^\s]+\b)/g;
@@ -1195,27 +1261,26 @@ async function renderComments(itemId) {
 
 
 
-function updateStatusSelection(userStatus) {
+function updateStatusSelection(userStatus, privateData = {}) {
     const statusButtons = document.querySelectorAll('.status-btn');
-    statusButtons.forEach(btn => {
-        btn.classList.remove('selected-status');
-    });
+    statusButtons.forEach(btn => btn.classList.remove('selected-status'));
     
     const radioInputs = document.querySelectorAll('input[name="collectionStatus"]');
     radioInputs.forEach(input => {
         input.checked = false;
+        // Add listener to change fields when user clicks a different status
+        input.onclick = () => renderPrivateFields(input.value); 
     });
 
     if (userStatus) {
         const radioInput = document.querySelector(`input[name="collectionStatus"][value="${userStatus}"]`);
-        
         if (radioInput) {
             radioInput.checked = true;
-            
             const label = document.querySelector(`label[for="${radioInput.id}"]`);
-            if (label) {
-                label.classList.add('selected-status');
-            }
+            if (label) label.classList.add('selected-status');
+            
+            // NEW: Render the fields with existing data on load
+            renderPrivateFields(userStatus, privateData);
         }
     } 
 }
@@ -1736,12 +1801,10 @@ async function loadUserLists() {
 async function addItemToList(combinedValue) {
     if (!combinedValue || !itemId) return;
     
-    // Split the combined value (e.g., "public|12345")
     const [type, listId] = combinedValue.split('|');
     const userId = auth.currentUser.uid;
     let listRef;
 
-    // Use the explicit type to build the path
     if (type === 'public') {
         listRef = db.collection('public_lists').doc(listId);
     } else {
@@ -1759,11 +1822,12 @@ async function addItemToList(combinedValue) {
         listMessage.textContent = "Item added to list!";
         listMessage.className = "form-message success-message";
         
+        // MODIFIED: Refresh the list display and close modal without reloading
         setTimeout(() => {
             listModal.style.display = 'none';
-            // Optional: Redirect to the list immediately
-            window.location.href = `../lists/?list=${listId}&type=${type}`;
-        }, 1000);
+            listMessage.textContent = ""; 
+            fetchAndRenderPublicLists(itemId); // Refresh the "Public Lists" grid
+        }, 1500); 
     } catch (error) {
         listMessage.textContent = "Error: " + error.message;
         listMessage.className = "form-message error-message";
@@ -1793,8 +1857,6 @@ createNewListBtn.onclick = async () => {
                            .collection('lists').doc();
         }
         
-        const newListId = newListRef.id;
-
         await newListRef.set({
             name: name,
             privacy: privacy,
@@ -1803,16 +1865,20 @@ createNewListBtn.onclick = async () => {
             userId: userId
         });
 
-        listMessage.textContent = "List created! Redirecting...";
+        listMessage.textContent = "List created and item added!";
         listMessage.className = "form-message success-message";
 
-        // URL matches your reworked lists.js expectations
+        // MODIFIED: Close modal and refresh UI
         setTimeout(() => {
-            window.location.href = `../lists/?list=${newListId}&type=${privacy}`;
-        }, 800);
+            listModal.style.display = 'none';
+            nameInput.value = ''; 
+            listMessage.textContent = "";
+            fetchAndRenderPublicLists(itemId); // Refresh the lists grid
+        }, 1500);
 
     } catch (error) {
         listMessage.textContent = "Error: " + error.message;
+        listMessage.className = "form-message error-message";
     }
 };
 
@@ -1824,3 +1890,157 @@ addToListBtn.onclick = () => {
     }
     addItemToList(selectedValue);
 };
+
+
+async function fetchAndRenderPublicLists(id) {
+    const grid = document.getElementById('profileListsGrid');
+    if (!grid) return;
+
+    try {
+        // Query public_lists that contain this itemId in their 'items' array
+        const snapshot = await db.collection('public_lists')
+            .where('items', 'array-contains', id)
+            .get();
+
+        allPublicListsForThisItem = [];
+        snapshot.forEach(doc => {
+            allPublicListsForThisItem.push({ 
+                id: doc.id, 
+                ...doc.data(), 
+                type: 'public' // Explicitly set type for the link logic
+            });
+        });
+
+        renderListsPage(1);
+    } catch (error) {
+        console.error("Error fetching public lists:", error);
+        grid.innerHTML = '<p class="error-message">Error loading lists containing this item.</p>';
+    }
+}
+
+function renderListsPage(page) {
+    listsCurrentPage = page;
+    const grid = document.getElementById('profileListsGrid');
+    const pagination = document.getElementById('listsPagination');
+    if (!grid) return;
+
+    grid.innerHTML = '';
+
+    const start = (page - 1) * LISTS_PER_PAGE;
+    const end = start + LISTS_PER_PAGE;
+    const paginatedLists = allPublicListsForThisItem.slice(start, end);
+
+    if (paginatedLists.length === 0) {
+        grid.innerHTML = '<p>This item is not in any public lists yet.</p>';
+        if (pagination) pagination.innerHTML = '';
+        return;
+    }
+
+    paginatedLists.forEach(list => {
+        const card = document.createElement('a');
+        card.href = `../lists/?list=${list.id}&type=${list.type}`;
+        card.className = 'item-card-link';
+
+        card.innerHTML = `
+            <div class="list-card">
+                <div class="list-image-wrapper">
+                    <div class="list-stack-effect">
+                         <i class="bi bi-journal-bookmark-fill" style="font-size: clamp(1.4rem, 2vw, 1.8rem); color: var(--accent-clr);"></i>
+                    </div>
+                    ${list.type === 'private' ? '<span class="nsfw-overlay" style="background:rgba(0,0,0,0.5);"><i class="bi bi-lock-fill"></i> Private</span>' : ''}
+                </div>
+                <div class="list-info">
+                    <h3>${list.name || 'Untitled List'}</h3>
+                    <span>${list.items?.length || 0} Items • ${list.type}</span>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+
+    renderListsPagination();
+}
+
+function renderListsPagination() {
+    const container = document.getElementById('listsPagination');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    const totalPages = Math.ceil(allPublicListsForThisItem.length / LISTS_PER_PAGE);
+
+    if (totalPages <= 1) return;
+
+    for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.innerText = i;
+        btn.className = `action-btn ${i === listsCurrentPage ? 'active' : ''}`;
+        btn.onclick = () => {
+            renderListsPage(i);          
+        };
+        container.appendChild(btn);
+    }
+}
+
+
+
+
+
+
+
+
+
+const privateFieldsContainer = document.getElementById('privateStatusFields');
+const dynamicInputs = document.getElementById('dynamicPrivateInputs');
+
+document.querySelectorAll('input[name="collectionStatus"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        const status = e.target.value;
+        privateFieldsContainer.style.display = 'block';
+        renderPrivateFields(status, currentPrivateData);
+    });
+});
+
+function renderPrivateFields(status, existingData = {}) {
+    const privateFieldsContainer = document.getElementById('privateStatusFields');
+    const dynamicInputs = document.getElementById('dynamicPrivateInputs');
+    
+    if (!status || status === 'N/A') {
+        privateFieldsContainer.style.display = 'none';
+        return;
+    }
+
+    privateFieldsContainer.style.display = 'block';
+    let html = '';
+
+    // These fields are shared between Owned and Ordered so they carry over
+    const sharedPurchaseFields = `
+        <label>Amount:</label>
+        <input type="number" id="privAmount" class="modern_text_field" value="${existingData.amount || '1'}" min="1">
+        <label>Price (per item):</label>
+        <input type="text" id="privPrice" class="modern_text_field" value="${existingData.price || ''}" placeholder="e.g. $50.00">
+        <label>Shipping Cost:</label>
+        <input type="text" id="privShipping" class="modern_text_field" value="${existingData.shipping || ''}" placeholder="e.g. $10.00">
+        <label>Store Name:</label>
+        <input type="text" id="privStore" class="modern_text_field" value="${existingData.store || ''}" placeholder="Where did you buy it?">
+        <label>Score:</label>
+        <input type="number" id="privScore" class="modern_text_field" value="${existingData.score || ''}" min="1" max="10" placeholder="e.g. 8">
+    `;
+
+    if (status === 'Owned') {
+        // Now includes Store Name instead of Storage Location
+        html = sharedPurchaseFields; 
+    } else if (status === 'Ordered') {
+        // Includes shared fields plus the unique Tracking field
+        html = `
+            ${sharedPurchaseFields}
+            <label>Order # / Tracking:</label>
+            <input type="text" id="privTracking" class="modern_text_field" value="${existingData.tracking || ''}" placeholder="Tracking number">
+        `;
+    } else if (status === 'Wished') {
+        html = `
+            <label>Priority (1-10):</label>
+            <input type="number" id="privPriority" class="modern_text_field" value="${existingData.priority || ''}" min="1" max="10">`;
+    }
+
+    dynamicInputs.innerHTML = html;
+}

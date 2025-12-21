@@ -552,3 +552,168 @@ function setupHeaderLogoRedirect() {
     };
 }
 
+// --- New Helper: Check for similar items ---
+async function findSimilarItems(newTitle) {
+    // 1. Clean and tokenize the input
+    const cleanInput = newTitle.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+    const newWords = cleanInput.split(/\s+/).filter(word => word.length >= 2);
+
+    if (newWords.length === 0) return [];
+
+    try {
+        // Fetch all items from the collection
+        const snapshot = await db.collection(itemsCollectionName)
+            .orderBy('createdAt', 'desc')
+            .get();
+
+        const allPotentialMatches = [];
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const existingTitle = data.itemName.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
+            
+            // Calculate how many keywords overlap
+            const matchCount = newWords.filter(word => existingTitle.includes(word)).length;
+            
+            if (matchCount > 0) {
+                allPotentialMatches.push({
+                    id: doc.id,
+                    itemName: data.itemName,
+                    thumb: (data.itemImageUrls && data.itemImageUrls.length > 0) 
+                           ? data.itemImageUrls[0].url : '../placeholder.png',
+                    matchCount: matchCount
+                });
+            }
+        });
+
+        // 2. Adaptive Filtering Logic
+        // We start with a minimum requirement of 2 matching words
+        let currentThreshold = 2;
+        let filteredMatches = allPotentialMatches.filter(m => m.matchCount >= currentThreshold);
+
+        // Gradually increase the threshold if we found more than 3 matches
+        // and we haven't exceeded the total number of words in the new title
+        while (filteredMatches.length > 3 && currentThreshold < newWords.length) {
+            currentThreshold++;
+            const nextLevelMatches = allPotentialMatches.filter(m => m.matchCount >= currentThreshold);
+            
+            // If increasing the threshold makes the list empty, we stop at the previous level
+            if (nextLevelMatches.length === 0) break;
+            
+            filteredMatches = nextLevelMatches;
+        }
+
+        // Final safety check: if the title is long, we don't want 1-word matches ever
+        return filteredMatches.filter(m => m.matchCount >= 2);
+
+    } catch (e) {
+        console.error("Duplicate check failed:", e);
+        return [];
+    }
+}
+
+// --- Modified Form Submission to use HTML in Modal ---
+addItemForm.onsubmit = async (e) => {
+    e.preventDefault();
+
+    if (!currentUserId) {
+        uploadStatus.textContent = "You must be logged in to add an item.";
+        uploadStatus.className = 'form-message error-message';
+        return;
+    }
+
+    if (selectedImageFiles.length === 0) {
+        uploadStatus.textContent = "Please select at least one image.";
+        uploadStatus.className = 'form-message error-message';
+        return;
+    }
+
+    const title = itemNameInput.value.trim();
+    uploadButton.disabled = true;
+    uploadStatus.textContent = "Checking database for similar items...";
+
+    const similarItems = await findSimilarItems(title);
+
+    if (similarItems.length > 0) {
+        // Build the HTML for the matches
+        const listHtml = similarItems.map(item => `
+            <div class="similar-item-row">
+                <img src="${item.thumb}" class="similar-item-thumb" alt="existing item">
+                <span class="similar-item-name">${item.itemName}</span>
+            </div>
+        `).join('');
+
+        const fullMessageHtml = `
+            <div style="margin-bottom: 15px; font-weight: bold; color: #d9534f;">
+                Found ${similarItems.length} similar entries:
+            </div>
+            <div style="max-height: 200px; overflow-y: auto; margin-bottom: 15px;">
+                ${listHtml}
+            </div>
+            <p>Do you still want to proceed with uploading this as a new entry?</p>
+        `;
+        
+        // Temporarily change modal behavior to handle HTML
+        const originalMessage = modalMessage.textContent;
+        modalMessage.innerHTML = fullMessageHtml;
+        confirmationModal.style.display = 'flex';
+        modalYesBtn.textContent = "Yes, Upload Anyway";
+        modalNoBtn.textContent = "No, Cancel";
+
+        // Re-bind buttons (cleaning up old listeners)
+        modalYesBtn.replaceWith(modalYesBtn.cloneNode(true));
+        modalNoBtn.replaceWith(modalNoBtn.cloneNode(true));
+        const newYes = document.getElementById('modalYesBtn');
+        const newNo = document.getElementById('modalNoBtn');
+
+        newYes.onclick = () => {
+            closeConfirmationModal();
+            proceedWithUpload();
+        };
+        newNo.onclick = () => {
+            closeConfirmationModal();
+            uploadButton.disabled = false;
+        };
+    } else {
+        await proceedWithUpload();
+    }
+};
+
+// 2. Extracted Upload Logic
+async function proceedWithUpload() {
+    uploadButton.disabled = true;
+    uploadStatus.textContent = "Starting upload...";
+    uploadStatus.className = 'form-message';
+
+    const itemData = {
+        uploaderId: currentUserId,
+        uploaderName: currentUserName,
+        itemName: itemNameInput.value,
+        itemAgeRating: itemAgeRatingInput.value,
+        itemCategory: itemCategoryInput.value,
+        itemReleaseDate: itemReleaseDateInput.value,
+        itemScale: itemScaleInput.value,
+        tags: itemTagsInput.value.replace(/\?/g, ',').split(',').map(tag => tag.trim()).filter(tag => tag),
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    try {
+        uploadStatus.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
+        const uploadPromises = selectedImageFiles.map(file => uploadImageToImgbb(file));
+        const uploadedImageObjects = await Promise.all(uploadPromises);
+        
+        itemData.itemImageUrls = uploadedImageObjects;
+        const docRef = await db.collection(itemsCollectionName).add(itemData);
+
+        uploadStatus.textContent = "Item uploaded successfully!";
+        uploadStatus.className = 'form-message success-message';
+        
+        setTimeout(() => {
+            window.location.href = `../items/?id=${docRef.id}`;
+        }, 1000);
+    } catch (e) {
+        console.error(e);
+        uploadStatus.textContent = `Upload failed: ${e.message}`;
+        uploadStatus.className = 'form-message error-message';
+        uploadButton.disabled = false;
+    }
+}

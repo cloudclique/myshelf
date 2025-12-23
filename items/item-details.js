@@ -7,6 +7,7 @@ const HORIZONTAL_ALIGN_OPTIONS = ['left', 'center', 'right'];
 const MAX_IMAGE_COUNT = 6; // NEW: Max number of images allowed
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
 
+
 // --- Constants for Lists ---
 const LISTS_PER_PAGE = 6;
 let allPublicListsForThisItem = [];
@@ -625,12 +626,45 @@ function renderItemDetails(item, userStatus, privateData = {}) {
                 ${privateData.score ? `<div><span class="info-label">Score:</span><span class="info-value">${privateData.score}/10</span></div>` : ''}
             `;
             
-            if (userStatus === 'Owned' && privateData.location) {
-                fieldsHtml += `<div><span class="info-label">Location:</span><span class="info-value">${privateData.location}</span></div>`;
-            } else if (userStatus === 'Ordered') {
-                if (privateData.tracking) fieldsHtml += `<div><span class="info-label">Tracking:</span><span class="info-value">${privateData.tracking}</span></div>`;
-                if (privateData.store) fieldsHtml += `<div><span class="info-label">Store:</span><span class="info-value">${privateData.store}</span></div>`;
+        if (userStatus === 'Owned') {
+            if (privateData.location) {
+                fieldsHtml += `<div>
+                    <span class="info-label">Location:</span>
+                    <span class="info-value">${privateData.location}</span>
+                </div>`;
             }
+
+            if (privateData.store) {
+                fieldsHtml += `<div>
+                    <span class="info-label">Store:</span>
+                    <span class="info-value">${privateData.store}</span>
+                </div>`;
+            }
+
+            if (privateData.collectionDate) {
+            fieldsHtml += `<div>
+                    <span class="info-label">Collection Date:</span>
+                    <span class="info-value">${privateData.collectionDate}</span>
+                </div>`;
+            }
+        }
+
+        if (userStatus === 'Ordered') {
+            if (privateData.tracking) {
+                fieldsHtml += `<div>
+                    <span class="info-label">Tracking:</span>
+                    <span class="info-value">${privateData.tracking}</span>
+                </div>`;
+            }
+
+            if (privateData.store) {
+                fieldsHtml += `<div>
+                    <span class="info-label">Store:</span>
+                    <span class="info-value">${privateData.store}</span>
+                </div>`;
+            }
+        }
+
         } else if (userStatus === 'Wished') {
             fieldsHtml += `
                 ${privateData.priority ? `<div><span class="info-label">Priority:</span><span class="info-value">${privateData.priority}/10</span></div>` : ''}
@@ -932,6 +966,7 @@ async function handleStatusUpdate(e) {
 
             if (newStatus === 'Owned') {
                 privateData.location = document.getElementById('privLocation')?.value || '';
+                privateData.collectionDate = document.getElementById('privCollectionDate')?.value || '';
             } else {
                 privateData.tracking = document.getElementById('privTracking')?.value || '';
                 privateData.store = document.getElementById('privStore')?.value || '';
@@ -2028,7 +2063,11 @@ function renderPrivateFields(status, existingData = {}) {
 
     if (status === 'Owned') {
         // Now includes Store Name instead of Storage Location
-        html = sharedPurchaseFields; 
+        html = `
+            ${sharedPurchaseFields}
+            <label>Collection Date:</label>
+            <input type="date" id="privCollectionDate" class="modern_text_field" value="${existingData.collectionDate || ''}" placeholder="Collected at">
+        `;
     } else if (status === 'Ordered') {
         // Includes shared fields plus the unique Tracking field
         html = `

@@ -143,6 +143,12 @@ body {
     width: 100%;
 }
 
+@media (max-width: 768px) {
+    .item-section {
+    width: 100vw;
+}
+}
+
 .tiles-unified {
     background-color: var(--section-bg);
     padding: 20px;
@@ -546,7 +552,7 @@ body {
 }
 
 /* --- Action Button --- */
-.action-btn, .secondary-btn {
+.action-btn, .secondary-btn, .sort-ddown {
     padding: 10px 15px;
     border: none;
     border-radius: 5px;
@@ -629,7 +635,7 @@ body {
     margin-top: 0;
     margin-bottom: 10px;
     font-size: 1em;
-    color: white;
+    color: var(--text-color);
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -2700,4 +2706,170 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     font-size: 0.9em;
     font-weight: 500;
     color: #333;
+}
+
+
+
+
+/* List View Layout */
+.item-grid.list-view {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.item-grid.list-view .item-card-link {
+    width: 100%;
+}
+
+.item-grid.list-view .item-card {
+    display: flex; /* Side by side */
+    flex-direction: row;
+    height: 80px; /* Slimmer height */
+    align-items: center;
+    padding: 5px 15px;
+    gap: 20px;
+}
+
+.item-grid.list-view .item-image-wrapper {
+    padding-top: 0% !important; 
+    width: 60px;
+    height: 60px;
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .item-grid.list-view .item-image-wrapper {
+        width: 45px;
+        height: 45px;
+    }
+}
+
+.item-grid.list-view .item-info {
+    display: grid;
+    grid-template-columns: 6fr 1fr;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding: 0;
+}
+
+@media (max-width: 768px) {
+    .item-grid.list-view .item-info{
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+}
+
+/* 1. Default Grid State (Padding is 100% for a square aspect ratio) */
+.item-image-wrapper {
+    position: relative;
+    width: 100%;
+    padding-top: 100%; /* This creates the square shape in grid mode */
+    overflow: hidden;
+    background-color: #f0f0f0;
+    border-radius: 8px;
+}
+
+
+/* 3. Adjust the Card for List View */
+.item-grid.list-view .item-card {
+    display: flex; /* Stack image and text horizontally */
+    flex-direction: row;
+    align-items: center;
+    padding: 10px;
+    gap: 15px;
+    height: auto;
+}
+
+/* Ensure the image inside stays centered even when padding changes */
+.item-grid.list-view .item-image {
+    position: relative; /* Remove the absolute positioning used for the square trick */
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Container for the columns */
+.list-view-columns {
+    display: grid;
+    grid-template-columns: 3fr 3fr;
+    
+    flex: 1;
+    justify-content: flex-start;
+    margin-left: 20px;
+    width: 170px;
+}
+
+@media (max-width: 768px) {
+    .list-view-columns {
+    width: 100%;
+    grid-template-columns: 1fr 2fr 2fr 3fr;
+}
+}
+
+@media (max-width: 450px) {
+    .list-view-columns {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    max-width: 100%;
+    width: 100%;
+    gap: 1px;
+    margin-left: 0;
+}
+}
+
+/* Base column style - ensures even widths */
+.col-group {
+    flex: 1; /* This makes them take up equal space */
+    min-width: 45px; 
+    font-size: clamp(0.5rem, 4vw, 0.75rem);
+}
+
+/* Specific styling for the Price + Shipping stack */
+.price-group {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.price-group .main-val {
+    font-size: clamp(0.5rem, 4vw, 0.75rem);
+}
+
+.price-group .sub-val {
+    font-size: clamp(0.5rem, 4vw, 0.75rem);
+    color: #888; /* Slightly gray */
+    margin-top: -2px;
+}
+
+.col-group strong {
+    color: var(--accent-clr);
+    font-size: clamp(0.5rem, 4vw, 0.75rem);
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+/* Ensure the title doesn't take up too much room in list view */
+.list-view .item-info h3 {
+    max-width: 100%; /* Adjust based on your preference */
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 1;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    margin: 0;
+    justify-content: left;
+}
+
+.list-view .item-card {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+}
+
+.sort-ddown {
+    background-color: var(--section-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-color);
 }

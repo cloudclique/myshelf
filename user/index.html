@@ -79,6 +79,35 @@
                     <button id="profileClearSearchBtn" class="secondary-btn" style="display:none;"><i class="bi bi-x-square-fill"></i></button>
                 </div>
 
+                <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">
+
+<select id="sortSelect" class="sort-ddown">
+    <option value="">Sort By...</option>
+    <option value="amountAsc">Amount (Low to High)</option>
+    <option value="amountDesc">Amount (High to Low)</option>
+    <option value="priceAsc">Price (Low to High)</option>
+    <option value="priceDesc">Price (High to Low)</option>
+    <option value="totalPriceAsc">Price + Shipping (Low to High)</option>
+    <option value="totalPriceDesc">Price + Shipping (High to Low)</option>
+    <option value="scoreDesc">Score (High to Low)</option>
+    <option value="scoreAsc">Score (Low to High)</option>
+    <option value="storeNameAsc">Store (A-Z)</option>
+    <option value="storeNameDesc">Store (Z-A)</option>
+    <hr>
+    <option value="releaseDesc">Release Date (Newest)</option>
+    <option value="releaseAsc">Release Date (Oldest)</option>
+</select>
+
+                    <div class="search-func-div" style="position: relative;">
+                        </div>
+                    
+                    <button id="viewToggleBtn" class="action-btn" title="Toggle Grid/List View" style="background: var(--accent-color); color: var(--text-color-reverse);">
+                        <i class="bi bi-grid-3x3-gap-fill" id="viewToggleIcon"></i>
+                    </button>
+                    
+                    <button id="profileClearSearchBtn" class="secondary-btn" style="display:none;"><i class="bi bi-x-square-fill"></i></button>
+                </div>
+
                 <div id="profileItemsGrid" class="item-grid">
                     <p id="loadingStatus">Loading user collection...</p>
                 </div>

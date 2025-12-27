@@ -590,9 +590,9 @@ async function findSimilarItems(newTitle) {
         let currentThreshold = 2;
         let filteredMatches = allPotentialMatches.filter(m => m.matchCount >= currentThreshold);
 
-        // Gradually increase the threshold if we found more than 3 matches
+        // Gradually increase the threshold if we found more than 2 matches
         // and we haven't exceeded the total number of words in the new title
-        while (filteredMatches.length > 3 && currentThreshold < newWords.length) {
+        while (filteredMatches.length > 2 && currentThreshold < newWords.length) {
             currentThreshold++;
             const nextLevelMatches = allPotentialMatches.filter(m => m.matchCount >= currentThreshold);
             

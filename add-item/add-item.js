@@ -569,9 +569,22 @@ const STOP_WORDS = new Set([
     "scale", "size", "cm", "mm"
 ]);
 
-// ------------- TOKENIZER + FILTER -------------
-function tokenizeAndFilter(text) {
-    return text
+// -------- SUPPORTIVE WORDS --------
+// Count ONLY if core match is already strong (>= 2)
+const SUPPORTIVE_WORDS = new Set([
+    "alter",
+    "goodsmile",
+    "bandai",
+    "kotobukiya",
+    "megahouse",
+    "sega",
+    "taito",
+    "banpresto"
+]);
+
+// -------- TOKENIZER --------
+function tokenizeWithSupport(text) {
+    const tokens = text
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, " ")
         .split(/\s+/)
@@ -579,17 +592,19 @@ function tokenizeAndFilter(text) {
             word.length >= 2 &&
             !STOP_WORDS.has(word)
         );
+
+    return {
+        core: tokens.filter(w => !SUPPORTIVE_WORDS.has(w)),
+        supportive: tokens.filter(w => SUPPORTIVE_WORDS.has(w))
+    };
 }
 
-// ----------- SIMILAR ITEM CHECK -----------
+// -------- SIMILAR ITEM CHECK --------
 async function findSimilarItems(newTitle) {
-
-    // 1. Tokenize new title
-    const newWords = tokenizeAndFilter(newTitle);
-    if (newWords.length === 0) return [];
+    const newTokens = tokenizeWithSupport(newTitle);
+    if (newTokens.core.length === 0) return [];
 
     try {
-        // 2. Fetch items
         const snapshot = await db
             .collection(itemsCollectionName)
             .orderBy("createdAt", "desc")
@@ -599,43 +614,50 @@ async function findSimilarItems(newTitle) {
 
         snapshot.forEach(doc => {
             const data = doc.data();
+            const existingTokens = tokenizeWithSupport(data.itemName);
 
-            // Tokenize existing title
-            const existingWords = tokenizeAndFilter(data.itemName);
-
-            // Count exact keyword overlap
-            const matchCount = newWords.filter(word =>
-                existingWords.includes(word)
+            // Core overlap
+            const coreMatchCount = newTokens.core.filter(word =>
+                existingTokens.core.includes(word)
             ).length;
 
-            if (matchCount > 0) {
+            // Supportive overlap (only counted later)
+            const supportiveMatchCount = newTokens.supportive.filter(word =>
+                existingTokens.supportive.includes(word)
+            ).length;
+
+            if (coreMatchCount > 0) {
                 allPotentialMatches.push({
                     id: doc.id,
                     itemName: data.itemName,
                     thumb: (data.itemImageUrls && data.itemImageUrls.length > 0)
                         ? data.itemImageUrls[0].url
                         : "../placeholder.png",
-                    matchCount
+                    coreMatchCount,
+                    supportiveMatchCount
                 });
             }
         });
 
-        // 3. Adaptive threshold logic
-        // 2. Adaptive Filtering Logic
+        // -------- ADAPTIVE THRESHOLD LOGIC --------
         let currentThreshold = 2;
         let filteredMatches = [];
 
-        while (currentThreshold <= newWords.length) {
-            const matchesAtThisLevel = allPotentialMatches.filter(
-                m => m.matchCount >= currentThreshold
-            );
+        while (currentThreshold <= newTokens.core.length) {
+            const matchesAtThisLevel = allPotentialMatches
+                .filter(m => m.coreMatchCount >= currentThreshold)
+                .map(m => ({
+                    ...m,
+                    matchCount:
+                        m.coreMatchCount +
+                        (m.coreMatchCount >= 2 ? m.supportiveMatchCount : 0)
+                }));
 
-            // If we got results, keep them
             if (matchesAtThisLevel.length > 0) {
                 filteredMatches = matchesAtThisLevel;
             }
 
-            // Stop as soon as results are 2 or fewer
+            // STOP as soon as results are 2 or fewer
             if (filteredMatches.length <= 2) {
                 break;
             }
@@ -643,14 +665,17 @@ async function findSimilarItems(newTitle) {
             currentThreshold++;
         }
 
-        // Final safety check: never allow 1-word matches
-        return filteredMatches.filter(m => m.matchCount >= 2);
+        // Final safety: never allow < 2 core matches
+        return filteredMatches
+            .filter(m => m.coreMatchCount >= 2)
+            .sort((a, b) => b.matchCount - a.matchCount);
 
     } catch (e) {
         console.error("Duplicate check failed:", e);
         return [];
     }
 }
+
 
 
 // --- Modified Form Submission to use HTML in Modal ---

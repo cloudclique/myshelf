@@ -622,7 +622,7 @@ async function findSimilarItems(newTitle) {
 
         // 3. Adaptive threshold logic
         // 2. Adaptive Filtering Logic
-        let currentThreshold = 2;
+        let currentThreshold = 1;
         let filteredMatches = [];
 
         while (currentThreshold <= newWords.length) {
@@ -643,8 +643,8 @@ async function findSimilarItems(newTitle) {
             currentThreshold++;
         }
 
-        // Final safety check: never allow 1-word matches
-        return filteredMatches.filter(m => m.matchCount >= 2);
+        // Final safety check: allow 1-word matches
+        return filteredMatches.filter(m => m.matchCount >= 1);
 
     } catch (e) {
         console.error("Duplicate check failed:", e);

@@ -553,56 +553,94 @@ function setupHeaderLogoRedirect() {
 }
 
 // --- New Helper: Check for similar items ---
-async function findSimilarItems(newTitle) {
-    // 1. Clean and tokenize the input
-    const cleanInput = newTitle.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-    const newWords = cleanInput.split(/\s+/).filter(word => word.length >= 2);
+// ---------------- STOP WORDS ----------------
+const STOP_WORDS = new Set([
+    // articles / connectors
+    "the", "a", "an", "and", "or", "with", "without", "of", "for", "to", "in", "on", "at", "by",
 
+    // generic product words
+    "figure", "fig", "model", "item", "set", "kit", "toy", "statue", "collectible",
+    "original", "authentic", "official", "version", "edition", "series", "ver.",
+
+    // weak adjectives
+    "new", "old", "used", "complete", "boxed", "sealed", "custom",
+
+    // scale / filler
+    "scale", "size", "cm", "mm"
+]);
+
+// ------------- TOKENIZER + FILTER -------------
+function tokenizeAndFilter(text) {
+    return text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter(word =>
+            word.length >= 2 &&
+            !STOP_WORDS.has(word)
+        );
+}
+
+// ----------- SIMILAR ITEM CHECK -----------
+async function findSimilarItems(newTitle) {
+
+    // 1. Tokenize new title
+    const newWords = tokenizeAndFilter(newTitle);
     if (newWords.length === 0) return [];
 
     try {
-        // Fetch all items from the collection
-        const snapshot = await db.collection(itemsCollectionName)
-            .orderBy('createdAt', 'desc')
+        // 2. Fetch items
+        const snapshot = await db
+            .collection(itemsCollectionName)
+            .orderBy("createdAt", "desc")
             .get();
 
         const allPotentialMatches = [];
+
         snapshot.forEach(doc => {
             const data = doc.data();
-            const existingTitle = data.itemName.toLowerCase().replace(/[^a-z0-9\s]/g, ' ');
-            
-            // Calculate how many keywords overlap
-            const matchCount = newWords.filter(word => existingTitle.includes(word)).length;
-            
+
+            // Tokenize existing title
+            const existingWords = tokenizeAndFilter(data.itemName);
+
+            // Count exact keyword overlap
+            const matchCount = newWords.filter(word =>
+                existingWords.includes(word)
+            ).length;
+
             if (matchCount > 0) {
                 allPotentialMatches.push({
                     id: doc.id,
                     itemName: data.itemName,
-                    thumb: (data.itemImageUrls && data.itemImageUrls.length > 0) 
-                           ? data.itemImageUrls[0].url : '../placeholder.png',
-                    matchCount: matchCount
+                    thumb: (data.itemImageUrls && data.itemImageUrls.length > 0)
+                        ? data.itemImageUrls[0].url
+                        : "../placeholder.png",
+                    matchCount
                 });
             }
         });
 
-        // 2. Adaptive Filtering Logic
-        // We start with a minimum requirement of 2 matching words
+        // 3. Adaptive threshold logic
         let currentThreshold = 2;
-        let filteredMatches = allPotentialMatches.filter(m => m.matchCount >= currentThreshold);
+        let filteredMatches = allPotentialMatches.filter(
+            m => m.matchCount >= currentThreshold
+        );
 
-        // Gradually increase the threshold if we found more than 2 matches
-        // and we haven't exceeded the total number of words in the new title
-        while (filteredMatches.length > 2 && currentThreshold < newWords.length) {
+        while (
+            filteredMatches.length > 2 &&
+            currentThreshold < newWords.length
+        ) {
             currentThreshold++;
-            const nextLevelMatches = allPotentialMatches.filter(m => m.matchCount >= currentThreshold);
-            
-            // If increasing the threshold makes the list empty, we stop at the previous level
+
+            const nextLevelMatches = allPotentialMatches.filter(
+                m => m.matchCount >= currentThreshold
+            );
+
             if (nextLevelMatches.length === 0) break;
-            
             filteredMatches = nextLevelMatches;
         }
 
-        // Final safety check: if the title is long, we don't want 1-word matches ever
+        // 4. Final safety: never allow 1-word matches
         return filteredMatches.filter(m => m.matchCount >= 2);
 
     } catch (e) {
@@ -610,6 +648,7 @@ async function findSimilarItems(newTitle) {
         return [];
     }
 }
+
 
 // --- Modified Form Submission to use HTML in Modal ---
 addItemForm.onsubmit = async (e) => {

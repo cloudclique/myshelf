@@ -560,7 +560,7 @@ const STOP_WORDS = new Set([
 
     // generic product words
     "figure", "fig", "model", "item", "set", "kit", "toy", "statue", "collectible",
-    "original", "authentic", "official", "version", "edition", "series", "ver.",
+    "original", "authentic", "official", "version", "edition", "series", "ver.", "union", "creative", "international", "ltd",
 
     // weak adjectives
     "new", "old", "used", "complete", "boxed", "sealed", "custom",

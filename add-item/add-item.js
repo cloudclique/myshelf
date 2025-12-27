@@ -621,26 +621,29 @@ async function findSimilarItems(newTitle) {
         });
 
         // 3. Adaptive threshold logic
+        // 2. Adaptive Filtering Logic
         let currentThreshold = 2;
-        let filteredMatches = allPotentialMatches.filter(
-            m => m.matchCount >= currentThreshold
-        );
+        let filteredMatches = [];
 
-        while (
-            filteredMatches.length > 2 &&
-            currentThreshold < newWords.length
-        ) {
-            currentThreshold++;
-
-            const nextLevelMatches = allPotentialMatches.filter(
+        while (currentThreshold <= newWords.length) {
+            const matchesAtThisLevel = allPotentialMatches.filter(
                 m => m.matchCount >= currentThreshold
             );
 
-            if (nextLevelMatches.length === 0) break;
-            filteredMatches = nextLevelMatches;
+            // If we got results, keep them
+            if (matchesAtThisLevel.length > 0) {
+                filteredMatches = matchesAtThisLevel;
+            }
+
+            // Stop as soon as results are 2 or fewer
+            if (filteredMatches.length <= 2) {
+                break;
+            }
+
+            currentThreshold++;
         }
 
-        // 4. Final safety: never allow 1-word matches
+        // Final safety check: never allow 1-word matches
         return filteredMatches.filter(m => m.matchCount >= 2);
 
     } catch (e) {

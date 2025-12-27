@@ -560,7 +560,7 @@ const STOP_WORDS = new Set([
 
     // generic product words
     "figure", "fig", "model", "item", "set", "kit", "toy", "statue", "collectible",
-    "original", "authentic", "official", "version", "edition", "series", "ver.", "union", "creative", "international", "ltd",
+    "original", "authentic", "official", "version", "edition", "series", "ver.", "ltd",
 
     // weak adjectives
     "new", "old", "used", "complete", "boxed", "sealed", "custom",
@@ -622,7 +622,7 @@ async function findSimilarItems(newTitle) {
 
         // 3. Adaptive threshold logic
         // 2. Adaptive Filtering Logic
-        let currentThreshold = 1;
+        let currentThreshold = 2;
         let filteredMatches = [];
 
         while (currentThreshold <= newWords.length) {
@@ -643,8 +643,8 @@ async function findSimilarItems(newTitle) {
             currentThreshold++;
         }
 
-        // Final safety check: allow 1-word matches
-        return filteredMatches.filter(m => m.matchCount >= 1);
+        // Final safety check: never allow 1-word matches
+        return filteredMatches.filter(m => m.matchCount >= 2);
 
     } catch (e) {
         console.error("Duplicate check failed:", e);

@@ -675,7 +675,16 @@ function applySortAndFilter() {
   const queryText = profileSearchInput.value.trim().toLowerCase();
   
   if (queryText) {
-      const keywords = queryText.split(/\s+/);
+      // REGEX: Matches {text inside braces} OR single words
+      const regex = /\{([^}]+)\}|[^\s{}]+/g;
+      const keywords = [];
+      let match;
+
+      while ((match = regex.exec(queryText)) !== null) {
+          // match[1] is the content inside {}, match[0] is the fallback for plain words
+          keywords.push(match[1] ? match[1].trim() : match[0]);
+      }
+
       items = items.filter(item => {
           const data = item.doc.data();
           const notes = item.privateNotes || {};
@@ -688,6 +697,8 @@ function applySortAndFilter() {
           const store = (notes.store || '').toLowerCase();
 
           const combinedText = [name, category, scale, age, store, ...tags].join(' ');
+          
+          // Ensure every identified keyword/phrase exists in the item data
           return keywords.every(kw => combinedText.includes(kw));
       });
   }
@@ -731,16 +742,13 @@ function applySortAndFilter() {
       case 'scoreDesc': return getNum(nB.score) - getNum(nA.score);
       case 'scoreAsc': return getNum(nA.score) - getNum(nB.score);
       case 'storeNameAsc': return getStr(nA.store).localeCompare(getStr(nB.store));
-      case 'storeNameDesc': return getStr(nB.store).localeCompare(getStr(nA.store));
+      case 'storeNameDesc': return getStr(nB.store).localeCompare(getStr(nB.store));
       case 'releaseDesc': return new Date(dataB.itemReleaseDate || 0) - new Date(dataA.itemReleaseDate || 0);
       case 'releaseAsc': return new Date(dataA.itemReleaseDate || 0) - new Date(dataB.itemReleaseDate || 0);
-      
-      // --- New Collection Date Sorting ---
       case 'collectionDateDesc': 
         return new Date(nB.collectionDate || 0) - new Date(nA.collectionDate || 0);
       case 'collectionDateAsc': 
         return new Date(nA.collectionDate || 0) - new Date(nB.collectionDate || 0);
-      
       default: return 0;
     }
   });
@@ -1195,9 +1203,17 @@ function updateProfileSearchSuggestions() {
     orderedMatches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'search-suggestion-item';
+        // Display remains clean for the user
         div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type]}</span> <span class="suggestion-text">${match.text}</span>`;
+        
         div.onclick = () => {
-            profileSearchInput.value = match.text;
+            // Automatically wrap metadata in braces for the search bar
+            if (['tag', 'age', 'scale', 'category'].includes(match.type)) {
+                profileSearchInput.value = `{${match.text}}`;
+            } else {
+                profileSearchInput.value = match.text;
+            }
+            
             handleProfileSearch();
             profileSearchSuggestions.innerHTML = '';
         };

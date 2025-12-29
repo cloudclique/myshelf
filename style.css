@@ -2799,8 +2799,6 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 /* Base column style - ensures even widths */
 .col-group {
-    flex: 1; /* This makes them take up equal space */
-    min-width: 45px; 
     font-size: clamp(0.5rem, 4vw, 0.75rem);
 }
 

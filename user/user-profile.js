@@ -534,7 +534,7 @@ function renderProfileItem(doc, status, privateNotes = {}) {
           html = `
             <div class="col-group price-group">
               <div class="col-group"><strong><i class="bi bi-boxes"></i></strong> <span>${n.amount || '1'}</span></div>
-              <div class="col-group"><strong><i class="bi bi-star-fill"></i></strong> <span>${n.score || '-'}</span></div>
+              <div class="col-group" style="margin-top: -2px;"><strong><i class="bi bi-star-fill"></i></strong> <span>${n.score || '-'}</span></div>
               </div>
               <div class="col-group price-group">
                   <div class="main-val"><strong><i class="bi bi-cash-stack"></i></strong> <span>${n.price || '-'}</span></div>

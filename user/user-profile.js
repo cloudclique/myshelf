@@ -737,8 +737,10 @@ function applySortAndFilter() {
         return (getNum(nB.price) + getNum(nB.shipping)) - (getNum(nA.price) + getNum(nA.shipping));
       case 'totalPriceAsc': 
         return (getNum(nA.price) + getNum(nA.shipping)) - (getNum(nB.price) + getNum(nB.shipping));
-      case 'priorityDesc': return (priorityMap[nB.priority] || 0) - (priorityMap[nA.priority] || 0);
-      case 'priorityAsc': return (priorityMap[nA.priority] || 0) - (priorityMap[nB.priority] || 0);
+      case 'priorityDesc': 
+    return getNum(nB.priority) - getNum(nA.priority);
+case 'priorityAsc': 
+    return getNum(nA.priority) - getNum(nB.priority);
       case 'scoreDesc': return getNum(nB.score) - getNum(nA.score);
       case 'scoreAsc': return getNum(nA.score) - getNum(nB.score);
       case 'storeNameAsc': return getStr(nA.store).localeCompare(getStr(nB.store));

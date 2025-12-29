@@ -143,12 +143,6 @@ body {
     width: 100%;
 }
 
-@media (max-width: 768px) {
-    .item-section {
-    width: 100vw;
-}
-}
-
 .tiles-unified {
     background-color: var(--section-bg);
     padding: 20px;

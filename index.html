@@ -4,55 +4,46 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Community Gallery</title>
-<!-- Tailwind CSS for modern styling -->
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="stylesheet" href="../style.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
-    <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
+<link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
+<style>
+#commentsList::-webkit-scrollbar { width: 4px; }
+#commentsList::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+.no-scroll { overflow: hidden; }
+.image-actions { position: absolute; bottom: 8px; right: 8px; display: flex; gap: 8px; }
+.image-actions button { background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 6px; font-size: 14px; display: flex; align-items: center; gap: 4px; }
+</style>
 </head>
 <body>
 <div style="position: relative;">
     <div id="header"></div>
     <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
 </div>
-<script>fetch('./header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
+<script>
+fetch('./header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});
+</script>
 
-
-    <div class="item-header-bg">
-        <div class="item-header">
-            <div class="flex items-center space-x-3">
-                <input type="file" id="imageInput" accept="image/*" class="secondary-btn">
-                <button id="uploadBtn" class="action-btn">
-                    Upload Image
-                </button>
-            </div>
-
-            <p id="statusMessage" class=""></p>
-
-            <div class="flex items-center space-x-3">
-                <button id="loadAllBtn" class="secondary-btn">
-                    Load All Images
-                </button>
-                <button id="loadMyBtn" class="action-btn">
-                    Load My Images
-                </button>
-            </div>
-        </div>
+<div class="item-header-bg">
+<div class="item-header">
+    <div class="flex items-center space-x-3">
+        <input type="file" id="imageInput" accept="image/*" class="secondary-btn">
+        <button id="uploadBtn" class="action-btn">Upload Image</button>
     </div>
-
-
-
+    <p id="statusMessage"></p>
+    <div class="flex items-center space-x-3">
+        <button id="loadAllBtn" class="secondary-btn">Load All</button>
+        <button id="loadMyBtn" class="action-btn">My Images</button>
+    </div>
+</div>
+</div>
 
 <div class="gallery-page-wrapper">
-    <div class=""></div>
-
     <h1 class="text-3xl font-bold mb-6 text-gray-800">Community Gallery</h1>
-
-    <!-- Gallery Grid -->
     <div class="gallery-wrapper">
         <div id="gallery">
             <p class="main-column">Loading images...</p>
@@ -60,24 +51,36 @@
     </div>
 </div>
 
-<!-- Lightbox -->
-<div id="lightbox" class="relative">
-    <img src="" alt="Full size">
-    <button id="closeLightboxBtn" class="absolute top-4 right-4 text-white text-3xl p-2 rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition duration-150">&times;</button>
+<div id="lightbox" class="fixed inset-0 z-50 bg-black bg-opacity-95 hidden flex-col md:flex-row items-center justify-center p-2 md:p-6">
+    <div class="flex-1 flex items-center justify-center w-full overflow-hidden relative">
+        <img id="lightboxMainImg" src="" alt="Full size" class="max-w-full object-contain shadow-2xl transition-all duration-300" style="max-height: calc(100vh - 50px);">
+        <div id="lightboxActions" class="image-actions hidden">
+            <button id="lightboxLikeBtn"><i class="bi bi-heart"></i> <span id="lightboxLikeCount">0</span></button>
+            <button id="lightboxShareBtn"><i class="bi bi-share"></i> Share</button>
+        </div>
+    </div>
+
+    <div id="commentSidebar" class="w-full md:w-96 bg-white flex flex-col p-5 overflow-hidden rounded-xl md:ml-4 shadow-2xl" style="height: calc(100vh - 50px);">
+        <h3 class="font-bold text-xl mb-4 border-b pb-2 text-gray-800 flex items-center">
+            <i class="bi bi-chat-left-text mr-2 text-indigo-600"></i> Comments
+        </h3>
+        <div id="commentsList" class="flex-1 overflow-y-auto space-y-4 mb-4 pr-2"></div>
+        <div id="commentInputSection" class="hidden border-t pt-4">
+            <textarea id="commentText" class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" placeholder="Write a comment..." rows="3"></textarea>
+            <button id="postCommentBtn" class="mt-2 w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700 transition">Post Comment</button>
+        </div>
+        <p id="commentLoginPrompt" class="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">Log in to comment.</p>
+    </div>
+
+    <button id="closeLightboxBtn" class="absolute top-4 right-4 text-white text-4xl p-2 rounded-full bg-black bg-opacity-40 hover:bg-opacity-70 z-50">&times;</button>
 </div>
 
-<div style="position: relative;">
-    <div id="footer"></div>
-</div>
+<div style="position: relative;"><div id="footer"></div></div>
 <script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
 
-<!-- Firebase SDK v8 -->
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
 <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
-
-<!-- Your module scripts -->
 <script type="module" src="script.js"></script>
 </body>
 </html>

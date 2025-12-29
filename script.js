@@ -1,7 +1,6 @@
 import { db, auth } from "./firebase-config.js";
-// --- NEW: Cloudflare Worker Endpoint ---
-const IMGBB_CLOUDFLARE_WORKER_URL = "https://imgbbapi.stanislav-zhukov.workers.dev/"; 
-// ---------------------------------------
+
+const IMGBB_CLOUDFLARE_WORKER_URL = "https://imgbbapi.stanislav-zhukov.workers.dev/";
 
 // DOM Elements
 const gallery = document.getElementById("gallery");
@@ -10,316 +9,455 @@ const uploadBtn = document.getElementById("uploadBtn");
 const statusMessage = document.getElementById("statusMessage");
 const loadMyBtn = document.getElementById("loadMyBtn");
 const loadAllBtn = document.getElementById("loadAllBtn");
-const shareIdContainer = document.getElementById("shareId");
-const copyIdBtn = document.getElementById("copyIdBtn");
 const closeLightboxBtn = document.getElementById("closeLightboxBtn");
 const lightbox = document.getElementById("lightbox");
-const lightboxImg = lightbox.querySelector("img");
+const lightboxImg = document.getElementById("lightboxMainImg");
+const lightboxActions = document.getElementById("lightboxActions");
+const lightboxLikeBtn = document.getElementById("lightboxLikeBtn");
+const lightboxShareBtn = document.getElementById("lightboxShareBtn");
 const headerTools = document.getElementById('headerTools');
 
-// --- NEW: Auth Button Reference ---
-const authBtn = document.getElementById("authBtn"); 
+// Comment Elements
+const commentsList = document.getElementById("commentsList");
+const commentInputSection = document.getElementById("commentInputSection");
+const commentLoginPrompt = document.getElementById("commentLoginPrompt");
+const commentText = document.getElementById("commentText");
+const postCommentBtn = document.getElementById("postCommentBtn");
 
-// Create delete button in lightbox
+// Delete button for images
 const deleteBtn = document.createElement("button");
 deleteBtn.textContent = "Delete Image";
-deleteBtn.className = "absolute top-20 right-4 px-3 py-1 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition duration-150 hidden";
+deleteBtn.className = "absolute bottom-6 left-6 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition duration-150 hidden z-50";
 lightbox.appendChild(deleteBtn);
 
-// Track current user
 let currentUser = null;
 let currentImageDocId = null;
-let currentUserId = null;
+let currentImageData = null;
 
-let currentImageUploaderId = null;
-
-uploadBtn.disabled = true;
-loadMyBtn.disabled = true;
-
-// -------------------
-// Utility Functions
-// -------------------
-
-function getUserIdFromUrl() {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('uid');
+// --- Helper Functions ---
+function getDateKey() {
+    return `likes_${new Date().toISOString().split('T')[0]}`;
 }
 
-function updateUrl(userId) {
-    const url = new URL(window.location.href);
-    if (userId) {
-        url.searchParams.set('uid', userId);
-    } else {
-        url.searchParams.delete('uid');
-    }
-    window.history.pushState({}, '', url);
+function getTotalLikes(data) {
+    return Object.keys(data)
+        .filter(key => key.startsWith('likes_'))
+        .reduce((sum, key) => sum + (Array.isArray(data[key]) ? data[key].length : 0), 0);
 }
 
-// -------------------
-// Auth check and setup
-// -------------------
+function checkIfUserLiked(data, uid) {
+    if (!uid) return false;
+    return Object.keys(data)
+        .filter(key => key.startsWith('likes_'))
+        .some(key => Array.isArray(data[key]) && data[key].includes(uid));
+}
+
+// ------------------
+// AUTH STATE
+// ------------------
 auth.onAuthStateChanged((user) => {
     currentUser = user;
     headerTools.innerHTML = '';
-    
+
     if (user) {
-        // --- USER IS LOGGED IN ---
         uploadBtn.disabled = false;
         loadMyBtn.disabled = false;
-        
-        // Display user ID for sharing
-        currentUserId = user.uid;
         headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
         document.getElementById('logoutBtn').onclick = () => auth.signOut();
-
     } else {
-        // --- USER IS LOGGED OUT ---
         uploadBtn.disabled = true;
         loadMyBtn.disabled = true;
-
-        currentUserId = null;
         headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
 
-    // Load gallery after auth state is determined
-    loadGallery(getUserIdFromUrl());
+    loadGalleryCustom(getUserIdFromUrl());
     setupHeaderLogoRedirect();
 });
 
-
-async function loadGallery(filterUserId = null) {
-    gallery.innerHTML = '<p class="main-column">Loading images...</p>';
-    statusMessage.textContent = "";
-
+// ------------------
+// GALLERY LOAD
+// ------------------
+async function loadGalleryCustom(filterUserId = null) {
+    gallery.innerHTML = '<p class="main-column text-gray-400">Loading images...</p>';
     const appId = "default-app-id"; 
 
     try {
-        let queryRef = db
-            .collection("artifacts")
-            .doc(appId)
-            .collection("gallery")
-            .orderBy("createdAt", "desc");
-
-        if (filterUserId) {
-            queryRef = queryRef.where("uploaderId", "==", filterUserId);
-            statusMessage.textContent = `uploaded by user ID: ${filterUserId}`;
-            statusMessage.style.color = "#059669"; 
-        } else {
-            statusMessage.textContent = "Showing all community images.";
-            statusMessage.style.color = "#4b5563"; 
-        }
+        let queryRef = db.collection("artifacts").doc(appId).collection("gallery");
+        if (filterUserId) queryRef = queryRef.where("uploaderId", "==", filterUserId);
 
         const snapshot = await queryRef.get();
-        gallery.innerHTML = ""; 
-
         if (snapshot.empty) {
-            gallery.innerHTML = `<p class="text-center text-gray-500 p-10">No images found for this filter.</p>`;
+            gallery.innerHTML = `<p class="text-center text-gray-500 p-10">No images found.</p>`;
             return;
         }
 
+        const images = [];
         snapshot.forEach(doc => {
             const data = doc.data();
+            images.push({ id: doc.id, ...data });
+        });
+
+        // --- Helper to get likes in the past 7 days only ---
+        function getRecentLikes(data) {
+            const sevenDaysAgo = new Date();
+            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+            return Object.keys(data)
+                .filter(k => k.startsWith('likes_'))
+                .reduce((sum, key) => {
+                    const dateStr = key.replace('likes_', '');
+                    const date = new Date(dateStr);
+                    if (date >= sevenDaysAgo && Array.isArray(data[key])) {
+                        sum += data[key].length;
+                    }
+                    return sum;
+                }, 0);
+        }
+
+        // --- Sorting ---
+        const mostLiked7Days = [...images].sort((a,b) => getRecentLikes(b) - getRecentLikes(a));
+        const mostRecent = [...images].sort((a,b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+
+        // --- Build final 3:1 pattern ---
+        const usedIds = new Set();
+        const finalOrder = [];
+        let likedIndex = 0, recentIndex = 0;
+
+        while (usedIds.size < images.length) {
+            // Add up to 3 most liked
+            let count = 0;
+            while (count < 3 && likedIndex < mostLiked7Days.length) {
+                const img = mostLiked7Days[likedIndex++];
+                if (!usedIds.has(img.id)) {
+                    finalOrder.push(img);
+                    usedIds.add(img.id);
+                    count++;
+                }
+            }
+            // Add 1 most recent
+            while (recentIndex < mostRecent.length) {
+                const img = mostRecent[recentIndex++];
+                if (!usedIds.has(img.id)) {
+                    finalOrder.push(img);
+                    usedIds.add(img.id);
+                    break;
+                }
+            }
+        }
+
+        // --- Render gallery ---
+        gallery.innerHTML = "";
+        finalOrder.forEach(data => {
+            const container = document.createElement("div");
+            container.className = "relative group";
+
             const img = document.createElement("img");
             img.src = data.url;
-            img.alt = "Community Image";
             img.loading = "lazy";
+            img.className = "cursor-pointer rounded-lg hover:scale-[1.02] transition-transform duration-200 shadow-sm w-full";
+            img.onclick = () => openLightbox(data.id, data);
 
-            img.addEventListener("click", async () => {
-                lightboxImg.src = data.url;
-                lightbox.style.display = "flex";
+            const actions = document.createElement("div");
+            actions.className = "image-actions hidden group-hover:flex";
 
-                currentImageDocId = doc.id;
-                currentImageUploaderId = data.uploaderId;
+            const likeBtn = document.createElement("button");
+            const likeIcon = document.createElement("i");
+            const isLiked = checkIfUserLiked(data, currentUser?.uid);
+            likeIcon.className = `bi ${isLiked ? 'bi-heart-fill text-red-500' : 'bi-heart text-white'}`;
+            likeBtn.appendChild(likeIcon);
 
-                let canDelete = false;
+            const likeCount = document.createElement("span");
+            likeCount.textContent = getTotalLikes(data);
+            likeBtn.appendChild(likeCount);
 
-                if (currentUser) {
-                    // 1. Check Owner
-                    if (currentUser.uid === currentImageUploaderId) {
-                        canDelete = true;
-                    } 
-                    
-                    // 2. Check Admin/Mod
-                    if (!canDelete) {
-                        try {
-                            const userProfileDoc = await db.collection('artifacts')
-                                .doc(appId)
-                                .collection('user_profiles')
-                                .doc(currentUser.uid)
-                                .get();
-                            
-                            if (userProfileDoc.exists) {
-                                const userData = userProfileDoc.data();
-                                const role = userData.role; 
-                                if (role === 'admin' || role === 'mod') {
-                                    canDelete = true;
-                                }
-                            }
-                        } catch (roleErr) {
-                            console.error("Error verifying user role:", roleErr);
-                        }
-                    }
+            likeBtn.onclick = async (e) => {
+                e.stopPropagation();
+                if (!currentUser) return alert("Login first!");
+
+                const dateKey = getDateKey();
+                const galleryRef = db.collection("artifacts").doc(appId).collection("gallery").doc(data.id);
+                
+                const allKeys = Object.keys(data).filter(k => k.startsWith('likes_'));
+                const existingKey = allKeys.find(k => Array.isArray(data[k]) && data[k].includes(currentUser.uid));
+
+                if (existingKey) {
+                    await galleryRef.update({ [existingKey]: firebase.firestore.FieldValue.arrayRemove(currentUser.uid) });
+                    data[existingKey] = data[existingKey].filter(id => id !== currentUser.uid);
+                } else {
+                    await galleryRef.update({ [dateKey]: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+                    if (!data[dateKey]) data[dateKey] = [];
+                    data[dateKey].push(currentUser.uid);
                 }
-                deleteBtn.classList.toggle('hidden', !canDelete);
-            });
 
-            gallery.appendChild(img);
+                const newIsLiked = checkIfUserLiked(data, currentUser.uid);
+                likeIcon.className = `bi ${newIsLiked ? 'bi-heart-fill text-red-500' : 'bi-heart text-white'}`;
+                likeCount.textContent = getTotalLikes(data);
+                
+                if (currentImageDocId === data.id) {
+                    currentImageData = data;
+                    updateLightboxLike();
+                }
+            };
+
+            const shareBtn = document.createElement("button");
+            shareBtn.innerHTML = '<i class="bi bi-share"></i> Share';
+            shareBtn.onclick = (e) => {
+                e.stopPropagation();
+                navigator.share?.({ title: "Check this image!", url: data.url }) || alert("Sharing not supported");
+            };
+
+            actions.appendChild(likeBtn);
+            actions.appendChild(shareBtn);
+            container.appendChild(img);
+            container.appendChild(actions);
+            gallery.appendChild(container);
         });
+
     } catch (err) {
-        console.error("Error loading gallery:", err);
-        if (err.message.includes("index")) {
-             const indexUrl = err.message.match(/https:\/\/[^\s]+/)[0];
-             gallery.innerHTML = `<p class="text-center text-red-500 p-10"><strong>Missing Index:</strong> <a href="${indexUrl}" target="_blank" style="text-decoration:underline">Click here to create it.</a></p>`;
-        } else {
-             gallery.innerHTML = `<p class="text-center text-red-500 p-10">Error loading gallery: ${err.message}</p>`;
-        }
+        console.error("Gallery error:", err);
+        gallery.innerHTML = '<p class="text-red-500 text-center">Failed to load images.</p>';
     }
 }
 
-// -------------------
-// Event Listeners
-// -------------------
 
-loadAllBtn.addEventListener("click", () => {
-    updateUrl(null);
-    loadGallery();
-});
+// ------------------
+// LIGHTBOX
+// ------------------
+async function openLightbox(docId, data) {
+    currentImageDocId = docId;
+    currentImageData = data;
 
-loadMyBtn.addEventListener("click", () => {
-    if (!currentUser) {
-        statusMessage.textContent = "Please sign in to view only your images.";
-        statusMessage.style.color = "red";
-        return;
+    lightboxImg.src = data.url;
+    lightbox.style.display = "flex";
+    document.body.classList.add("no-scroll");
+
+    lightboxActions.classList.remove('hidden');
+    updateLightboxLike();
+
+    if (currentUser) {
+        commentInputSection.classList.remove('hidden');
+        commentLoginPrompt.classList.add('hidden');
+    } else {
+        commentInputSection.classList.add('hidden');
+        commentLoginPrompt.classList.remove('hidden');
     }
-    updateUrl(currentUser.uid);
-    loadGallery(currentUser.uid);
-});
 
-closeLightboxBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    lightbox.style.display = "none";
-    lightboxImg.src = "";
-    deleteBtn.classList.add('hidden');
-    currentImageDocId = null;
-    currentImageUploaderId = null;
-});
+    loadComments(docId);
+    checkDeletePermissions(data.uploaderId);
+}
 
-lightbox.addEventListener("click", (e) => {
-    if (e.target === lightbox) {
-        lightbox.style.display = "none";
-        lightboxImg.src = "";
-        deleteBtn.classList.add('hidden');
-        currentImageDocId = null;
-        currentImageUploaderId = null;
+function updateLightboxLike() {
+    const total = getTotalLikes(currentImageData);
+    const liked = checkIfUserLiked(currentImageData, currentUser?.uid);
+    lightboxLikeBtn.innerHTML = `<i class="bi ${liked ? 'bi-heart-fill text-red-500' : 'bi-heart'}"></i> <span>${total}</span>`;
+}
+
+lightboxLikeBtn.onclick = async () => {
+    if (!currentUser || !currentImageDocId) return alert("Login first!");
+    
+    const dateKey = getDateKey();
+    const galleryRef = db.collection("artifacts").doc("default-app-id").collection("gallery").doc(currentImageDocId);
+    
+    const allKeys = Object.keys(currentImageData).filter(k => k.startsWith('likes_'));
+    const existingKey = allKeys.find(k => Array.isArray(currentImageData[k]) && currentImageData[k].includes(currentUser.uid));
+
+    if (existingKey) {
+        await galleryRef.update({ [existingKey]: firebase.firestore.FieldValue.arrayRemove(currentUser.uid) });
+        currentImageData[existingKey] = currentImageData[existingKey].filter(id => id !== currentUser.uid);
+    } else {
+        await galleryRef.update({ [dateKey]: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
+        if (!currentImageData[dateKey]) currentImageData[dateKey] = [];
+        currentImageData[dateKey].push(currentUser.uid);
     }
-});
+    
+    updateLightboxLike();
+    loadGalleryCustom(getUserIdFromUrl()); // Refresh background gallery sync
+};
 
-// -------------------
-// Delete Logic
-// -------------------
-deleteBtn.addEventListener("click", async (e) => {
-    e.stopPropagation();
-    if (!currentImageDocId) return;
-
-    const confirmation = window.confirm("Are you sure you want to delete this image?");
-    if (!confirmation) return;
-
+// ------------------
+// COMMENTS
+// ------------------
+async function loadComments(imageId) {
+    commentsList.innerHTML = '<p class="text-gray-400 italic text-xs">Loading discussion...</p>';
     try {
-        await db
-            .collection("artifacts")
+        const snapshot = await db.collection("artifacts")
             .doc("default-app-id")
             .collection("gallery")
-            .doc(currentImageDocId)
-            .delete();
+            .doc(imageId)
+            .collection("comments")
+            .orderBy("createdAt", "asc")
+            .get();
 
-        statusMessage.textContent = "Image deleted successfully! Reloading gallery...";
-        statusMessage.style.color = "green";
+        commentsList.innerHTML = "";
+        snapshot.forEach(doc => {
+            const c = doc.data();
+            const commentId = doc.id;
+            const cLikes = c.likes || [];
+            const isLiked = currentUser && cLikes.includes(currentUser.uid);
+            const isOwner = currentUser && currentUser.uid === c.userId;
 
-        lightbox.style.display = "none";
-        loadGallery(getUserIdFromUrl());
+            const div = document.createElement("div");
+            div.className = "bg-gray-50 p-3 rounded-lg border border-gray-100 relative mb-2";
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-1">
+                    <span class="font-bold text-indigo-700 text-xs">${c.userName || 'User'}</span>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-[10px] text-gray-400">${c.createdAt ? new Date(c.createdAt.toDate()).toLocaleDateString() : ''}</span>
+                        ${isOwner ? `<button class="delete-comment text-gray-400 hover:text-red-500" data-id="${commentId}"><i class="bi bi-trash"></i></button>` : ''}
+                    </div>
+                </div>
+                <p class="text-gray-700 text-sm leading-snug mb-2">${c.text}</p>
+                <div class="flex items-center space-x-1">
+                    <button class="like-comment" data-id="${commentId}" data-likes='${JSON.stringify(cLikes)}'>
+                        <i class="bi ${isLiked ? 'bi-heart-fill text-red-500' : 'bi-heart text-gray-400'} text-xs"></i>
+                    </button>
+                    <span class="text-[11px] font-semibold text-gray-500">${cLikes.length}</span>
+                </div>
+            `;
+            commentsList.appendChild(div);
+        });
     } catch (err) {
-        console.error("Error deleting image:", err);
-        statusMessage.textContent = "Error deleting image.";
-        statusMessage.style.color = "red";
+        commentsList.innerHTML = '<p class="text-red-500 text-xs">Error loading comments.</p>';
+    }
+}
+
+commentsList.addEventListener('click', async (e) => {
+    if (e.target.closest(".like-comment")) {
+        const btn = e.target.closest(".like-comment");
+        if (!currentUser || !currentImageDocId) return alert("Login first!");
+
+        const commentId = btn.dataset.id;
+        let likes = JSON.parse(btn.dataset.likes);
+        const alreadyLiked = likes.includes(currentUser.uid);
+        
+        const action = alreadyLiked 
+            ? firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
+            : firebase.firestore.FieldValue.arrayUnion(currentUser.uid);
+
+        const commentRef = db.collection("artifacts").doc("default-app-id")
+            .collection("gallery").doc(currentImageDocId)
+            .collection("comments").doc(commentId);
+            
+        await commentRef.update({ likes: action });
+
+        if (alreadyLiked) likes = likes.filter(id => id !== currentUser.uid);
+        else likes.push(currentUser.uid);
+
+        const icon = btn.querySelector('i');
+        icon.className = `bi ${likes.includes(currentUser.uid) ? 'bi-heart-fill text-red-500' : 'bi-heart text-gray-400'}`;
+        btn.nextElementSibling.textContent = likes.length;
+        btn.dataset.likes = JSON.stringify(likes);
+
+    } else if (e.target.closest(".delete-comment")) {
+        const commentId = e.target.closest(".delete-comment").dataset.id;
+        if (!confirm("Delete your comment?")) return;
+        await db.collection("artifacts").doc("default-app-id")
+            .collection("gallery").doc(currentImageDocId)
+            .collection("comments").doc(commentId).delete();
+        loadComments(currentImageDocId);
     }
 });
 
-// -------------------
-// Upload Logic
-// -------------------
-uploadBtn.addEventListener("click", async () => {
-    if (!currentUser) {
-        statusMessage.textContent = "You must be signed in to upload images.";
-        statusMessage.style.color = "red";
-        return;
-    }
+postCommentBtn.addEventListener("click", async () => {
+    const text = commentText.value.trim();
+    if (!text || !currentUser || !currentImageDocId) return;
+    postCommentBtn.disabled = true;
+    try {
+        await db.collection("artifacts").doc("default-app-id").collection("gallery").doc(currentImageDocId).collection("comments").add({
+            text,
+            userId: currentUser.uid,
+            userName: currentUser.displayName || currentUser.email.split('@')[0],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            likes: []
+        });
+        commentText.value = "";
+        loadComments(currentImageDocId);
+    } catch(e) { console.error(e); }
+    finally { postCommentBtn.disabled = false; }
+});
 
+// ------------------
+// DELETE IMAGE
+// ------------------
+async function checkDeletePermissions(uploaderId) {
+    let canDelete = currentUser && currentUser.uid === uploaderId;
+    if (!canDelete && currentUser) {
+        const profile = await db.collection('artifacts').doc('default-app-id')
+            .collection('user_profiles').doc(currentUser.uid).get();
+        if (profile.exists && ['admin', 'mod'].includes(profile.data().role)) canDelete = true;
+    }
+    deleteBtn.classList.toggle('hidden', !canDelete);
+}
+
+deleteBtn.onclick = async () => {
+    if (!currentImageDocId || !confirm("Delete this image?")) return;
+    await db.collection("artifacts").doc("default-app-id").collection("gallery").doc(currentImageDocId).delete();
+    lightbox.style.display = "none";
+    loadGalleryCustom(getUserIdFromUrl());
+};
+
+// ------------------
+// UPLOAD IMAGE
+// ------------------
+uploadBtn.onclick = async () => {
     const file = imageInput.files[0];
-    if (!file) {
-        statusMessage.textContent = "Please select an image.";
-        statusMessage.style.color = "red";
-        return;
-    }
-
+    if (!currentUser || !file) return;
     statusMessage.textContent = "Uploading...";
-    statusMessage.style.color = "black";
     uploadBtn.disabled = true;
-
     try {
         const formData = new FormData();
         formData.append("image", file);
-
-        // --- Implementation of the requested change ---
-        // Fetch call now uses the Cloudflare Worker proxy endpoint.
-        const response = await fetch(IMGBB_CLOUDFLARE_WORKER_URL, {
-            method: "POST",
-            body: formData
-        });
-        // Original line was: const response = await fetch(`https://api.imgbb.com/1/upload?key=${Gallery_Log}`, {
-        // ------------------------------------------------
-
-        const data = await response.json();
-        if (!data.success) throw new Error("upload failed");
-
-        const imageUrl = data.data.url;
-        const firebaseGlobal = window.firebase; 
-        
-        await db.collection("artifacts")
-            .doc("default-app-id")
-            .collection("gallery")
-            .add({
-                url: imageUrl,
-                createdAt: firebaseGlobal.firestore.FieldValue.serverTimestamp(),
-                uploaderId: currentUser.uid
+        const res = await fetch(IMGBB_CLOUDFLARE_WORKER_URL, { method: "POST", body: formData });
+        const data = await res.json();
+        if (data.success) {
+            await db.collection("artifacts").doc("default-app-id").collection("gallery").add({
+                url: data.data.url,
+                uploaderId: currentUser.uid,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                // Likes will be added dynamically as likes_YYYY-MM-DD keys
             });
+            statusMessage.textContent = "Upload successful!";
+            imageInput.value = "";
+            loadGalleryCustom(getUserIdFromUrl());
+        }
+    } catch (err) { statusMessage.textContent = "Upload failed."; }
+    finally { uploadBtn.disabled = false; }
+};
 
-        statusMessage.textContent = "Upload successful!";
-        statusMessage.style.color = "green";
-        imageInput.value = "";
-        loadGallery(getUserIdFromUrl());
-    } catch (err) {
-        console.error(err);
-        statusMessage.textContent = "Error uploading image.";
-        statusMessage.style.color = "red";
-    } finally {
-        uploadBtn.disabled = false;
-    }
+// ------------------
+// LIGHTBOX CLOSE
+// ------------------
+closeLightboxBtn.onclick = () => {
+    lightbox.style.display = "none";
+    document.body.classList.remove("no-scroll");
+    commentsList.innerHTML = "";
+    commentText.value = "";
+    currentImageDocId = null;
+    currentImageData = null;
+};
 
-});
+// ------------------
+// FILTERS
+// ------------------
+loadAllBtn.onclick = () => { updateUrl(null); loadGalleryCustom(); };
+loadMyBtn.onclick = () => { if (currentUser) { updateUrl(currentUser.uid); loadGalleryCustom(currentUser.uid); } };
 
-// --- Redirect to the logged-in user's profile when clicking the header logo ---
+function getUserIdFromUrl() { return new URLSearchParams(window.location.search).get('uid'); }
+function updateUrl(uid) {
+    const url = new URL(window.location.href);
+    uid ? url.searchParams.set('uid', uid) : url.searchParams.delete('uid');
+    window.history.pushState({}, '', url);
+}
+
 function setupHeaderLogoRedirect() {
     const logo = document.querySelector('.header-logo');
     if (!logo) return;
-
-    logo.style.cursor = 'pointer'; // optional: show pointer on hover
+    logo.style.cursor = 'pointer';
     logo.onclick = () => {
-        const currentUser = auth.currentUser;
         if (!currentUser) {
             alert("You must be logged in to view your profile."); 
             return;
         }
-        const userId = currentUser.uid;
-        window.location.href = `../user/?uid=${userId}`;
+        window.location.href = `../user/?uid=${currentUser.uid}`;
     };
 }

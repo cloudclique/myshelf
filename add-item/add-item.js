@@ -560,7 +560,7 @@ const STOP_WORDS = new Set([
 
     // generic product words
     "figure", "fig", "model", "item", "set", "kit", "toy", "statue", "collectible",
-    "original", "authentic", "official", "version", "edition", "series", "ver.", "ltd",
+    "original", "authentic", "official", "version", "edition", "series", "ver.",
 
     // weak adjectives
     "new", "old", "used", "complete", "boxed", "sealed", "custom",
@@ -572,15 +572,78 @@ const STOP_WORDS = new Set([
 // -------- SUPPORTIVE WORDS --------
 // Count ONLY if core match is already strong (>= 2)
 const SUPPORTIVE_WORDS = new Set([
+    // Top-tier manufacturers
     "alter",
-    "goodsmile",
-    "bandai",
+    "goodsmile", "good", "smile", "company", "goodsmilecompany",
+    "maxfactory", "max", "factory",
+    "freeing",
+    "phat", "phatcompany",
     "kotobukiya",
-    "megahouse",
+    "megahouse", "mega", "house",
+    "union", "creative", "international", "unioncreative", "unioncreativeinternational", "union creative international",
+    "flare",
+    "quesq",
+    "aquamarine",
+    "alphamax", "alpha", "max",
+    "amakuni",
+    "hobbyjapan", "hobby", "japan",
+    "wings",
+    "mimeyoi",
+    "bellfine",
+
+    // Bandai ecosystem
+    "bandai",
+    "bandaispirits", "spirits",
+    "bandainamco", "namco",
+    "banpresto",
+    "tamashii", "tamashiinations", "tamashiiweb",
+
+    // Prize / arcade figures
     "sega",
+    "segafave", "fave",
     "taito",
-    "banpresto"
+    "furyu",
+    "systemservice", "system", "service",
+    "eikoh",
+    "bushiroad", "bushi", "road",
+    "skjapan", "sk", "japan",
+
+    // Chinese manufacturers
+    "apex", "apexinnovation", "innovation",
+    "myethos",
+    "astrumdesign", "astrum", "design",
+    "hobbymax",
+    "reverse",
+    "ensoutoys", "enso", "toys",
+    "ribose",
+    "animester",
+    "neonmax",
+
+    // Western / global
+    "sideshow",
+    "prime1studio", "prime", "studio",
+    "ironstudios", "iron", "studios",
+    "funko",
+    "mcfarlane",
+    "hasbro",
+    "hottoys", "hot", "toys",
+
+    // Garage kit / resin studios
+    "e2046",
+    "volks",
+    "orbitalperiod", "orbital", "period",
+    "cerberusproject", "cerberus", "project",
+    "griffonenterprises", "griffon", "enterprises",
+
+    // Misc / legacy
+    "broccoli",
+    "movic",
+    "medicos",
+    "medicom", "medicomtoy", "toy",
+    "threezero", "three", "zero",
+    "sentinel"
 ]);
+
 
 // -------- TOKENIZER --------
 function tokenizeWithSupport(text) {

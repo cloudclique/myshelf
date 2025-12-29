@@ -2740,19 +2740,12 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 .item-grid.list-view .item-info {
-    display: grid;
-    grid-template-columns: 6fr 1fr;
-    justify-content: space-between;
-    align-items: center;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
     width: 100%;
     padding: 0;
-}
-
-@media (max-width: 768px) {
-    .item-grid.list-view .item-info{
-        display: grid;
-        grid-template-columns: 1fr;
-    }
 }
 
 /* 1. Default Grid State (Padding is 100% for a square aspect ratio) */

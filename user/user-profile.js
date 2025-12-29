@@ -680,18 +680,14 @@ function applySortAndFilter() {
           const data = item.doc.data();
           const notes = item.privateNotes || {};
           
-          // Your requested expanded search fields
           const name = (data.itemName || '').toLowerCase();
           const tags = (data.tags || []).map(t => t.toLowerCase());
           const category = (data.itemCategory || '').toLowerCase();
           const scale = (data.itemScale || '').toLowerCase();
           const age = (data.itemAgeRating || '').toLowerCase();
-          const store = (notes.store || '').toLowerCase(); // Kept store as it's useful for profile views
+          const store = (notes.store || '').toLowerCase();
 
-          // Combine everything into one searchable string
           const combinedText = [name, category, scale, age, store, ...tags].join(' ');
-
-          // Return true only if every keyword is found somewhere in the combined string
           return keywords.every(kw => combinedText.includes(kw));
       });
   }
@@ -700,7 +696,6 @@ function applySortAndFilter() {
   if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
 
   // --- 2. Sorting Logic ---
-  // (Keep the existing sorting logic below as it was...)
   items.sort((a, b) => {
     const dataA = a.doc.data();
     const dataB = b.doc.data();
@@ -739,6 +734,13 @@ function applySortAndFilter() {
       case 'storeNameDesc': return getStr(nB.store).localeCompare(getStr(nA.store));
       case 'releaseDesc': return new Date(dataB.itemReleaseDate || 0) - new Date(dataA.itemReleaseDate || 0);
       case 'releaseAsc': return new Date(dataA.itemReleaseDate || 0) - new Date(dataB.itemReleaseDate || 0);
+      
+      // --- New Collection Date Sorting ---
+      case 'collectionDateDesc': 
+        return new Date(nB.collectionDate || 0) - new Date(nA.collectionDate || 0);
+      case 'collectionDateAsc': 
+        return new Date(nA.collectionDate || 0) - new Date(nB.collectionDate || 0);
+      
       default: return 0;
     }
   });
@@ -1237,6 +1239,8 @@ function updateSortOptions() {
             specificOptions += `
                 <option value="scoreDesc">My Score (High-Low)</option>
                 <option value="scoreAsc">My Score (Low-High)</option>
+                <option value="collectionDateDesc">Date Collected (Newest)</option>
+                <option value="collectionDateAsc">Date Collected (Oldest)</option>
             `;
         }
     } else if (currentStatusFilter === 'Wished') {

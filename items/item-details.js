@@ -963,13 +963,13 @@ async function handleStatusUpdate(e) {
             privateData.shipping = document.getElementById('privShipping')?.value || '';
             // Capture the Score field
             privateData.score = document.getElementById('privScore')?.value || ''; 
+            privateData.store = document.getElementById('privStore')?.value || '';
 
             if (newStatus === 'Owned') {
                 privateData.location = document.getElementById('privLocation')?.value || '';
                 privateData.collectionDate = document.getElementById('privCollectionDate')?.value || '';
             } else {
                 privateData.tracking = document.getElementById('privTracking')?.value || '';
-                privateData.store = document.getElementById('privStore')?.value || '';
             }
         } else if (newStatus === 'Wished') {
             privateData.priority = document.getElementById('privPriority')?.value || '';

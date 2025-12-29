@@ -199,15 +199,19 @@ async function initializeProfile() {
     
     if (profileLoader) profileLoader.classList.remove('hidden');
     targetUserId = getUserIdFromUrl();
+    
     if (!targetUserId) {
         profileTitle.textContent = 'Error: No User ID Provided';
         loadingStatus.textContent = 'Please return to the Users search page.';
         if (profileLoader) profileLoader.classList.add('hidden');
         return;
     }
+
     if (viewMoreGalleryBtn) {
         viewMoreGalleryBtn.onclick = () => { window.location.href = `../?uid=${targetUserId}`; };
     }
+
+    // Await core user data
     await fetchAndRenderBanner(targetUserId);
     targetUsername = await fetchUsername(targetUserId);
     profileTitle.textContent = `${targetUsername}'s Collection`;
@@ -221,21 +225,27 @@ async function initializeProfile() {
         setupRoleModal(currentUser.uid);
     }
 
+    // Parse URL Hash for state
     const { status: hashStatus, page: hashPage, search: hashSearch } = parseURLHash();
     currentStatusFilter = STATUS_OPTIONS.includes(hashStatus) ? hashStatus : 'Owned';
     currentPage = hashPage || 1;
+
+    // IMPORTANT: Wait for the buttons and data to load sequentially
     await renderStatusButtons();
-    await fetchProfileItems(currentStatusFilter);
+    await fetchProfileItems(currentStatusFilter); // Awaiting the data fetch fixed here
     await fetchUserLists(targetUserId);
+
+    // After the await above, lastFetchedItems is guaranteed to be populated
     if (hashSearch) {
         profileSearchInput.value = hashSearch;
-        await handleProfileSearch();
+        handleProfileSearch(); // This internally calls applySortAndFilter()
     } else {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        renderPageItems(lastFetchedItems.slice(startIndex, startIndex + ITEMS_PER_PAGE));
+        applySortAndFilter(); // Standard render for current page/sort
     }
+
     await loadComments(targetUserId);
     await fetchAndRenderGalleryPreview(targetUserId);
+    
     if (profileLoader) profileLoader.classList.add('hidden');
 }
 
@@ -418,8 +428,7 @@ async function fetchProfileItems(status) {
   profileItemsGrid.innerHTML = '';
   paginationContainer.innerHTML = '';
   loadingStatus.textContent = `Loading ${targetUsername}'s ${status.toLowerCase()} items...`;
-  currentPage = 1;
-  await fetchPage();
+  return await fetchPage();
 }
 
 async function fetchPage() {

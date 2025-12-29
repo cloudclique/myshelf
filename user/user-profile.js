@@ -523,12 +523,14 @@ function renderProfileItem(doc, status, privateNotes = {}) {
 
       if (status === 'Owned') {
           html = `
+            <div class="col-group price-group">
               <div class="col-group"><strong><i class="bi bi-boxes"></i></strong> <span>${n.amount || '1'}</span></div>
+              <div class="col-group"><strong><i class="bi bi-star-fill"></i></strong> <span>${n.score || '-'}</span></div>
+              </div>
               <div class="col-group price-group">
                   <div class="main-val"><strong><i class="bi bi-cash-stack"></i></strong> <span>${n.price || '-'}</span></div>
                   <div class="sub-val"><i class="bi bi-truck"></i> ${n.shipping || '-'}</div>
               </div>
-              <div class="col-group"><strong><i class="bi bi-star-fill"></i></strong> <span>${n.score || '-'}</span></div>
               <div class="col-group price-group">
                   <div class="main-val"><strong><i class="bi bi-bag-fill"></i></strong> <span>${n.store || '-'}</span></div>
                   <div class="sub-val"><i class="bi bi-calendar2-check-fill"></i> ${n.collectionDate || '-'}</div>

@@ -659,26 +659,40 @@ function applySortAndFilter() {
 
   // --- 1. Apply Search & Tag Filters ---
   const queryText = profileSearchInput.value.trim().toLowerCase();
+  
   if (queryText) {
       const keywords = queryText.split(/\s+/);
       items = items.filter(item => {
           const data = item.doc.data();
           const notes = item.privateNotes || {};
-          const searchable = [data.itemName || '', notes.store || ''].join(' ').toLowerCase();
-          return keywords.every(kw => searchable.includes(kw));
+          
+          // Your requested expanded search fields
+          const name = (data.itemName || '').toLowerCase();
+          const tags = (data.tags || []).map(t => t.toLowerCase());
+          const category = (data.itemCategory || '').toLowerCase();
+          const scale = (data.itemScale || '').toLowerCase();
+          const age = (data.itemAgeRating || '').toLowerCase();
+          const store = (notes.store || '').toLowerCase(); // Kept store as it's useful for profile views
+
+          // Combine everything into one searchable string
+          const combinedText = [name, category, scale, age, store, ...tags].join(' ');
+
+          // Return true only if every keyword is found somewhere in the combined string
+          return keywords.every(kw => combinedText.includes(kw));
       });
   }
+
   const selectedTag = tagFilterDropdown?.value;
   if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
 
   // --- 2. Sorting Logic ---
+  // (Keep the existing sorting logic below as it was...)
   items.sort((a, b) => {
     const dataA = a.doc.data();
     const dataB = b.doc.data();
     const nA = a.privateNotes || {};
     const nB = b.privateNotes || {};
 
-    // Handles formats: "80,50", "1.200,00", "$1,200.00"
     const getNum = (val) => {
       if (val === undefined || val === null || val === '') return 0;
       let s = String(val).replace(/[^\d,.-]/g, '');
@@ -695,36 +709,22 @@ function applySortAndFilter() {
     const priorityMap = { 'High': 3, 'Medium': 2, 'Normal': 1, 'Low': 0 };
 
     switch (currentSortValue) {
-      // Quantity
       case 'amountDesc': return getNum(nB.amount || 1) - getNum(nA.amount || 1);
       case 'amountAsc': return getNum(nA.amount || 1) - getNum(nB.amount || 1);
-      
-      // Price
       case 'priceDesc': return getNum(nB.price) - getNum(nA.price);
       case 'priceAsc': return getNum(nA.price) - getNum(nB.price);
-      
-      // Price + Shipping
       case 'totalPriceDesc': 
         return (getNum(nB.price) + getNum(nB.shipping)) - (getNum(nA.price) + getNum(nA.shipping));
       case 'totalPriceAsc': 
         return (getNum(nA.price) + getNum(nA.shipping)) - (getNum(nB.price) + getNum(nB.shipping));
-      
-      // Priority (Wished)
       case 'priorityDesc': return (priorityMap[nB.priority] || 0) - (priorityMap[nA.priority] || 0);
       case 'priorityAsc': return (priorityMap[nA.priority] || 0) - (priorityMap[nB.priority] || 0);
-      
-      // Score (Owned)
       case 'scoreDesc': return getNum(nB.score) - getNum(nA.score);
       case 'scoreAsc': return getNum(nA.score) - getNum(nB.score);
-
-      // Store (Both ways)
       case 'storeNameAsc': return getStr(nA.store).localeCompare(getStr(nB.store));
       case 'storeNameDesc': return getStr(nB.store).localeCompare(getStr(nA.store));
-      
-      // Metadata
       case 'releaseDesc': return new Date(dataB.itemReleaseDate || 0) - new Date(dataA.itemReleaseDate || 0);
       case 'releaseAsc': return new Date(dataA.itemReleaseDate || 0) - new Date(dataB.itemReleaseDate || 0);
-      
       default: return 0;
     }
   });

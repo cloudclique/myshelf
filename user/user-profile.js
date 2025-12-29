@@ -634,21 +634,50 @@ async function fetchAndRenderGalleryPreview(userId) {
     const previewGrid = document.getElementById('previewGrid');
     if (!previewGrid || !userId) return;
     previewGrid.innerHTML = '<p style="grid-column: 1/span 4; text-align: center;">Loading images...</p>';
+    
     try {
         const galleryRef = getGalleryCollectionRef();
-        const gallerySnapshot = await galleryRef.where('uploaderId', '==', userId).orderBy('createdAt', 'desc').limit(4).get();
+        // Fetch the user's gallery items to calculate likes client-side
+        const gallerySnapshot = await galleryRef.where('uploaderId', '==', userId).get();
+        
         previewGrid.innerHTML = '';
         if (gallerySnapshot.empty) {
             previewGrid.innerHTML = '<p style="grid-column: 1/span 4; text-align: center; color: #888;">No uploaded gallery images found.</p>';
             return;
         }
-        gallerySnapshot.docs.forEach(doc => {
-            const imageDoc = doc.data();
-            const imageUrl = imageDoc.url || DEFAULT_IMAGE_URL;
+
+        const imagesWithLikes = gallerySnapshot.docs.map(doc => {
+            const data = doc.data();
+            
+            // Sum the lengths of all arrays where the key starts with "likes_"
+            const totalLikes = Object.keys(data)
+                .filter(key => key.startsWith('likes_'))
+                .reduce((sum, key) => {
+                    const likeArray = data[key];
+                    return sum + (Array.isArray(likeArray) ? likeArray.length : 0);
+                }, 0);
+
+            return {
+                url: data.url || DEFAULT_IMAGE_URL,
+                totalLikes: totalLikes,
+                createdAt: data.createdAt
+            };
+        });
+
+        // Sort: Most likes first, then newest first as a tie-breaker
+        imagesWithLikes.sort((a, b) => {
+            if (b.totalLikes !== a.totalLikes) {
+                return b.totalLikes - a.totalLikes;
+            }
+            return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+        });
+
+        // Display the top 4 most liked images
+        imagesWithLikes.slice(0, 4).forEach(image => {
             const link = document.createElement('a');
             link.className = 'gallery-thumbnail-link';
             const img = document.createElement('img');
-            img.src = imageUrl;
+            img.src = image.url;
             img.className = 'gallery-thumbnail';
             img.onerror = () => img.src = DEFAULT_IMAGE_URL;
             link.appendChild(img);

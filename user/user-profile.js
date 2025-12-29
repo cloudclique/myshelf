@@ -546,7 +546,7 @@ function renderProfileItem(doc, status, privateNotes = {}) {
               </div>
           `;
       } else if (status === 'Wished') {
-          html = `<div class="col-group"><strong>Priority:</strong> <span>${n.priority || 'Normal'}</span></div>`;
+          html = `<div class="col-group"><strong><i class="bi bi-star-fill"></i></strong> <span>${n.priority || 'Normal'}</span></div>`;
       } else if (status === 'Ordered') {
           html = `
               <div class="col-group"><strong><i class="bi bi-boxes"></i></strong> <span>${n.amount || '1'}</span></div>

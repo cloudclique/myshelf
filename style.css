@@ -2792,31 +2792,9 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 /* Container for the columns */
 .list-view-columns {
-    display: grid;
-    grid-template-columns: 3fr 3fr;
-    
-    flex: 1;
-    justify-content: flex-start;
-    margin-left: 20px;
-    width: 170px;
-}
-
-@media (max-width: 768px) {
-    .list-view-columns {
-    width: 100%;
-    grid-template-columns: 1fr 2fr 2fr 3fr;
-}
-}
-
-@media (max-width: 450px) {
-    .list-view-columns {
-        display: grid;
-        grid-template-columns: repeat(2, 1fr);
-    max-width: 100%;
-    width: 100%;
-    gap: 1px;
-    margin-left: 0;
-}
+    display: flex;
+    justify-content: left;
+    gap: 10px;
 }
 
 /* Base column style - ensures even widths */

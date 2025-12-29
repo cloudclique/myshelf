@@ -661,40 +661,40 @@ async function fetchAndRenderGalleryPreview(userId) {
 }
 
 function applySortAndFilter() {
-    let items = [...lastFetchedItems];
+  if (!lastFetchedItems || !lastFetchedItems.length) {
+      profileItemsGrid.innerHTML = '';
+      loadingStatus.textContent = `No items found in this collection.`;
+      renderPaginationButtons(0);
+      return;
+  }
 
-    // --- 1. Apply Search & Tag Filters ---
-    const queryText = profileSearchInput.value.trim().toLowerCase();
-    
-    if (queryText) {
-        // Regex to extract phrases inside {} or individual words
-        const regex = /\{([^}]+)\}|(\S+)/g;
-        const keywords = [];
-        let match;
+  currentSortValue = sortSelect?.value ?? '';
+  let items = [...lastFetchedItems];
 
-        while ((match = regex.exec(queryText)) !== null) {
-            // Use match[1] (content inside {}) if it exists, otherwise match[2] (the word)
-            keywords.push((match[1] || match[2]).toLowerCase());
-        }
+  // --- 1. Apply Search & Tag Filters ---
+  const queryText = profileSearchInput.value.trim().toLowerCase();
+  
+  if (queryText) {
+      const keywords = queryText.split(/\s+/);
+      items = items.filter(item => {
+          const data = item.doc.data();
+          const notes = item.privateNotes || {};
+          
+          const name = (data.itemName || '').toLowerCase();
+          const tags = (data.tags || []).map(t => t.toLowerCase());
+          const category = (data.itemCategory || '').toLowerCase();
+          const scale = (data.itemScale || '').toLowerCase();
+          const age = (data.itemAgeRating || '').toLowerCase();
+          const store = (notes.store || '').toLowerCase();
 
-        items = items.filter(item => {
-            const data = item.doc.data();
-            const notes = item.privateNotes || {};
-            
-            const name = (data.itemName || '').toLowerCase();
-            const tags = (data.tags || []).map(t => t.toLowerCase());
-            const category = (data.itemCategory || '').toLowerCase();
-            const scale = (data.itemScale || '').toLowerCase();
-            const age = (data.itemAgeRating || '').toLowerCase();
-            const store = (notes.store || '').toLowerCase();
+          const combinedText = [name, category, scale, age, store, ...tags].join(' ');
+          return keywords.every(kw => combinedText.includes(kw));
+      });
+  }
 
-            // Join with '|' to prevent words from different fields merging into a false phrase
-            const combinedText = [name, category, scale, age, store, ...tags].join(' | ');
+  const selectedTag = tagFilterDropdown?.value;
+  if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
 
-            // Every extracted keyword/phrase must be present in the combined text
-            return keywords.every(kw => combinedText.includes(kw));
-        });
-    }
   // --- 2. Sorting Logic ---
   items.sort((a, b) => {
     const dataA = a.doc.data();
@@ -1136,42 +1136,49 @@ const ICONS = {
 
 function updateProfileSearchSuggestions() {
     const query = profileSearchInput.value.trim().toLowerCase();
-    if (!query) {
-        profileSearchSuggestions.innerHTML = '';
-        return;
-    }
+    profileSearchSuggestions.innerHTML = '';
+    if (!query) return;
 
     const matchesByType = { tag: [], age: [], scale: [], category: [], name: [] };
-    const addedTexts = new Set();
     const addedItemIds = new Set();
+    const addedTexts = new Set();
 
-    for (let itemObj of lastFetchedItems) {
-        const item = itemObj.doc.data();
-        const itemId = itemObj.doc.id;
+    for (let item of lastFetchedItems) {
+        const data = item.doc.data();
+        if (addedItemIds.has(item.doc.id)) continue;
 
-        // Check Tags
-        const tagMatch = (item.tags || []).find(t => t.toLowerCase().includes(query));
-        if (tagMatch && !addedTexts.has('tag:' + tagMatch.toLowerCase())) {
-            matchesByType.tag.push({ type: 'tag', text: tagMatch });
-            addedTexts.add('tag:' + tagMatch.toLowerCase());
+        const tagMatch = (data.tags || []).find(t => t.toLowerCase().includes(query));
+        if (tagMatch && !addedTexts.has(tagMatch.toLowerCase())) {
+            matchesByType.tag.push({ type: 'tag', text: tagMatch, item });
+            addedTexts.add(tagMatch.toLowerCase());
+            addedItemIds.add(item.doc.id);
+            continue;
         }
 
-        // Check Category
-        if ((item.itemCategory || '').toLowerCase().includes(query) && !addedTexts.has('cat:' + item.itemCategory.toLowerCase())) {
-            matchesByType.category.push({ type: 'category', text: item.itemCategory });
-            addedTexts.add('cat:' + item.itemCategory.toLowerCase());
+        if ((data.itemAgeRating || '').toLowerCase().includes(query) && !addedTexts.has(data.itemAgeRating.toLowerCase())) {
+            matchesByType.age.push({ type: 'age', text: data.itemAgeRating, item });
+            addedTexts.add(data.itemAgeRating.toLowerCase());
+            addedItemIds.add(item.doc.id);
+            continue;
         }
 
-        // Check Age
-        if ((item.itemAgeRating || '').toLowerCase().includes(query) && !addedTexts.has('age:' + item.itemAgeRating.toLowerCase())) {
-            matchesByType.age.push({ type: 'age', text: item.itemAgeRating });
-            addedTexts.add('age:' + item.itemAgeRating.toLowerCase());
+        if ((data.itemScale || '').toLowerCase().includes(query) && !addedTexts.has(data.itemScale.toLowerCase())) {
+            matchesByType.scale.push({ type: 'scale', text: data.itemScale, item });
+            addedTexts.add(data.itemScale.toLowerCase());
+            addedItemIds.add(item.doc.id);
+            continue;
         }
 
-        // Check Name
-        if ((item.itemName || '').toLowerCase().includes(query) && !addedItemIds.has(itemId)) {
-            matchesByType.name.push({ type: 'name', text: item.itemName });
-            addedItemIds.add(itemId);
+        if ((data.itemCategory || '').toLowerCase().includes(query) && !addedTexts.has(data.itemCategory.toLowerCase())) {
+            matchesByType.category.push({ type: 'category', text: data.itemCategory, item });
+            addedTexts.add(data.itemCategory.toLowerCase());
+            addedItemIds.add(item.doc.id);
+            continue;
+        }
+
+        if ((data.itemName || '').toLowerCase().includes(query)) {
+            matchesByType.name.push({ type: 'name', text: data.itemName, item });
+            addedItemIds.add(item.doc.id);
         }
 
         if (Object.values(matchesByType).flat().length >= 10) break;
@@ -1179,29 +1186,19 @@ function updateProfileSearchSuggestions() {
 
     const orderedMatches = [
         ...matchesByType.tag,
-        ...matchesByType.category,
         ...matchesByType.age,
+        ...matchesByType.scale,
+        ...matchesByType.category,
         ...matchesByType.name
     ].slice(0, 10);
 
-    profileSearchSuggestions.innerHTML = '';
     orderedMatches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'search-suggestion-item';
-        div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type] || ''}</span> <span class="suggestion-text">${match.text}</span>`;
-        
+        div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type]}</span> <span class="suggestion-text">${match.text}</span>`;
         div.onclick = () => {
-            // Types that should be wrapped in curly braces for exact phrase matching
-            const bracedTypes = ['tag', 'category', 'age', 'scale'];
-            
-            if (bracedTypes.includes(match.type)) {
-                profileSearchInput.value = `{${match.text}}`;
-            } else {
-                profileSearchInput.value = match.text;
-            }
-
-            // Execute the search and clear suggestions
-            handleProfileSearch(); 
+            profileSearchInput.value = match.text;
+            handleProfileSearch();
             profileSearchSuggestions.innerHTML = '';
         };
         profileSearchSuggestions.appendChild(div);

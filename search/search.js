@@ -161,7 +161,6 @@ async function fetchAllItems() {
 }
 
 function handleSearch(resetPage = true) {
-    
     const query = searchInput.value.trim().toLowerCase();
 
     if (!query) {
@@ -170,7 +169,16 @@ function handleSearch(resetPage = true) {
             return true;
         });
     } else {
-        const keywords = query.split(/\s+/).filter(Boolean);
+        // Updated Regex: Matches phrases inside {} OR individual words
+        const regex = /\{([^}]+)\}|(\S+)/g;
+        const keywords = [];
+        let match;
+
+        while ((match = regex.exec(query)) !== null) {
+            // match[1] is the text inside {}, match[2] is the normal word
+            // We strip the curly braces by taking match[1] if it exists
+            keywords.push((match[1] || match[2]).toLowerCase());
+        }
 
         filteredItems = allItems.filter(item => {
             if (!allowNSFW && item.itemAgeRating === '18+') return false;
@@ -181,7 +189,9 @@ function handleSearch(resetPage = true) {
             const scale = (item.itemScale || '').toLowerCase();
             const age = (item.itemAgeRating || '').toLowerCase();
 
-            const combinedText = [name, category, scale, age, ...tags].join(' ');
+            // We join with a specific separator to prevent "word bleeding" 
+            // between different fields during phrase matching
+            const combinedText = [name, category, scale, age, ...tags].join(' | ');
 
             return keywords.every(kw => combinedText.includes(kw));
         });
@@ -190,7 +200,6 @@ function handleSearch(resetPage = true) {
     if (resetPage) currentPage = 1;
     renderItemsWithPagination(filteredItems);
     updateURLPage();
-    
 }
 
 function handleClearSearch() {
@@ -380,11 +389,22 @@ function renderSearchSuggestions(matches) {
     matches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'search-suggestion-item';
+        
+        // The display remains clean without braces
         div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type]}</span> ${match.text}`;
 
-        // Clicking a suggestion will fill the search bar and trigger full search
         div.onclick = () => {
-            searchInput.value = match.text;
+            // Define which types should be treated as "complete parts"
+            const bracedTypes = ['tag', 'age', 'category', 'scale'];
+            
+            if (bracedTypes.includes(match.type)) {
+                // Wrap in braces for the search bar
+                searchInput.value = `{${match.text}}`;
+            } else {
+                // Names usually stay as standard text
+                searchInput.value = match.text;
+            }
+
             handleSearch();
             searchSuggestions.innerHTML = '';
         };

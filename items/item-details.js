@@ -1981,7 +1981,7 @@ async function fetchAndRenderPublicLists(itemId) {
         allPublicListsForThisItem = [...matchedLiveLists, ...staticLists];
         
         // 4. Render as usual
-        renderPublicLists(); 
+        renderListsPage(1);
         
     } catch (error) {
         console.error("Error fetching lists:", error);

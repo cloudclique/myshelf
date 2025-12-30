@@ -60,7 +60,7 @@ fetch('./header.html').then(res => res.text()).then(html => {document.getElement
         </div>
     </div>
 
-    <div id="commentSidebar" class="w-full md:w-96 bg-white flex flex-col p-5 overflow-hidden rounded-xl md:ml-4 shadow-2xl" style="height: calc(100vh - 50px);">
+    <div id="commentSidebar" class="w-full md:w-96 bg-white flex flex-col p-5 overflow-hidden rounded-xl md:ml-4 shadow-2xl" style="height: calc(100vh - 50px); z-index: 1000;">
         <h3 class="font-bold text-xl mb-4 border-b pb-2 text-gray-800 flex items-center">
             <i class="bi bi-chat-left-text mr-2 text-indigo-600"></i> Comments
         </h3>
@@ -72,7 +72,7 @@ fetch('./header.html').then(res => res.text()).then(html => {document.getElement
         <p id="commentLoginPrompt" class="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">Log in to comment.</p>
     </div>
 
-    <button id="closeLightboxBtn" class="absolute top-4 right-4 text-white text-4xl p-2 rounded-full bg-black bg-opacity-40 hover:bg-opacity-70 z-50">&times;</button>
+    <button id="closeLightboxBtn" class="absolute top-4 right-4 text-white p-2 rounded-full bg-black bg-opacity-40 hover:bg-opacity-70 z-50" style="width: 50px; height: 50px;"><i class="bi bi-x-lg"></i></button>
 </div>
 
 <div style="position: relative;"><div id="footer"></div></div>

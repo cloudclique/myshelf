@@ -1970,10 +1970,12 @@ async function fetchAndRenderPublicLists(itemId) {
                 // 2. Check if the current item matches the Live Query
                 if (itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
                     matchedLiveLists.push(list);
+                    type: 'public'
                 }
             } else if (list.items && list.items.includes(itemId)) {
                 // Existing logic for static lists
                 staticLists.push(list);
+                type: 'public'
             }
         });
 

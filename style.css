@@ -2003,7 +2003,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 #gallery {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(auto, 200px)); /* Responsive grid */
+    grid-template-columns: repeat(5, 1fr); /* Responsive grid */
     gap: 10px;
 }
 
@@ -2413,7 +2413,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 @media (max-width: 600px) {
     #gallery {
-        grid-template-columns: repeat(auto-fit, minmax(auto, 48%)); /* Adjust for smaller screens */
+        grid-template-columns: repeat(3, 1fr); /* Adjust for smaller screens */
         justify-content: center;
     }
 }

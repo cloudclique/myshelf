@@ -337,7 +337,7 @@ async function loadComments(imageId) {
                 const profileUrl = `../user/?uid=${userId}`;
 
                 const avatarImg = cachedUser.pic 
-                    ? `<img src="${profilePicBase64}" class="w-8 h-8 rounded-full object-cover border border-gray-200" style="max-width: 100% !important; max-height: 100% !important; box-shadow: 0 0 20px rgb(0 0 0 / 0%) !important;" alt="profile">`
+                    ? `<img src="${cachedUser.pic}" class="w-8 h-8 rounded-full object-cover border border-gray-200" style="max-width: 100% !important; max-height: 100% !important; box-shadow: 0 0 20px rgb(0 0 0 / 0%) !important;" alt="profile">`
                     : `<div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center"><i class="bi bi-person text-gray-400 text-sm"></i></div>`;
 
                 return `

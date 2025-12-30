@@ -131,23 +131,36 @@ async function loadList(currentUserId) {
             if (deleteListBtn) deleteListBtn.style.display = 'inline-block';
         }
 
-        // --- THE REPLACEMENT LOGIC ---
+        // --- LIVE SYNC LOGIC ---
         if (listData.mode === 'live') {
-            // 1. Fetch all items from the database
+            // 1. Get every item in the DB
             const allSnap = await db.collection('items').get();
             const allItems = allSnap.docs.map(doc => ({ id: doc.id, data: doc.data() }));
             
-            // 2. Filter and REPLACE the existing list view
-            allFetchedItems = filterItemsByQuery(allItems, listData.liveQuery, listData.liveLogic || 'AND');
+            // 2. Determine which items SHOULD be in the list based on query
+            const matchedItems = filterItemsByQuery(allItems, listData.liveQuery, listData.liveLogic || 'AND');
+            const matchedIds = matchedItems.map(item => item.id);
+
+            // 3. Compare with current saved items array
+            const currentIds = listData.items || [];
+            const isDifferent = JSON.stringify(matchedIds.sort()) !== JSON.stringify(currentIds.sort());
+
+            if (isDifferent && currentUserId === listOwnerId) {
+                // Update the database to reflect the new state
+                await listRef.update({ items: matchedIds });
+                listData.items = matchedIds; // Update local state
+            }
+            
+            allFetchedItems = matchedItems;
             renderFilteredItems(allFetchedItems);
         } else {
-            // Default behavior: load only the specific IDs stored in the list
+            // Default mode: just load what is already there
             await fetchAllItems(listData.items || []);
             renderFilteredItems(allFetchedItems);
         }
 
     } catch (error) {
-        console.error("Load Error:", error);
+        console.error("Sync Error:", error);
         if (listTitle) listTitle.textContent = "Error Loading List";
     } finally {
         if (listLoader) listLoader.style.display = 'none';
@@ -341,10 +354,9 @@ if (listSettingsBtn) {
         const modeRadio = document.querySelector(`input[name="editMode"][value="${currentMode}"]`);
         if (modeRadio) modeRadio.checked = true;
 
-        // Show/Hide Live Query inputs based on current mode
+        // Restore Query & Logic
         const liveQueryGroup = document.getElementById('liveQueryGroup');
         liveQueryGroup.style.display = currentMode === 'live' ? 'block' : 'none';
-        
         document.getElementById('editLiveQuery').value = listData.liveQuery || "";
         
         const currentLogic = listData.liveLogic || 'AND';
@@ -375,8 +387,12 @@ if (saveListChangesBtn) {
                 liveLogic: newMode === 'live' ? newLogic : (listData.liveLogic || "AND")
             };
 
+            // If switching to Live, we force a sync by clearing items so loadList catches it
+            if (newMode === 'live') {
+                updatePayload.items = []; 
+            }
+
             if (newPrivacy !== listType) {
-                // Moving between public/private
                 const newPath = newPrivacy === 'public' 
                     ? db.collection('public_lists').doc(listId)
                     : db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(auth.currentUser.uid).collection('lists').doc(listId);
@@ -385,7 +401,6 @@ if (saveListChangesBtn) {
                 await listRef.delete();
                 window.location.href = `?list=${listId}&type=${newPrivacy}`;
             } else {
-                // Just update the current document
                 await listRef.update(updatePayload);
                 location.reload();
             }
@@ -499,8 +514,6 @@ editModeRadios.forEach(radio => {
 
 function filterItemsByQuery(items, query, logic = 'AND') {
     if (!query) return items;
-    
-    // This regex matches {bracketed tags} or individual words
     const regex = /\{([^}]+)\}|(\S+)/g;
     const keywords = [];
     let match;
@@ -510,18 +523,15 @@ function filterItemsByQuery(items, query, logic = 'AND') {
 
     return items.filter(itemObj => {
         const item = itemObj.data;
-        const name = (item.itemName || '').toLowerCase();
-        const tags = (item.itemTags || []).map(t => t.toLowerCase());
-        const category = (item.itemCategory || '').toLowerCase();
-        const scale = (item.itemScale || '').toLowerCase();
-        
-        // Combine all searchable text into one string
-        const combinedText = [name, category, scale, ...tags].join(' ');
+        const combinedText = [
+            item.itemName, 
+            item.itemCategory, 
+            item.itemScale, 
+            ...(item.itemTags || [])
+        ].join(' ').toLowerCase();
 
-        if (logic === 'OR') {
-            return keywords.some(kw => combinedText.includes(kw));
-        } else {
-            return keywords.every(kw => combinedText.includes(kw));
-        }
+        return logic === 'OR' 
+            ? keywords.some(kw => combinedText.includes(kw))
+            : keywords.every(kw => combinedText.includes(kw));
     });
 }

@@ -1965,17 +1965,17 @@ async function fetchAndRenderPublicLists(itemId) {
         publicListsSnap.forEach(doc => {
             const list = doc.data();
             list.id = doc.id;
+            list.type = doc.privacy;
 
             if (list.mode === 'live') {
                 // 2. Check if the current item matches the Live Query
                 if (itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
                     matchedLiveLists.push(list);
-                    type: 'public'
                 }
             } else if (list.items && list.items.includes(itemId)) {
                 // Existing logic for static lists
                 staticLists.push(list);
-                type: 'public'
+                
             }
         });
 

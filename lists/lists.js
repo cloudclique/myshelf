@@ -125,6 +125,7 @@ async function loadList(currentUserId) {
         listData = listSnap.data();
         listOwnerId = listData.userId;
 
+        // Privacy check
         if (listType === 'private' && currentUserId !== listOwnerId) {
             listTitle.textContent = "Private List (Access Denied)";
             return;
@@ -132,29 +133,28 @@ async function loadList(currentUserId) {
 
         listTitle.textContent = listData.name || 'Unnamed List';
 
-        // Show management buttons if owner
         if (currentUserId === listOwnerId) {
             if (listSettingsBtn) listSettingsBtn.style.display = 'inline-block';
             if (deleteListBtn) deleteListBtn.style.display = 'inline-block';
         }
 
-        // --- LIVE LIST VS DEFAULT LOGIC ---
+        // --- APPLY LIVE LIST OR DEFAULT ON LOAD ---
         if (listData.mode === 'live') {
-            // Fetch all items from the main collection to filter them
-            const allSnap = await db.collection('items').get();
-            const allItems = allSnap.docs.map(doc => ({ id: doc.id, data: doc.data() }));
+            // 1. Fetch all items (or a large subset) to filter them
+            const allItemsSnap = await db.collection('items').get();
+            const allItems = allItemsSnap.docs.map(doc => ({ id: doc.id, data: doc.data() }));
             
-            // Use the query logic from search.js
+            // 2. Filter them using the saved liveQuery
             allFetchedItems = filterItemsByQuery(allItems, listData.liveQuery || "");
             renderFilteredItems(allFetchedItems);
         } else {
-            // Default behavior: fetch specific IDs stored in the list
+            // Default behavior: fetch specific items by ID
             await fetchAllItems(listData.items || []);
             renderFilteredItems(allFetchedItems);
         }
 
     } catch (error) {
-        console.error(error);
+        console.error("Load Error:", error);
         if (listTitle) listTitle.textContent = "Error Loading List";
     } finally {
         if (listLoader) listLoader.style.display = 'none';
@@ -338,8 +338,25 @@ if (deleteListBtn) {
 if (listSettingsBtn) {
     listSettingsBtn.onclick = () => {
         editListNameInput.value = listData.name;
-        const radio = document.querySelector(`input[name="editPrivacy"][value="${listType}"]`);
-        if (radio) radio.checked = true;
+        
+        // Restore Privacy Radio
+        const privacyRadio = document.querySelector(`input[name="editPrivacy"][value="${listType}"]`);
+        if (privacyRadio) privacyRadio.checked = true;
+
+        // Restore Mode (Default vs Live)
+        const currentMode = listData.mode || 'default';
+        const modeRadio = document.querySelector(`input[name="editMode"][value="${currentMode}"]`);
+        if (modeRadio) modeRadio.checked = true;
+
+        // Restore Live Query and toggle visibility
+        if (currentMode === 'live') {
+            liveQueryGroup.style.display = 'block';
+            editLiveQueryInput.value = listData.liveQuery || '';
+        } else {
+            liveQueryGroup.style.display = 'none';
+            editLiveQueryInput.value = '';
+        }
+
         editListModal.style.display = 'flex';
     };
 }
@@ -351,49 +368,36 @@ if (saveListChangesBtn) {
         const newName = editListNameInput.value.trim();
         const newPrivacy = document.querySelector('input[name="editPrivacy"]:checked')?.value;
         const newMode = document.querySelector('input[name="editMode"]:checked')?.value;
-        const newLiveQuery = document.getElementById('editLiveQuery').value.trim();
+        const newLiveQuery = editLiveQueryInput.value.trim();
 
-        if (!newName || !newPrivacy || !newMode) {
-            alert("Please fill in all required fields.");
-            return;
-        }
+        if (!newName || !newPrivacy) return;
 
         try {
-            // Prepare the updated data object
-            const updatedListData = { 
-                ...listData, 
-                name: newName, 
+            // Prepare update object including the new Live List parameters
+            const updatePayload = { 
+                name: newName,
                 mode: newMode,
-                liveQuery: newMode === 'live' ? newLiveQuery : (listData.liveQuery || "")
+                liveQuery: newMode === 'live' ? newLiveQuery : "" // Clear query if switching to default
             };
 
-            // Handle privacy change (requires moving document between collections)
             if (newPrivacy !== listType) {
                 const newPath = newPrivacy === 'public' 
                     ? db.collection('public_lists').doc(listId)
-                    : db.collection('artifacts').doc('default-app-id')
-                        .collection('user_profiles').doc(auth.currentUser.uid)
-                        .collection('lists').doc(listId);
+                    : db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(auth.currentUser.uid).collection('lists').doc(listId);
                 
-                // Set new document with updated fields and delete old one
-                await newPath.set({ ...updatedListData, privacy: newPrivacy });
+                // Merge current data with updates for the new document location
+                await newPath.set({ ...listData, ...updatePayload, privacy: newPrivacy });
                 await listRef.delete();
                 
-                const newUrl = `?list=${listId}&type=${newPrivacy}`;
-                window.history.replaceState(null, '', newUrl);
-                window.location.reload(); 
+                window.location.href = `?list=${listId}&type=${newPrivacy}`;
             } else {
-                // Simple update if privacy remains the same
-                await listRef.update({
-                    name: newName,
-                    mode: newMode,
-                    liveQuery: updatedListData.liveQuery
-                });
+                // Update existing document
+                await listRef.update(updatePayload);
                 location.reload();
             }
-        } catch (e) { 
-            console.error(e);
-            alert("Error saving changes: " + e.message); 
+        } catch (e) {
+            console.error("Save Error:", e);
+            alert(e.message);
         }
     };
 }

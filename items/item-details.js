@@ -1928,41 +1928,32 @@ addToListBtn.onclick = () => {
 
 
 async function fetchAndRenderPublicLists(itemId) {
-    const listContainer = document.getElementById('publicListsContainer'); // Ensure this ID matches your HTML
+    const listContainer = document.getElementById('publicListsContainer');
     if (!listContainer) return;
 
     try {
-        // 1. Fetch the current item's data for comparison
         const itemDoc = await db.collection('items').doc(itemId).get();
         const itemData = itemDoc.data();
 
-        // 2. Fetch all public lists
         const listsSnap = await db.collection('public_lists').get();
         let matchedLists = [];
 
         listsSnap.forEach(doc => {
             const list = doc.data();
             list.id = doc.id;
-
-            // Check if item is manually in the list OR matches Live conditions
             const isManuallyAdded = list.items && list.items.includes(itemId);
             const isLiveMatch = list.mode === 'live' && itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic);
 
             if (isManuallyAdded || isLiveMatch) {
-                // If it's a Live match, we flag it so we can style it or move it to top
                 list.isLiveMatch = isLiveMatch; 
                 matchedLists.push(list);
             }
         });
 
-        // 3. Sort: Put Live matches at the very top
         matchedLists.sort((a, b) => (b.isLiveMatch ? 1 : 0) - (a.isLiveMatch ? 1 : 0));
-
-        // 4. Render
         renderListsUI(matchedLists, listContainer);
-
     } catch (error) {
-        console.error("Error matching live lists:", error);
+        console.error("Error rendering lists:", error);
     }
 }
 
@@ -1979,7 +1970,7 @@ function renderListsUI(lists, container) {
         div.innerHTML = `
             <div class="list-card-content">
                 ${list.isLiveMatch ? '<span class="live-badge"><i class="bi bi-broadcast"></i> Live Match</span>' : ''}
-                <h4>${list.name}</h4>
+                <h4>${list.name || 'Unnamed List'}</h4>
                 <p>By: ${list.username || 'Unknown User'}</p>
                 <a href="../lists/?list=${list.id}&type=public" class="view-list-link">View List</a>
             </div>
@@ -2125,21 +2116,18 @@ function renderPrivateFields(status, existingData = {}) {
  */
 function itemMatchesLiveQuery(item, query, logic = 'AND') {
     if (!query) return false;
-    
     const regex = /\{([^}]+)\}|(\S+)/g;
     const keywords = [];
     let match;
     while ((match = regex.exec(query.toLowerCase())) !== null) {
         keywords.push((match[1] || match[2]));
     }
-
     const combinedText = [
         item.itemName, 
         item.itemCategory, 
         item.itemScale, 
         ...(item.tags || [])
     ].join(' ').toLowerCase();
-
     return logic === 'OR' 
         ? keywords.some(kw => combinedText.includes(kw))
         : keywords.every(kw => combinedText.includes(kw));

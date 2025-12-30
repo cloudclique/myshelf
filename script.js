@@ -282,10 +282,10 @@ lightboxLikeBtn.onclick = async () => {
 // ------------------
 // COMMENTS
 // ------------------
+// --- Updated Comments Loading Logic ---
 async function loadComments(imageId) {
     commentsList.innerHTML = '<p class="text-gray-400 italic text-xs">Loading discussion...</p>';
     
-    // 1. Listen for comment changes in real-time
     db.collection("artifacts")
         .doc("default-app-id")
         .collection("gallery")
@@ -300,13 +300,14 @@ async function loadComments(imageId) {
                 return;
             }
 
-            // Create an array of promises to fetch the latest usernames
             const commentPromises = snapshot.docs.map(async (doc) => {
                 const c = doc.data();
                 const commentId = doc.id;
                 
-                // 2. Fetch the CURRENT username from the user_profiles collection
-                let currentName = c.userName || "User"; // Fallback to stored name
+                // Initialize default values
+                let currentName = c.userName || "User";
+                let profilePicBase64 = ""; // Empty string for default icon if no pic exists
+
                 try {
                     const userDoc = await db.collection("artifacts")
                         .doc("default-app-id")
@@ -314,11 +315,13 @@ async function loadComments(imageId) {
                         .doc(c.userId)
                         .get();
                     
-                    if (userDoc.exists && userDoc.data().username) {
-                        currentName = userDoc.data().username;
+                    if (userDoc.exists) {
+                        const userData = userDoc.data();
+                        if (userData.username) currentName = userData.username;
+                        if (userData.profilePic) profilePicBase64 = userData.profilePic;
                     }
                 } catch (e) {
-                    console.error("Error fetching live username:", e);
+                    console.error("Error fetching user profile:", e);
                 }
 
                 const cLikes = c.likes || [];
@@ -326,30 +329,41 @@ async function loadComments(imageId) {
                 const isOwner = currentUser && currentUser.uid === c.userId;
                 const profileUrl = `../user/?uid=${c.userId}`;
 
+                // Create the profile image element or a fallback icon
+                const avatarImg = profilePicBase64 
+                    ? `<img src="${profilePicBase64}" class="w-8 h-8 rounded-full object-cover border border-gray-200" alt="profile">`
+                    : `<div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center"><i class="bi bi-person text-gray-400 text-sm"></i></div>`;
+
                 return `
-                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-100 relative mb-2">
-                        <div class="flex justify-between items-center mb-1">
-                            <a href="${profileUrl}" class="font-bold text-indigo-700 text-xs hover:underline">
-                                ${currentName}
+                    <div class="bg-gray-50 p-3 rounded-lg border border-gray-100 mb-2">
+                        <div class="flex items-start space-x-3">
+                            <a href="${profileUrl}" class="flex-shrink-0 mt-1">
+                                ${avatarImg}
                             </a>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-[10px] text-gray-400">
-                                    ${c.createdAt ? new Date(c.createdAt.toDate()).toLocaleDateString() : ''}
-                                </span>
-                                ${isOwner ? `<button class="delete-comment text-gray-400 hover:text-red-500" data-id="${commentId}"><i class="bi bi-trash"></i></button>` : ''}
+                            <div class="flex-1 min-w-0">
+                                <div class="flex justify-between items-center mb-1">
+                                    <a href="${profileUrl}" class="font-bold text-indigo-700 text-xs hover:underline truncate">
+                                        ${currentName}
+                                    </a>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-[10px] text-gray-400">
+                                            ${c.createdAt ? new Date(c.createdAt.toDate()).toLocaleDateString() : ''}
+                                        </span>
+                                        ${isOwner ? `<button class="delete-comment text-gray-400 hover:text-red-500" data-id="${commentId}"><i class="bi bi-trash"></i></button>` : ''}
+                                    </div>
+                                </div>
+                                <p class="text-gray-700 text-sm leading-snug mb-2 break-words">${c.text}</p>
+                                <div class="flex items-center space-x-1">
+                                    <button class="like-comment" data-id="${commentId}" data-likes='${JSON.stringify(cLikes)}'>
+                                        <i class="bi ${isLiked ? 'bi-heart-fill text-red-500' : 'bi-heart text-gray-400'} text-xs"></i>
+                                    </button>
+                                    <span class="text-[11px] font-semibold text-gray-500">${cLikes.length}</span>
+                                </div>
                             </div>
-                        </div>
-                        <p class="text-gray-700 text-sm leading-snug mb-2">${c.text}</p>
-                        <div class="flex items-center space-x-1">
-                            <button class="like-comment" data-id="${commentId}" data-likes='${JSON.stringify(cLikes)}'>
-                                <i class="bi ${isLiked ? 'bi-heart-fill text-red-500' : 'bi-heart text-gray-400'} text-xs"></i>
-                            </button>
-                            <span class="text-[11px] font-semibold text-gray-500">${cLikes.length}</span>
                         </div>
                     </div>`;
             });
 
-            // Wait for all profile fetches to complete, then render
             const htmlArray = await Promise.all(commentPromises);
             commentsList.innerHTML = htmlArray.join('');
         });

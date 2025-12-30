@@ -23,6 +23,9 @@ const commentInputSection = document.getElementById("commentInputSection");
 const commentLoginPrompt = document.getElementById("commentLoginPrompt");
 const commentText = document.getElementById("commentText");
 const postCommentBtn = document.getElementById("postCommentBtn");
+const commentCloseBtn = document.getElementById("commentCloseBtn")
+const commentSidebar = document.getElementById("commentSidebar")
+const openCommentsBtn = document.getElementById("openCommentsBtn");
 
 // Delete button for images
 const deleteBtn = document.createElement("button");
@@ -229,6 +232,7 @@ async function openLightbox(docId, data) {
 
     lightboxImg.src = data.url;
     lightbox.style.display = "flex";
+    commentSidebar.style.display = "none";
     document.body.classList.add("no-scroll");
 
     lightboxActions.classList.remove('hidden');
@@ -434,6 +438,7 @@ closeLightboxBtn.onclick = () => {
     commentText.value = "";
     currentImageDocId = null;
     currentImageData = null;
+    commentSidebar.style.display = "none";
 };
 
 // ------------------
@@ -461,3 +466,13 @@ function setupHeaderLogoRedirect() {
         window.location.href = `../user/?uid=${currentUser.uid}`;
     };
 }
+
+// Hide sidebar when close button is clicked
+commentCloseBtn.onclick = () => {
+    commentSidebar.style.display = "none";
+};
+
+// Show sidebar when the button in Lightbox Actions is clicked
+openCommentsBtn.onclick = () => {
+    commentSidebar.style.display = "flex";
+};

@@ -56,13 +56,17 @@ fetch('./header.html').then(res => res.text()).then(html => {document.getElement
         <img id="lightboxMainImg" src="" alt="Full size" class="max-w-full object-contain shadow-2xl transition-all duration-300" style="max-height: calc(100vh - 50px);">
         <div id="lightboxActions" class="image-actions hidden">
             <button id="lightboxLikeBtn"><i class="bi bi-heart"></i> <span id="lightboxLikeCount">0</span></button>
+            <button id="openCommentsBtn"><i class="bi bi-chat-left-text"></i> Comments</button>
             <button id="lightboxShareBtn"><i class="bi bi-share"></i> Share</button>
         </div>
     </div>
 
     <div id="commentSidebar" class="w-full md:w-96 bg-white flex flex-col p-5 overflow-hidden rounded-xl md:ml-4 shadow-2xl" style="height: calc(100vh - 50px); z-index: 1000;">
-        <h3 class="font-bold text-xl mb-4 border-b pb-2 text-gray-800 flex items-center">
-            <i class="bi bi-chat-left-text mr-2 text-indigo-600"></i> Comments
+        <h3 class="font-bold text-xl mb-4 border-b pb-2 text-gray-800 flex items-center" style="display: flex; justify-content: space-between;">
+            <div>
+                <i class="bi bi-chat-left-text mr-2 text-indigo-600"></i> Comments
+            </div>
+            <button id="commentCloseBtn" style="color: var(--text-clr);"><i class="bi bi-x-lg"></i></button>
         </h3>
         <div id="commentsList" class="flex-1 overflow-y-auto space-y-4 mb-4 pr-2"></div>
         <div id="commentInputSection" class="hidden border-t pt-4">

@@ -63,6 +63,8 @@ const loginToCommentMsg = document.getElementById('loginToComment');
 const postCommentBtn = document.getElementById('postCommentBtn');
 const headerTools = document.getElementById('headerTools');
 
+
+
 // --- Event Listeners ---
 if (profileSearchBtn) profileSearchBtn.onclick = handleProfileSearch;
 if (profileClearSearchBtn) profileClearSearchBtn.onclick = handleProfileClearSearch;
@@ -278,6 +280,7 @@ async function fetchUserLists(userId) {
         }
 
         allUserLists.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        renderCreateListButton();
         renderListsPage(1);
 
     } catch (error) {
@@ -1299,3 +1302,109 @@ function updateSortOptions() {
 
     sortSelect.innerHTML = baseOptions + specificOptions;
 }
+
+function renderCreateListButton() {
+    if (!isProfileOwner) return;
+
+    const container = document.getElementById('profileListsGrid');
+    if (!container) return;
+
+    if (document.getElementById('createListBtn')) return;
+
+    const btn = document.createElement('button');
+    btn.id = 'createListBtn';
+    btn.className = 'action-btn primary-btn';
+    btn.style.marginBottom = '10px';
+    btn.innerHTML = '<i class="bi bi-plus-lg"></i> Create List';
+
+    btn.onclick = openCreateListModal;
+
+    container.parentNode.insertBefore(btn, container);
+}
+
+
+const createListModal = document.getElementById('createListModal');
+const listNameInput = document.getElementById('listNameInput');
+const listPrivacySelect = document.getElementById('listPrivacySelect');
+const listTypeSelect = document.getElementById('listTypeSelect');
+const liveListOptions = document.getElementById('liveListOptions');
+const liveQueryInput = document.getElementById('liveQueryInput');
+const liveLogicSelect = document.getElementById('liveLogicSelect');
+const createListError = document.getElementById('createListError');
+
+function openCreateListModal() {
+    createListModal.style.display = 'flex';
+    resetCreateListModal();
+}
+
+function resetCreateListModal() {
+    listNameInput.value = '';
+    listPrivacySelect.value = 'private';
+    listTypeSelect.value = 'static';
+    liveQueryInput.value = '';
+    liveLogicSelect.value = 'AND';
+    liveListOptions.style.display = 'none';
+    createListError.textContent = '';
+}
+
+listTypeSelect.onchange = () => {
+    liveListOptions.style.display =
+        listTypeSelect.value === 'live' ? 'block' : 'none';
+};
+
+document.getElementById('cancelCreateListBtn').onclick = () => {
+    createListModal.style.display = 'none';
+};
+
+document.getElementById('confirmCreateListBtn').onclick = async () => {
+    const name = listNameInput.value.trim();
+    if (!name) {
+        createListError.textContent = 'List name required.';
+        return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    let ref;
+    const isPublic = listPrivacySelect.value === 'public';
+
+    if (isPublic) {
+        ref = db.collection('public_lists').doc();
+    } else {
+        ref = db.collection('artifacts')
+            .doc(appId)
+            .collection('user_profiles')
+            .doc(user.uid)
+            .collection('lists')
+            .doc();
+    }
+
+    const payload = {
+        name,
+        userId: user.uid,
+        items: [],
+        mode: listTypeSelect.value,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    if (payload.mode === 'live') {
+        if (!liveQueryInput.value.trim()) {
+            createListError.textContent = 'Live lists need a query.';
+            return;
+        }
+        payload.liveQuery = liveQueryInput.value.trim();
+        payload.liveLogic = liveLogicSelect.value;
+    }
+
+    try {
+        await ref.set(payload);
+        createListModal.style.display = 'none';
+        await fetchUserLists(targetUserId);
+    } catch (err) {
+        console.error(err);
+        createListError.textContent = err.message;
+    }
+};

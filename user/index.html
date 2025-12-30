@@ -146,6 +146,40 @@
 
     </div>
 
+    <div id="createListModal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <h3>Create New List</h3>
+
+    <input id="listNameInput" placeholder="List name" />
+
+    <select id="listPrivacySelect">
+      <option value="private">Private</option>
+      <option value="public">Public</option>
+    </select>
+
+    <select id="listTypeSelect">
+      <option value="static">Static</option>
+      <option value="live">Live</option>
+    </select>
+
+    <div id="liveListOptions" style="display:none;">
+      <input id="liveQueryInput" placeholder="Live filter (e.g. {anime} 1/7)" />
+      <select id="liveLogicSelect">
+        <option value="AND">AND</option>
+        <option value="OR">OR</option>
+      </select>
+    </div>
+
+    <p id="createListError" class="error-message"></p>
+
+    <div style="display:flex; gap:10px; justify-content:flex-end;">
+      <button id="confirmCreateListBtn" class="action-btn primary-btn">Create</button>
+      <button id="cancelCreateListBtn" class="action-btn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+
 <div style="position: relative;">
     <div id="footer"></div>
 </div>

@@ -1927,29 +1927,64 @@ addToListBtn.onclick = () => {
 };
 
 
-async function fetchAndRenderPublicLists(id) {
-    const grid = document.getElementById('profileListsGrid');
-    if (!grid) return;
+function itemMatchesLiveQuery(itemData, query, logic = 'AND') {
+    if (!query) return false;
+    const regex = /\{([^}]+)\}|(\S+)/g;
+    const keywords = [];
+    let match;
+    while ((match = regex.exec(query.toLowerCase())) !== null) {
+        keywords.push((match[1] || match[2]));
+    }
 
+    const itemTags = Array.isArray(itemData.tags) ? itemData.tags.map(t => t.toLowerCase()) : [];
+    const combinedText = [
+        (itemData.itemName || ""),
+        (itemData.itemCategory || ""),
+        (itemData.itemScale || ""),
+        ...itemTags
+    ].join(' ').toLowerCase();
+
+    if (logic === 'OR') {
+        return keywords.some(kw => combinedText.includes(kw));
+    } else {
+        return keywords.every(kw => combinedText.includes(kw));
+    }
+}
+
+
+async function fetchAndRenderPublicLists(itemId) {
     try {
-        // Query public_lists that contain this itemId in their 'items' array
-        const snapshot = await db.collection('public_lists')
-            .where('items', 'array-contains', id)
-            .get();
+        const itemDoc = await db.collection('items').doc(itemId).get();
+        const itemData = itemDoc.data();
+        
+        // 1. Fetch all Public Lists
+        const publicListsSnap = await db.collection('public_lists').get();
+        let matchedLiveLists = [];
+        let staticLists = [];
 
-        allPublicListsForThisItem = [];
-        snapshot.forEach(doc => {
-            allPublicListsForThisItem.push({ 
-                id: doc.id, 
-                ...doc.data(), 
-                type: 'public' // Explicitly set type for the link logic
-            });
+        publicListsSnap.forEach(doc => {
+            const list = doc.data();
+            list.id = doc.id;
+
+            if (list.mode === 'live') {
+                // 2. Check if the current item matches the Live Query
+                if (itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
+                    matchedLiveLists.push(list);
+                }
+            } else if (list.items && list.items.includes(itemId)) {
+                // Existing logic for static lists
+                staticLists.push(list);
+            }
         });
 
-        renderListsPage(1);
+        // 3. Combine them, putting Live Lists first
+        allPublicListsForThisItem = [...matchedLiveLists, ...staticLists];
+        
+        // 4. Render as usual
+        renderPublicLists(); 
+        
     } catch (error) {
-        console.error("Error fetching public lists:", error);
-        grid.innerHTML = '<p class="error-message">Error loading lists containing this item.</p>';
+        console.error("Error fetching lists:", error);
     }
 }
 

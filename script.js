@@ -234,6 +234,7 @@ async function openLightbox(docId, data) {
     lightbox.style.display = "flex";
     commentSidebar.style.display = "none";
     document.body.classList.add("no-scroll");
+    closeLightboxBtn.style.display = "flex";
 
     lightboxActions.classList.remove('hidden');
     updateLightboxLike();
@@ -470,9 +471,11 @@ function setupHeaderLogoRedirect() {
 // Hide sidebar when close button is clicked
 commentCloseBtn.onclick = () => {
     commentSidebar.style.display = "none";
+    closeLightboxBtn.style.display = "flex";
 };
 
 // Show sidebar when the button in Lightbox Actions is clicked
 openCommentsBtn.onclick = () => {
     commentSidebar.style.display = "flex";
+    closeLightboxBtn.style.display = "none";
 };

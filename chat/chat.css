@@ -1,6 +1,6 @@
 
 /* Messenger layout */
-.messenger-layout { display: flex; height: calc(100vh - 65px); max-width: 1200px; margin: 0 auto; border: 1px solid #ddd; }
+.messenger-layout { display: flex; height: calc(100dvh - 65px); max-width: 1200px; margin: 0 auto; border: 1px solid #ddd; }
 .sidebar { width: 30%; border-right: 1px solid #ddd; overflow-y: auto; background-color: #f7f7f7; transition: all 0.3s ease; }
 .chat-area { flex-grow: 1; display: flex; flex-direction: column; background-color: #fff; max-width: 70%;}
 .chat-header { padding: 15px; border-bottom: 1px solid #ddd; background-color: #eee; font-weight: bold; display: flex; align-items: center; width:100%;}

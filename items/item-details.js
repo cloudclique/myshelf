@@ -226,6 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    if (addRelatedBtn) addRelatedBtn.addEventListener('click', handleAddRelated);
 
     // Pagination Event Listeners
     if (nextCommentsBtn) nextCommentsBtn.addEventListener('click', () => changeCommentPage(1));
@@ -510,6 +511,8 @@ async function fetchItemDetails(id) {
         const itemAgeRating = itemData.itemAgeRating || '';
         if (itemAgeRating === '18+') {
             let allowNSFW = false;
+            
+            // If logged in, check user profile settings
             if (auth.currentUser) {
                 const userId = auth.currentUser.uid;
                 const profileRef = db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(userId);
@@ -519,12 +522,13 @@ async function fetchItemDetails(id) {
                 }
             }
 
+            // Block access if not allowed (Default for logged-out users)
             if (!allowNSFW) {
                 nsfwCover.innerHTML = `
                     <div class="nsfw-blocked-message" style="padding: 40px; text-align: center; background: #222; border: 1px solid #444; height: calc(100% - 65px); width: 100%; position: absolute;">
                         <h2 style="color: #ff4444; margin-bottom: 15px;">NSFW Content Hidden</h2>
-                        <p style="color: #ddd; line-height: 1.6;">You have disabled NSFW content in your user settings, if you like to view this item - go to settings on your profile page and enable NSFW content!</p>
-                        <button onclick="window.location.href='../user/?uid=${auth.currentUser ? auth.currentUser.uid : ''}'" class="action-btn primary-btn" style="margin-top: 20px;">Go to Profile</button>
+                        <p style="color: #ddd; line-height: 1.6;">You must be logged in with NSFW enabled to view this item.</p>
+                        <button onclick="window.location.href='../login/'" class="action-btn primary-btn" style="margin-top: 20px;">Login to View</button>
                     </div>
                 `;
 
@@ -532,13 +536,14 @@ async function fetchItemDetails(id) {
                 if (tagsBox) tagsBox.innerHTML = '';
                 if (deleteContainer) deleteContainer.innerHTML = '';
                 if (editToggleBtn) editToggleBtn.style.display = 'none';
-                return; 
+                return; // STOP execution here for unauthorized users
             }
         }
         // --- NSFW CHECK END ---
 
         applyShopPermissions(itemData);
         
+        // Handle image URLs (multi-image support)
         currentItemImageUrls = Array.isArray(itemData.itemImageUrls) && itemData.itemImageUrls.length > 0
             ? itemData.itemImageUrls
             : [itemData.itemImageUrl, itemData.itemImageBase64, itemData.itemImage]
@@ -550,6 +555,7 @@ async function fetchItemDetails(id) {
         let canEdit = false;
         let privateData = {};
 
+        // Only fetch personal/edit data if a user is actually logged in
         if (auth.currentUser) {
             const userId = auth.currentUser.uid;
             const userStatusDocRef = getUserCollectionRef(db, userId).doc(id);
@@ -563,15 +569,18 @@ async function fetchItemDetails(id) {
             }
             
             updateStatusSelection(userStatus, privateData);
-            renderItemDetails(itemData, userStatus, privateData);
 
             const userRole = await checkUserPermissions(userId);
             const isUploader = userId === itemData.uploaderId;
             const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
             canEdit = isUploader || isAdminOrMod;
-
         }
 
+        // ALWAYS render the page for safe items (moved outside the auth check)
+        renderItemDetails(itemData, userStatus, privateData);
+        setupRelatedItems(itemData, canEdit);
+
+        // Manage Edit/Delete UI visibility
         if (canEdit) {
             editToggleBtn.style.display = 'inline-block';
             editToggleBtn.onclick = toggleEditForm;
@@ -581,6 +590,7 @@ async function fetchItemDetails(id) {
             editToggleBtn.style.display = 'none';
             deleteContainer.innerHTML = '';
         }
+
     } catch (error) {
         itemDetailsContent.innerHTML = `<p class="error-message">Error fetching details: ${error.message}</p>`;
         console.error(error);
@@ -2119,4 +2129,159 @@ function renderPrivateFields(status, existingData = {}) {
     }
 
     dynamicInputs.innerHTML = html;
+}
+
+
+// --- DOM Elements ---
+const relatedEditor = document.getElementById('relatedEditor');
+const editRelatedBtn = document.getElementById('editRelatedBtn');
+const relatedUrlInput = document.getElementById('relatedUrlInput');
+const addRelatedBtn = document.getElementById('addRelatedBtn');
+const relatedItemsContainer = document.getElementById('relatedItemsContainer');
+const relatedMessage = document.getElementById('relatedMessage');
+
+// --- State ---
+let isEditMode = false;
+let currentRelatedUrls = [];
+let renderToken = 0;
+let messageTimeout = null;
+
+// --- Setup ---
+function setupRelatedItems(itemData, canEdit) {
+    currentRelatedUrls = [...new Set(itemData.relatedUrls || [])];
+
+    if (canEdit && editRelatedBtn) {
+        editRelatedBtn.style.display = 'inline-block';
+
+        editRelatedBtn.onclick = () => {
+            isEditMode = !isEditMode;
+            relatedEditor.style.display = isEditMode ? 'block' : 'none';
+            toggleRemoveButtons();
+        };
+    }
+
+    if (addRelatedBtn) {
+        addRelatedBtn.onclick = handleAddRelated;
+    }
+
+    renderRelatedItems(currentRelatedUrls);
+}
+
+// --- UI Helpers ---
+function toggleRemoveButtons() {
+    document.querySelectorAll('.remove-related-btn').forEach(btn => {
+        btn.style.display = isEditMode ? 'flex' : 'none';
+    });
+}
+
+function showRelatedMessage(text, success = true) {
+    clearTimeout(messageTimeout);
+
+    relatedMessage.textContent = text;
+    relatedMessage.className = `form-message ${success ? 'success-message' : 'error-message'}`;
+    relatedMessage.style.opacity = '1';
+
+    messageTimeout = setTimeout(() => {
+        relatedMessage.style.opacity = '0';
+    }, 1000);
+}
+
+// --- Firestore Actions (SILENT) ---
+async function handleAddRelated() {
+    const url = relatedUrlInput.value.trim();
+    if (!url || currentRelatedUrls.includes(url)) return;
+
+    // optimistic UI
+    currentRelatedUrls.push(url);
+    renderRelatedItems(currentRelatedUrls);
+    relatedUrlInput.value = '';
+    showRelatedMessage('Related item added!', true);
+
+    try {
+        await db.collection('items').doc(itemId).update({
+            relatedUrls: firebase.firestore.FieldValue.arrayUnion(url)
+        });
+    } catch (error) {
+        // rollback on failure
+        currentRelatedUrls = currentRelatedUrls.filter(u => u !== url);
+        renderRelatedItems(currentRelatedUrls);
+        showRelatedMessage(error.message, false);
+    }
+}
+
+async function handleRemoveRelated(urlToRemove) {
+    // optimistic UI (instant, silent)
+    currentRelatedUrls = currentRelatedUrls.filter(u => u !== urlToRemove);
+    renderRelatedItems(currentRelatedUrls);
+    showRelatedMessage('Related item removed', true);
+
+    try {
+        await db.collection('items').doc(itemId).update({
+            relatedUrls: firebase.firestore.FieldValue.arrayRemove(urlToRemove)
+        });
+    } catch (error) {
+        // rollback on failure
+        currentRelatedUrls.push(urlToRemove);
+        renderRelatedItems(currentRelatedUrls);
+        showRelatedMessage(error.message, false);
+    }
+}
+
+// --- Rendering (async-safe, de-duped) ---
+async function renderRelatedItems(urls) {
+    const myToken = ++renderToken;
+    relatedItemsContainer.innerHTML = '';
+    if (!urls.length) return;
+
+    for (const url of urls) {
+        if (myToken !== renderToken) return;
+
+        try {
+            const urlObj = new URL(url);
+            const relatedId = urlObj.searchParams.get('id');
+            if (!relatedId) continue;
+
+            const relatedDoc = await db.collection('items').doc(relatedId).get();
+            if (myToken !== renderToken || !relatedDoc.exists) return;
+
+            const data = relatedDoc.data();
+            const previewUrl =
+                data.itemImageUrls?.[0]?.url ||
+                'https://placehold.co/200x200?text=No+Image';
+
+            if (relatedItemsContainer.querySelector(`[data-url="${url}"]`)) continue;
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'related-item-wrapper';
+            wrapper.dataset.url = url;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-related-btn';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.style.display = isEditMode ? 'flex' : 'none';
+            removeBtn.onclick = e => {
+                e.preventDefault();
+                handleRemoveRelated(url);
+            };
+
+            const card = document.createElement('a');
+            card.href = url;
+            card.className = 'related-item-card';
+            card.innerHTML = `
+                <div class="related-img-wrapper">
+                    <img src="${previewUrl}" class="related-preview-img">
+                </div>
+                <span class="related-item-title">
+                    ${data.itemName || 'Untitled'}
+                </span>
+            `;
+
+            wrapper.appendChild(removeBtn);
+            wrapper.appendChild(card);
+            relatedItemsContainer.appendChild(wrapper);
+
+        } catch (err) {
+            console.error('Render error:', err);
+        }
+    }
 }

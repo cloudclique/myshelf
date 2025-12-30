@@ -84,6 +84,21 @@
                     <label><input type="radio" name="editPrivacy" value="private"> Private</label>
                 </div>
             </div>
+
+            <div class="form-group">
+                <label>List Mode</label>
+                <div style="display: flex; gap: 20px; margin-top: 10px;">
+                    <label><input type="radio" name="editMode" value="default" checked> Default (Static)</label>
+                    <label><input type="radio" name="editMode" value="live"> Live (Dynamic Search)</label>
+                </div>
+            </div>
+
+            <div class="form-group" id="liveQueryGroup" style="display: none; margin-top: 15px;">
+                <label>Live Search Query</label>
+                <input type="text" id="editLiveQuery" class="modern_text_field" placeholder="e.g. {Action Figures} bandai">
+                <small style="color: var(--accent-clr); font-size: 0.8rem;">Uses the same syntax as the main search bar.</small>
+            </div>
+
             <div style="margin-top: 20px; display: flex; gap: 10px;">
                 <button id="saveListChanges" class="action-btn">Save Changes</button>
                 <button id="closeEditModal" class="secondary-btn">Cancel</button>

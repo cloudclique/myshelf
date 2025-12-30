@@ -32,6 +32,12 @@ const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
 
 const ICONS = { tag: '🏷️', category: '📂', name: '📦', scale: '📏', age: '🔞' };
 
+const liveQueryGroup = document.getElementById('liveQueryGroup');
+const editLiveQueryInput = document.getElementById('editLiveQuery');
+const editModeRadios = document.getElementsByName('editMode');
+
+
+
 // =====================================
 // AUTH & HEADER UI LOGIC
 // =====================================
@@ -126,13 +132,26 @@ async function loadList(currentUserId) {
 
         listTitle.textContent = listData.name || 'Unnamed List';
 
+        // Show management buttons if owner
         if (currentUserId === listOwnerId) {
             if (listSettingsBtn) listSettingsBtn.style.display = 'inline-block';
             if (deleteListBtn) deleteListBtn.style.display = 'inline-block';
         }
 
-        await fetchAllItems(listData.items || []);
-        renderFilteredItems(allFetchedItems);
+        // --- LIVE LIST VS DEFAULT LOGIC ---
+        if (listData.mode === 'live') {
+            // Fetch all items from the main collection to filter them
+            const allSnap = await db.collection('items').get();
+            const allItems = allSnap.docs.map(doc => ({ id: doc.id, data: doc.data() }));
+            
+            // Use the query logic from search.js
+            allFetchedItems = filterItemsByQuery(allItems, listData.liveQuery || "");
+            renderFilteredItems(allFetchedItems);
+        } else {
+            // Default behavior: fetch specific IDs stored in the list
+            await fetchAllItems(listData.items || []);
+            renderFilteredItems(allFetchedItems);
+        }
 
     } catch (error) {
         console.error(error);
@@ -331,25 +350,51 @@ if (saveListChangesBtn) {
     saveListChangesBtn.onclick = async () => {
         const newName = editListNameInput.value.trim();
         const newPrivacy = document.querySelector('input[name="editPrivacy"]:checked')?.value;
-        if (!newName || !newPrivacy) return;
+        const newMode = document.querySelector('input[name="editMode"]:checked')?.value;
+        const newLiveQuery = document.getElementById('editLiveQuery').value.trim();
+
+        if (!newName || !newPrivacy || !newMode) {
+            alert("Please fill in all required fields.");
+            return;
+        }
 
         try {
+            // Prepare the updated data object
+            const updatedListData = { 
+                ...listData, 
+                name: newName, 
+                mode: newMode,
+                liveQuery: newMode === 'live' ? newLiveQuery : (listData.liveQuery || "")
+            };
+
+            // Handle privacy change (requires moving document between collections)
             if (newPrivacy !== listType) {
                 const newPath = newPrivacy === 'public' 
                     ? db.collection('public_lists').doc(listId)
-                    : db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(auth.currentUser.uid).collection('lists').doc(listId);
+                    : db.collection('artifacts').doc('default-app-id')
+                        .collection('user_profiles').doc(auth.currentUser.uid)
+                        .collection('lists').doc(listId);
                 
-                await newPath.set({ ...listData, name: newName, privacy: newPrivacy });
+                // Set new document with updated fields and delete old one
+                await newPath.set({ ...updatedListData, privacy: newPrivacy });
                 await listRef.delete();
                 
                 const newUrl = `?list=${listId}&type=${newPrivacy}`;
                 window.history.replaceState(null, '', newUrl);
                 window.location.reload(); 
             } else {
-                await listRef.update({ name: newName });
+                // Simple update if privacy remains the same
+                await listRef.update({
+                    name: newName,
+                    mode: newMode,
+                    liveQuery: updatedListData.liveQuery
+                });
                 location.reload();
             }
-        } catch (e) { alert(e.message); }
+        } catch (e) { 
+            console.error(e);
+            alert("Error saving changes: " + e.message); 
+        }
     };
 }
 
@@ -446,4 +491,33 @@ if (rollBtn) {
             winningElement.style.background = "rgba(255,255,255,0.1)";
         }, 10000); 
     };
+}
+
+// Show/Hide query field based on radio selection
+editModeRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        liveQueryGroup.style.display = e.target.value === 'live' ? 'block' : 'none';
+    });
+});
+
+function filterItemsByQuery(items, query) {
+    if (!query) return items;
+    const regex = /\{([^}]+)\}|(\S+)/g;
+    const keywords = [];
+    let match;
+    while ((match = regex.exec(query.toLowerCase())) !== null) {
+        keywords.push((match[1] || match[2]));
+    }
+
+    return items.filter(itemObj => {
+        const item = itemObj.data;
+        const name = (item.itemName || '').toLowerCase();
+        const tags = (item.itemTags || []).map(t => t.toLowerCase()); // Note: your lists.js uses itemTags
+        const category = (item.itemCategory || '').toLowerCase();
+        const scale = (item.itemScale || '').toLowerCase();
+        const age = (item.itemAgeRating || '').toLowerCase();
+
+        const combinedText = [name, category, scale, age, ...tags].join(' | ');
+        return keywords.every(kw => combinedText.includes(kw));
+    });
 }

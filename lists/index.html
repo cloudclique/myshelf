@@ -99,6 +99,18 @@
                 <small style="color: var(--accent-clr); font-size: 0.8rem;">Uses the same syntax as the main search bar.</small>
             </div>
 
+            <div class="form-group" style="margin-top: 10px;">
+                <label>Search Logic</label>
+                <div style="display: flex; gap: 20px; margin-top: 5px;">
+                    <label title="Matches items containing ALL keywords">
+                        <input type="radio" name="editLiveLogic" value="AND" checked> AND
+                    </label>
+                    <label title="Matches items containing ANY keyword">
+                        <input type="radio" name="editLiveLogic" value="OR"> OR
+                    </label>
+                </div>
+            </div>
+
             <div style="margin-top: 20px; display: flex; gap: 10px;">
                 <button id="saveListChanges" class="action-btn">Save Changes</button>
                 <button id="closeEditModal" class="secondary-btn">Cancel</button>

@@ -124,13 +124,6 @@ async function loadList(currentUserId) {
 
         listData = listSnap.data();
         listOwnerId = listData.userId;
-
-        // Privacy check
-        if (listType === 'private' && currentUserId !== listOwnerId) {
-            listTitle.textContent = "Private List (Access Denied)";
-            return;
-        }
-
         listTitle.textContent = listData.name || 'Unnamed List';
 
         if (currentUserId === listOwnerId) {
@@ -138,23 +131,19 @@ async function loadList(currentUserId) {
             if (deleteListBtn) deleteListBtn.style.display = 'inline-block';
         }
 
-        // --- APPLY LIVE LIST OR DEFAULT ON LOAD ---
+        // --- Live vs Default Routing ---
         if (listData.mode === 'live') {
-            // 1. Fetch all items (or a large subset) to filter them
-            const allItemsSnap = await db.collection('items').get();
-            const allItems = allItemsSnap.docs.map(doc => ({ id: doc.id, data: doc.data() }));
-            
-            // 2. Filter them using the saved liveQuery
-            allFetchedItems = filterItemsByQuery(allItems, listData.liveQuery || "");
+            const allSnap = await db.collection('items').get();
+            const allItems = allSnap.docs.map(doc => ({ id: doc.id, data: doc.data() }));
+            allFetchedItems = filterItemsByQuery(allItems, listData.liveQuery, listData.liveLogic || 'AND');
             renderFilteredItems(allFetchedItems);
         } else {
-            // Default behavior: fetch specific items by ID
             await fetchAllItems(listData.items || []);
             renderFilteredItems(allFetchedItems);
         }
 
     } catch (error) {
-        console.error("Load Error:", error);
+        console.error(error);
         if (listTitle) listTitle.textContent = "Error Loading List";
     } finally {
         if (listLoader) listLoader.style.display = 'none';
@@ -337,25 +326,25 @@ if (deleteListBtn) {
 
 if (listSettingsBtn) {
     listSettingsBtn.onclick = () => {
-        editListNameInput.value = listData.name;
+        // Basic Info
+        editListNameInput.value = listData.name || "";
         
-        // Restore Privacy Radio
+        // Privacy
         const privacyRadio = document.querySelector(`input[name="editPrivacy"][value="${listType}"]`);
         if (privacyRadio) privacyRadio.checked = true;
 
-        // Restore Mode (Default vs Live)
+        // Mode (Default vs Live)
         const currentMode = listData.mode || 'default';
         const modeRadio = document.querySelector(`input[name="editMode"][value="${currentMode}"]`);
         if (modeRadio) modeRadio.checked = true;
 
-        // Restore Live Query and toggle visibility
-        if (currentMode === 'live') {
-            liveQueryGroup.style.display = 'block';
-            editLiveQueryInput.value = listData.liveQuery || '';
-        } else {
-            liveQueryGroup.style.display = 'none';
-            editLiveQueryInput.value = '';
-        }
+        // Live Settings
+        liveQueryGroup.style.display = currentMode === 'live' ? 'block' : 'none';
+        editLiveQueryInput.value = listData.liveQuery || "";
+        
+        const currentLogic = listData.liveLogic || 'AND';
+        const logicRadio = document.querySelector(`input[name="editLiveLogic"][value="${currentLogic}"]`);
+        if (logicRadio) logicRadio.checked = true;
 
         editListModal.style.display = 'flex';
     };
@@ -368,36 +357,35 @@ if (saveListChangesBtn) {
         const newName = editListNameInput.value.trim();
         const newPrivacy = document.querySelector('input[name="editPrivacy"]:checked')?.value;
         const newMode = document.querySelector('input[name="editMode"]:checked')?.value;
-        const newLiveQuery = editLiveQueryInput.value.trim();
+        const newQuery = editLiveQueryInput.value.trim();
+        const newLogic = document.querySelector('input[name="editLiveLogic"]:checked')?.value;
 
         if (!newName || !newPrivacy) return;
 
         try {
-            // Prepare update object including the new Live List parameters
-            const updatePayload = { 
+            const updatePayload = {
                 name: newName,
                 mode: newMode,
-                liveQuery: newMode === 'live' ? newLiveQuery : "" // Clear query if switching to default
+                liveQuery: newMode === 'live' ? newQuery : "",
+                liveLogic: newMode === 'live' ? newLogic : "AND"
             };
 
             if (newPrivacy !== listType) {
+                // Moving between public/private collections
                 const newPath = newPrivacy === 'public' 
                     ? db.collection('public_lists').doc(listId)
                     : db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(auth.currentUser.uid).collection('lists').doc(listId);
                 
-                // Merge current data with updates for the new document location
                 await newPath.set({ ...listData, ...updatePayload, privacy: newPrivacy });
                 await listRef.delete();
-                
                 window.location.href = `?list=${listId}&type=${newPrivacy}`;
             } else {
-                // Update existing document
+                // Update same document
                 await listRef.update(updatePayload);
                 location.reload();
             }
         } catch (e) {
-            console.error("Save Error:", e);
-            alert(e.message);
+            alert("Error saving: " + e.message);
         }
     };
 }
@@ -504,11 +492,13 @@ editModeRadios.forEach(radio => {
     });
 });
 
-function filterItemsByQuery(items, query) {
+function filterItemsByQuery(items, query, logic = 'AND') {
     if (!query) return items;
+    
     const regex = /\{([^}]+)\}|(\S+)/g;
     const keywords = [];
     let match;
+
     while ((match = regex.exec(query.toLowerCase())) !== null) {
         keywords.push((match[1] || match[2]));
     }
@@ -516,12 +506,19 @@ function filterItemsByQuery(items, query) {
     return items.filter(itemObj => {
         const item = itemObj.data;
         const name = (item.itemName || '').toLowerCase();
-        const tags = (item.itemTags || []).map(t => t.toLowerCase()); // Note: your lists.js uses itemTags
+        const tags = (item.itemTags || []).map(t => t.toLowerCase());
         const category = (item.itemCategory || '').toLowerCase();
         const scale = (item.itemScale || '').toLowerCase();
         const age = (item.itemAgeRating || '').toLowerCase();
 
         const combinedText = [name, category, scale, age, ...tags].join(' | ');
-        return keywords.every(kw => combinedText.includes(kw));
+
+        if (logic === 'OR') {
+            // "OR" logic: return true if any one keyword matches
+            return keywords.some(kw => combinedText.includes(kw));
+        } else {
+            // "AND" logic: return true only if all keywords match
+            return keywords.every(kw => combinedText.includes(kw));
+        }
     });
 }

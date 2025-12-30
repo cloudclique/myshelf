@@ -282,7 +282,9 @@ lightboxLikeBtn.onclick = async () => {
 // ------------------
 // COMMENTS
 // ------------------
-// --- Updated Comments Loading Logic ---
+// 1. Create a cache outside the function to persist between re-renders
+const userProfileCache = {};
+
 async function loadComments(imageId) {
     commentsList.innerHTML = '<p class="text-gray-400 italic text-xs">Loading discussion...</p>';
     
@@ -293,8 +295,7 @@ async function loadComments(imageId) {
         .collection("comments")
         .orderBy("createdAt", "asc")
         .onSnapshot(async (snapshot) => {
-            commentsList.innerHTML = "";
-            
+            // We don't clear innerHTML immediately to reduce "white flash"
             if (snapshot.empty) {
                 commentsList.innerHTML = '<p class="text-gray-400 italic text-xs">No comments yet.</p>';
                 return;
@@ -303,34 +304,39 @@ async function loadComments(imageId) {
             const commentPromises = snapshot.docs.map(async (doc) => {
                 const c = doc.data();
                 const commentId = doc.id;
-                
-                // Initialize default values
-                let currentName = c.userName || "User";
-                let profilePicBase64 = ""; // Empty string for default icon if no pic exists
+                const userId = c.userId;
 
-                try {
-                    const userDoc = await db.collection("artifacts")
-                        .doc("default-app-id")
-                        .collection("user_profiles")
-                        .doc(c.userId)
-                        .get();
-                    
-                    if (userDoc.exists) {
-                        const userData = userDoc.data();
-                        if (userData.username) currentName = userData.username;
-                        if (userData.profilePic) profilePicBase64 = userData.profilePic;
+                // 2. Check cache first before calling Firestore
+                if (!userProfileCache[userId]) {
+                    try {
+                        const userDoc = await db.collection("artifacts")
+                            .doc("default-app-id")
+                            .collection("user_profiles")
+                            .doc(userId)
+                            .get();
+                        
+                        if (userDoc.exists) {
+                            const data = userDoc.data();
+                            userProfileCache[userId] = {
+                                name: data.username || c.userName || "User",
+                                pic: data.profilePic || ""
+                            };
+                        } else {
+                            userProfileCache[userId] = { name: c.userName || "User", pic: "" };
+                        }
+                    } catch (e) {
+                        console.error("Cache fetch error:", e);
+                        userProfileCache[userId] = { name: c.userName || "User", pic: "" };
                     }
-                } catch (e) {
-                    console.error("Error fetching user profile:", e);
                 }
 
+                const cachedUser = userProfileCache[userId];
                 const cLikes = c.likes || [];
                 const isLiked = currentUser && cLikes.includes(currentUser.uid);
-                const isOwner = currentUser && currentUser.uid === c.userId;
-                const profileUrl = `../user/?uid=${c.userId}`;
+                const isOwner = currentUser && currentUser.uid === userId;
+                const profileUrl = `../user/?uid=${userId}`;
 
-                // Create the profile image element or a fallback icon
-                const avatarImg = profilePicBase64 
+                const avatarImg = cachedUser.pic 
                     ? `<img src="${profilePicBase64}" class="w-8 h-8 rounded-full object-cover border border-gray-200" style="max-width: 100% !important; max-height: 100% !important; box-shadow: 0 0 20px rgb(0 0 0 / 0%) !important;" alt="profile">`
                     : `<div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center"><i class="bi bi-person text-gray-400 text-sm"></i></div>`;
 
@@ -343,7 +349,7 @@ async function loadComments(imageId) {
                             <div class="flex-1 min-w-0">
                                 <div class="flex justify-between items-center mb-1">
                                     <a href="${profileUrl}" class="font-bold text-indigo-700 text-xs hover:underline truncate">
-                                        ${currentName}
+                                        ${cachedUser.name}
                                     </a>
                                     <div class="flex items-center space-x-2">
                                         <span class="text-[10px] text-gray-400">
@@ -365,6 +371,7 @@ async function loadComments(imageId) {
             });
 
             const htmlArray = await Promise.all(commentPromises);
+            // 3. Final render - the images are now served from memory (cache)
             commentsList.innerHTML = htmlArray.join('');
         });
 }

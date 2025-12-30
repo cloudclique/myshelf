@@ -1927,56 +1927,30 @@ addToListBtn.onclick = () => {
 };
 
 
-async function fetchAndRenderPublicLists(itemId) {
-    const listContainer = document.getElementById('publicListsContainer');
-    if (!listContainer) return;
+async function fetchAndRenderPublicLists(id) {
+    const grid = document.getElementById('profileListsGrid');
+    if (!grid) return;
 
     try {
-        const itemDoc = await db.collection('items').doc(itemId).get();
-        const itemData = itemDoc.data();
+        // Query public_lists that contain this itemId in their 'items' array
+        const snapshot = await db.collection('public_lists')
+            .where('items', 'array-contains', id)
+            .get();
 
-        const listsSnap = await db.collection('public_lists').get();
-        let matchedLists = [];
-
-        listsSnap.forEach(doc => {
-            const list = doc.data();
-            list.id = doc.id;
-            const isManuallyAdded = list.items && list.items.includes(itemId);
-            const isLiveMatch = list.mode === 'live' && itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic);
-
-            if (isManuallyAdded || isLiveMatch) {
-                list.isLiveMatch = isLiveMatch; 
-                matchedLists.push(list);
-            }
+        allPublicListsForThisItem = [];
+        snapshot.forEach(doc => {
+            allPublicListsForThisItem.push({ 
+                id: doc.id, 
+                ...doc.data(), 
+                type: 'public' // Explicitly set type for the link logic
+            });
         });
 
-        matchedLists.sort((a, b) => (b.isLiveMatch ? 1 : 0) - (a.isLiveMatch ? 1 : 0));
-        renderListsUI(matchedLists, listContainer);
+        renderListsPage(1);
     } catch (error) {
-        console.error("Error rendering lists:", error);
+        console.error("Error fetching public lists:", error);
+        grid.innerHTML = '<p class="error-message">Error loading lists containing this item.</p>';
     }
-}
-
-function renderListsUI(lists, container) {
-    container.innerHTML = '';
-    if (lists.length === 0) {
-        container.innerHTML = '<p class="info-message">This item does not appear in any public lists.</p>';
-        return;
-    }
-
-    lists.forEach(list => {
-        const div = document.createElement('div');
-        div.className = `list-card ${list.isLiveMatch ? 'live-match-card' : ''}`;
-        div.innerHTML = `
-            <div class="list-card-content">
-                ${list.isLiveMatch ? '<span class="live-badge"><i class="bi bi-broadcast"></i> Live Match</span>' : ''}
-                <h4>${list.name || 'Unnamed List'}</h4>
-                <p>By: ${list.username || 'Unknown User'}</p>
-                <a href="../lists/?list=${list.id}&type=public" class="view-list-link">View List</a>
-            </div>
-        `;
-        container.appendChild(div);
-    });
 }
 
 function renderListsPage(page) {
@@ -2108,27 +2082,4 @@ function renderPrivateFields(status, existingData = {}) {
     }
 
     dynamicInputs.innerHTML = html;
-}
-
-
-/**
- * Checks if an item object matches the live query logic (AND/OR).
- */
-function itemMatchesLiveQuery(item, query, logic = 'AND') {
-    if (!query) return false;
-    const regex = /\{([^}]+)\}|(\S+)/g;
-    const keywords = [];
-    let match;
-    while ((match = regex.exec(query.toLowerCase())) !== null) {
-        keywords.push((match[1] || match[2]));
-    }
-    const combinedText = [
-        item.itemName, 
-        item.itemCategory, 
-        item.itemScale, 
-        ...(item.tags || [])
-    ].join(' ').toLowerCase();
-    return logic === 'OR' 
-        ? keywords.some(kw => combinedText.includes(kw))
-        : keywords.every(kw => combinedText.includes(kw));
 }

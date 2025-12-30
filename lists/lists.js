@@ -260,7 +260,7 @@ function updateSearchSuggestions() {
 
     allFetchedItems.forEach(item => {
         const data = item.data;
-        (data.itemTags || []).forEach(tag => {
+        (data.tags || []).forEach(tag => {
             if (tag.toLowerCase().includes(query) && !addedText.has('tag:' + tag)) {
                 suggestions.push({ type: 'tag', text: tag });
                 addedText.add('tag:' + tag);
@@ -296,7 +296,7 @@ function handleSearch() {
         return (
             d.itemName?.toLowerCase().includes(query) ||
             d.itemCategory?.toLowerCase().includes(query) ||
-            (d.itemTags || []).some(t => t.toLowerCase().includes(query))
+            (d.tags || []).some(t => t.toLowerCase().includes(query))
         );
     });
     renderFilteredItems(filtered);
@@ -527,7 +527,7 @@ function filterItemsByQuery(items, query, logic = 'AND') {
             item.itemName, 
             item.itemCategory, 
             item.itemScale, 
-            ...(item.itemTags || [])
+            ...(item.tags || [])
         ].join(' ').toLowerCase();
 
         return logic === 'OR' 

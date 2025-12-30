@@ -1965,7 +1965,7 @@ async function fetchAndRenderPublicLists(itemId) {
         publicListsSnap.forEach(doc => {
             const list = doc.data();
             list.id = doc.id;
-            list.type = doc.privacy;
+            list.type = list.privacy;
 
             if (list.mode === 'live') {
                 // 2. Check if the current item matches the Live Query

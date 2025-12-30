@@ -131,19 +131,23 @@ async function loadList(currentUserId) {
             if (deleteListBtn) deleteListBtn.style.display = 'inline-block';
         }
 
-        // --- Live vs Default Routing ---
+        // --- THE REPLACEMENT LOGIC ---
         if (listData.mode === 'live') {
+            // 1. Fetch all items from the database
             const allSnap = await db.collection('items').get();
             const allItems = allSnap.docs.map(doc => ({ id: doc.id, data: doc.data() }));
+            
+            // 2. Filter and REPLACE the existing list view
             allFetchedItems = filterItemsByQuery(allItems, listData.liveQuery, listData.liveLogic || 'AND');
             renderFilteredItems(allFetchedItems);
         } else {
+            // Default behavior: load only the specific IDs stored in the list
             await fetchAllItems(listData.items || []);
             renderFilteredItems(allFetchedItems);
         }
 
     } catch (error) {
-        console.error(error);
+        console.error("Load Error:", error);
         if (listTitle) listTitle.textContent = "Error Loading List";
     } finally {
         if (listLoader) listLoader.style.display = 'none';
@@ -326,21 +330,22 @@ if (deleteListBtn) {
 
 if (listSettingsBtn) {
     listSettingsBtn.onclick = () => {
-        // Basic Info
         editListNameInput.value = listData.name || "";
         
-        // Privacy
+        // Restore Privacy
         const privacyRadio = document.querySelector(`input[name="editPrivacy"][value="${listType}"]`);
         if (privacyRadio) privacyRadio.checked = true;
 
-        // Mode (Default vs Live)
+        // Restore Mode
         const currentMode = listData.mode || 'default';
         const modeRadio = document.querySelector(`input[name="editMode"][value="${currentMode}"]`);
         if (modeRadio) modeRadio.checked = true;
 
-        // Live Settings
+        // Show/Hide Live Query inputs based on current mode
+        const liveQueryGroup = document.getElementById('liveQueryGroup');
         liveQueryGroup.style.display = currentMode === 'live' ? 'block' : 'none';
-        editLiveQueryInput.value = listData.liveQuery || "";
+        
+        document.getElementById('editLiveQuery').value = listData.liveQuery || "";
         
         const currentLogic = listData.liveLogic || 'AND';
         const logicRadio = document.querySelector(`input[name="editLiveLogic"][value="${currentLogic}"]`);
@@ -357,7 +362,7 @@ if (saveListChangesBtn) {
         const newName = editListNameInput.value.trim();
         const newPrivacy = document.querySelector('input[name="editPrivacy"]:checked')?.value;
         const newMode = document.querySelector('input[name="editMode"]:checked')?.value;
-        const newQuery = editLiveQueryInput.value.trim();
+        const newQuery = document.getElementById('editLiveQuery').value.trim();
         const newLogic = document.querySelector('input[name="editLiveLogic"]:checked')?.value;
 
         if (!newName || !newPrivacy) return;
@@ -366,12 +371,12 @@ if (saveListChangesBtn) {
             const updatePayload = {
                 name: newName,
                 mode: newMode,
-                liveQuery: newMode === 'live' ? newQuery : "",
-                liveLogic: newMode === 'live' ? newLogic : "AND"
+                liveQuery: newMode === 'live' ? newQuery : (listData.liveQuery || ""),
+                liveLogic: newMode === 'live' ? newLogic : (listData.liveLogic || "AND")
             };
 
             if (newPrivacy !== listType) {
-                // Moving between public/private collections
+                // Moving between public/private
                 const newPath = newPrivacy === 'public' 
                     ? db.collection('public_lists').doc(listId)
                     : db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(auth.currentUser.uid).collection('lists').doc(listId);
@@ -380,12 +385,12 @@ if (saveListChangesBtn) {
                 await listRef.delete();
                 window.location.href = `?list=${listId}&type=${newPrivacy}`;
             } else {
-                // Update same document
+                // Just update the current document
                 await listRef.update(updatePayload);
                 location.reload();
             }
         } catch (e) {
-            alert("Error saving: " + e.message);
+            alert("Save failed: " + e.message);
         }
     };
 }
@@ -495,10 +500,10 @@ editModeRadios.forEach(radio => {
 function filterItemsByQuery(items, query, logic = 'AND') {
     if (!query) return items;
     
+    // This regex matches {bracketed tags} or individual words
     const regex = /\{([^}]+)\}|(\S+)/g;
     const keywords = [];
     let match;
-
     while ((match = regex.exec(query.toLowerCase())) !== null) {
         keywords.push((match[1] || match[2]));
     }
@@ -509,15 +514,13 @@ function filterItemsByQuery(items, query, logic = 'AND') {
         const tags = (item.itemTags || []).map(t => t.toLowerCase());
         const category = (item.itemCategory || '').toLowerCase();
         const scale = (item.itemScale || '').toLowerCase();
-        const age = (item.itemAgeRating || '').toLowerCase();
-
-        const combinedText = [name, category, scale, age, ...tags].join(' | ');
+        
+        // Combine all searchable text into one string
+        const combinedText = [name, category, scale, ...tags].join(' ');
 
         if (logic === 'OR') {
-            // "OR" logic: return true if any one keyword matches
             return keywords.some(kw => combinedText.includes(kw));
         } else {
-            // "AND" logic: return true only if all keywords match
             return keywords.every(kw => combinedText.includes(kw));
         }
     });

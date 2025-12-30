@@ -314,8 +314,8 @@ async function loadComments(imageId) {
                         .doc(c.userId)
                         .get();
                     
-                    if (userDoc.exists && userDoc.data().displayName) {
-                        currentName = userDoc.data().displayName;
+                    if (userDoc.exists && userDoc.data().username) {
+                        currentName = userDoc.data().username;
                     }
                 } catch (e) {
                     console.error("Error fetching live username:", e);

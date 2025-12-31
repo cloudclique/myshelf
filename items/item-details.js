@@ -97,7 +97,7 @@ function showConfirmationModal(message, onYes, yesText = 'Yes') {
     }
 
     modalMessage.textContent = message;
-    confirmationModal.style.display = 'block';
+    confirmationModal.style.display = 'flex';
 
     modalYesBtn.textContent = yesText;
     modalNoBtn.textContent = 'No';

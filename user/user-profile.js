@@ -1078,6 +1078,7 @@ function showCropPopup(base64Image) {
             const canvasHeight = 200;
             canvas.width = canvasWidth;
             canvas.height = canvasHeight;
+            canvas.style.width = "80dvw";
 
             let scale = Math.max(canvasWidth / img.width, canvasHeight / img.height);
             let scaledWidth = img.width * scale;

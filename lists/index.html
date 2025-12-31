@@ -7,6 +7,11 @@
     <link rel="stylesheet" href="../style.css">
     <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+
+    <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:wght@300..800&display=swap" rel="stylesheet">
 </head>
 <body>
 
@@ -92,37 +97,61 @@
                 <label>List Name</label>
                 <input type="text" id="editListName" class="modern_text_field">
             </div>
-            <div class="form-group">
+
+            
+            <div class="form-group tiles-unified" style="margin-bottom: 20px;">
                 <label>Privacy</label>
-                <div style="display: flex; gap: 20px; margin-top: 10px;">
-                    <label><input type="radio" name="editPrivacy" value="public"> Public</label>
-                    <label><input type="radio" name="editPrivacy" value="private"> Private</label>
+                <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+                    <div class="switch-container">
+                        <input type="radio" name="editPrivacy" value="public" id="privacyPublic" class="ios-switch-input">
+                        <label for="privacyPublic" class="ios-switch-label"></label>
+                        <span class="switch-text">Public</span>
+                    </div>
+                    <div class="switch-container">
+                        <input type="radio" name="editPrivacy" value="private" id="privacyPrivate" class="ios-switch-input">
+                        <label for="privacyPrivate" class="ios-switch-label"></label>
+                        <span class="switch-text">Private</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group tiles-unified" style="margin-bottom: 20px;">
                 <label>List Mode</label>
-                <div style="display: flex; gap: 20px; margin-top: 10px;">
-                    <label><input type="radio" name="editMode" value="default" checked> Default (Static)</label>
-                    <label><input type="radio" name="editMode" value="live"> Live (Dynamic Search)</label>
+                <div style="display: flex; flex-direction: row; gap: 10px;">
+                <div class="switch-container">
+                    <input type="radio" name="editMode" value="default" id="modeDefault" class="ios-switch-input" checked>
+                    <label for="modeDefault" class="ios-switch-label"></label>
+                    <span class="switch-text">Default (Static)</span>
+                </div>
+                <div class="switch-container">
+                    <input type="radio" name="editMode" value="live" id="modeLive" class="ios-switch-input">
+                    <label for="modeLive" class="ios-switch-label"></label>
+                    <span class="switch-text">Live (Dynamic)</span>
+                </div>
                 </div>
             </div>
 
-            <div class="form-group" id="liveQueryGroup" style="display: none; margin-top: 15px;">
-                <label>Live Query</label>
-                <input type="text" id="editLiveQuery" class="modern_text_field" placeholder="e.g. {Action Figures} bandai">
-                <small style="color: var(--accent-clr); font-size: 0.8rem;">Uses the same syntax as the main search.</small>
-            </div>
+            <div id="liveQueryGroup" style="display: none;" class="tiles-unified">
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Live Query</label>
+                    <input type="text" id="editLiveQuery" class="modern_text_field" placeholder="e.g. {Action Figures} bandai">
+                    <small style="color: var(--accent-clr); font-size: 0.8rem;">Uses the same syntax as the main search.</small>
+                </div>
 
-            <div class="form-group" style="margin-top: 10px;">
-                <label>Query Logic</label>
-                <div style="display: flex; gap: 20px; margin-top: 5px;">
-                    <label title="Matches items containing ALL keywords">
-                        <input type="radio" name="editLiveLogic" value="AND" checked> AND
-                    </label>
-                    <label title="Matches items containing ANY keyword">
-                        <input type="radio" name="editLiveLogic" value="OR"> OR
-                    </label>
+                <div class="form-group" style="margin-top: 10px;">
+                        <label>Query Logic</label>
+                    <div style="display: flex; flex-direction: row; gap: 10px;">
+                        <div class="switch-container">
+                            <input type="radio" name="editLiveLogic" value="AND" id="ligicAND" class="ios-switch-input" checked>
+                            <label for="ligicAND" class="ios-switch-label"></label>
+                            <span class="switch-text">AND</span>
+                        </div>
+                        <div class="switch-container">
+                            <input type="radio" name="editLiveLogic" value="OR" id="ligicOR" class="ios-switch-input">
+                            <label for="ligicOR" class="ios-switch-label"></label>
+                            <span class="switch-text">OR</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 

@@ -462,6 +462,7 @@ body {
     max-width: 1400px;
     margin: 0 auto;
     padding: 20px;
+    margin-bottom: 20px;
 }
 
 .items-content-wrapper {
@@ -2993,4 +2994,22 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     border: 1px solid var(--accent-clr);
     padding: 10px;
     font-family: inherit;
+}
+
+.main_page_list_grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+}
+
+@media (max-width: 940px) {
+    .main_page_list_grid {
+    grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 600px) {
+    .main_page_list_grid {
+    grid-template-columns: repeat(1, 1fr);
+    }
 }

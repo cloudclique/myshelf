@@ -31,6 +31,11 @@ const listBioInput = document.getElementById('listBioInput');
 const saveBioBtn = document.getElementById('saveBioBtn');
 const cancelBioBtn = document.getElementById('cancelBioBtn');
 
+const favoriteListBtn = document.getElementById('favoriteListBtn');
+const favIcon = document.getElementById('favIcon');
+const favText = document.getElementById('favText');
+let isFavorited = false;
+
 // ---------- STATE ----------
 let listRef = null;
 let listData = null;
@@ -96,6 +101,7 @@ auth.onAuthStateChanged(async (user) => {
         try {
             const profileDoc = await db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(user.uid).get();
             isNsfwAllowed = profileDoc.data()?.allowNSFW === true;
+            checkFavoriteStatus(user.uid);
         } catch (err) { isNsfwAllowed = false; }
     } else { isNsfwAllowed = false; }
     
@@ -186,6 +192,7 @@ async function loadList(currentUserId) {
     } finally {
         if (listLoader) listLoader.style.display = 'none';
     }
+    checkFavoriteStatus(currentUserId);
 }
 
 async function fetchAllItems(itemIds) {
@@ -404,31 +411,38 @@ function handleSearch() {
     if (!query) {
         filtered = [...allFetchedItems];
     } else {
-        // Exact Regex from search.js
         const regex = /\{([^}]+)\}|(\S+)/g;
-        const keywords = [];
+        const required = [];
+        const excluded = [];
         let match;
 
         while ((match = regex.exec(query)) !== null) {
-            keywords.push((match[1] || match[2]).toLowerCase());
+            const term = (match[1] || match[2]).toLowerCase();
+            if (term.startsWith('-') && term.length > 1) {
+                excluded.push(term.substring(1));
+            } else {
+                required.push(term);
+            }
         }
 
         filtered = allFetchedItems.filter(itemObj => {
             const item = itemObj.data;
-            const name = (item.itemName || '').toLowerCase();
-            const tags = (item.tags || []).map(t => t.toLowerCase());
-            const category = (item.itemCategory || '').toLowerCase();
-            const scale = (item.itemScale || '').toLowerCase();
-            const age = (item.itemAgeRating || '').toLowerCase();
+            const combinedText = [
+                item.itemName, 
+                item.itemCategory, 
+                item.itemScale, 
+                (item.itemAgeRating || ''),
+                ...(item.tags || [])
+            ].join(' | ').toLowerCase();
 
-            // Prevention of "word bleeding"
-            const combinedText = [name, category, scale, age, ...tags].join(' | ');
-
-            return keywords.every(kw => combinedText.includes(kw));
+            const hasExcluded = excluded.some(kw => combinedText.includes(kw));
+            if (hasExcluded) return false;
+            
+            if (required.length === 0) return true;
+            return required.every(kw => combinedText.includes(kw));
         });
     }
 
-    // Apply sorting to the final results
     renderFilteredItems(sortItems(filtered));
 }
 
@@ -795,5 +809,73 @@ if (editBioBtn) {
         
         // Use setTimeout to ensure the element is visible before calculating height
         setTimeout(autoScaleBio, 0); 
+    };
+}
+
+// Add these to your DOM elements section at the top
+
+
+/**
+ * Logic to handle favorite status and button visibility
+ */
+async function checkFavoriteStatus(currentUserId) {
+    // 1. Hide if logged out or if the current user is the owner
+    if (!currentUserId || currentUserId === listOwnerId) {
+        favoriteListBtn.style.display = 'none';
+        return;
+    }
+
+    try {
+        const userDoc = await db.collection('artifacts').doc('default-app-id')
+                                .collection('user_profiles').doc(currentUserId).get();
+        
+        const favorites = userDoc.data()?.favoriteLists || [];
+        isFavorited = favorites.includes(listId); // listId is defined from URL params
+        
+        updateFavButtonUI();
+        favoriteListBtn.style.display = 'inline-block';
+    } catch (err) {
+        console.error("Error checking favorites:", err);
+        favoriteListBtn.style.display = 'none';
+    }
+}
+
+function updateFavButtonUI() {
+    if (isFavorited) {
+        favIcon.className = 'bi bi-star-fill';
+        favIcon.style.color = '';
+        favText.textContent = '';
+    } else {
+        favIcon.className = 'bi bi-star';
+        favIcon.style.color = '';
+        favText.textContent = '';
+    }
+}
+
+// Add the click listener
+if (favoriteListBtn) {
+    favoriteListBtn.onclick = async () => {
+        const user = auth.currentUser;
+        if (!user) return; 
+
+        const userRef = db.collection('artifacts').doc('default-app-id')
+                          .collection('user_profiles').doc(user.uid);
+
+        try {
+            if (isFavorited) {
+                await userRef.update({
+                    favoriteLists: firebase.firestore.FieldValue.arrayRemove(listId)
+                });
+                isFavorited = false;
+            } else {
+                await userRef.update({
+                    favoriteLists: firebase.firestore.FieldValue.arrayUnion(listId)
+                });
+                isFavorited = true;
+            }
+            updateFavButtonUI();
+        } catch (err) {
+            console.error("Error updating favorites:", err);
+        }
     };
 }

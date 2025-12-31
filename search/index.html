@@ -63,35 +63,16 @@
         </main>
     </div>
 
-    <div id="loginModal" class="modal">
-        <div class="modal-content">
-            <span class="close-btn" data-modal="loginModal">&times;</span>
-            <h2>Member Access</h2>
+    <div class="content-wrapper main-layout tiles-unified">
+    <section class="public-lists-section" style="width: 100%;">
+        <h2>Public Lists</h2>
 
-            <form id="loginForm">
-                <h3>Log In</h3>
-                <label for="loginEmail">Email:</label>
-                <input type="email" id="loginEmail" required>
-
-                <label for="loginPassword">Password:</label>
-                <input type="password" id="loginPassword" required>
-                
-                <button type="submit">Log In</button>
-            </form>
-
-            <hr style="margin: 20px 0;">
-
-            <form id="signupForm">
-                <h3>Create Account</h3>
-                <label for="signupEmail">Email:</label>
-                <input type="email" id="signupEmail" required>
-
-                <label for="signupPassword">Password:</label>
-                <input type="password" id="signupPassword" required minlength="6">
-                
-                <button type="submit">Create Account</button>
-            </form>
+        <div class="list-search-container" style="margin-bottom: 20px;">
+            <input type="text" id="listSearchInput" placeholder="Search lists by name..." class="modern_text_field">
         </div>
+        <div id="publicListsGrid" class="main_page_list_grid"></div>
+        <div id="listsPagination" class="pagination-container"></div>
+    </section>
     </div>
 
 <div style="position: relative;">

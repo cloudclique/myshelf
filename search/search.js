@@ -433,3 +433,100 @@ document.addEventListener('click', e => {
 
 // Attach to input event
 searchInput.addEventListener('input', updateSearchSuggestions);
+
+
+// Add these variables to your constants/variables section
+const LISTS_PER_PAGE = 6;
+let allPublicLists = [];
+let publicListsPage = 1;
+let filteredPublicLists = [];
+const listSearchInput = document.getElementById('listSearchInput');
+
+// Function to fetch public lists from Firestore
+async function fetchPublicLists() {
+    const grid = document.getElementById('publicListsGrid');
+    if (!grid) return;
+    
+    grid.innerHTML = '<p>Loading lists...</p>';
+
+    try {
+        const snapshot = await db.collection('public_lists').orderBy('createdAt', 'desc').get();
+        
+        allPublicLists = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        }));
+
+        // Initialize filtered list with all lists
+        filteredPublicLists = [...allPublicLists]; 
+        renderPublicLists(1);
+    } catch (error) {
+        console.error("Error fetching public lists:", error);
+        grid.innerHTML = '<p>Error loading public lists.</p>';
+    }
+}
+
+// Add the search handler function
+function handleListSearch() {
+    const query = listSearchInput.value.trim().toLowerCase();
+
+    if (!query) {
+        filteredPublicLists = [...allPublicLists];
+    } else {
+        filteredPublicLists = allPublicLists.filter(list => 
+            (list.name || '').toLowerCase().includes(query)
+        );
+    }
+
+    renderPublicLists(1); // Reset to first page of results
+}
+
+// Update renderPublicLists to use filteredPublicLists instead of allPublicLists
+function renderPublicLists(page) {
+    publicListsPage = page;
+    const grid = document.getElementById('publicListsGrid');
+    grid.innerHTML = '';
+
+    const start = (page - 1) * LISTS_PER_PAGE;
+    const end = start + LISTS_PER_PAGE;
+    
+    // Use the filtered array here
+    const paginatedLists = filteredPublicLists.slice(start, end);
+
+    if (paginatedLists.length === 0) {
+        grid.innerHTML = '<p>No public lists found.</p>';
+        return;
+    }
+
+    paginatedLists.forEach(list => {
+        const card = document.createElement('a');
+        card.href = `../lists/?list=${list.id}&type=public`; 
+        card.className = 'item-card-link';
+
+        const listIcon = list.mode === 'live' ? 'bi-journal-code' : 'bi-journal-bookmark-fill';
+
+        card.innerHTML = `
+            <div class="list-card">
+                <div class="list-image-wrapper">
+                    <div class="list-stack-effect">
+                         <i class="bi ${listIcon}" style="font-size: 1.8rem; color: var(--accent-clr);"></i>
+                    </div>
+                </div>
+                <div class="list-info">
+                    <h3>${list.name || 'Untitled List'}</h3>
+                    <div class="list-meta">
+                        <span>${list.items?.length || 0} Items</span>
+                        ${list.mode === 'live' ? '<span class="badge-live">LIVE</span>' : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+listSearchInput.addEventListener('input', handleListSearch);
+// Initialize the fetch when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    fetchPublicLists();
+});

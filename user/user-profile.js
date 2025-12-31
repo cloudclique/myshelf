@@ -269,38 +269,89 @@ async function fetchUserLists(userId) {
     profileListsGrid.innerHTML = '<p>Loading lists...</p>';
 
     try {
-        const publicRef = db.collection('public_lists').where('userId', '==', userId);
-        const privateRef = db.collection('artifacts').doc('default-app-id')
-                             .collection('user_profiles').doc(userId)
-                             .collection('lists');
+        // 1. Load user profile (favorites live here)
+        const userDoc = await db
+            .collection('artifacts').doc('default-app-id')
+            .collection('user_profiles').doc(userId)
+            .get();
 
-        let queries = [publicRef.get()];
-        if (isProfileOwner) {
-            queries.push(privateRef.get());
-        }
+        const favoriteListIds = userDoc.data()?.favoriteLists || [];
 
-        const snapshots = await Promise.all(queries);
         allUserLists = [];
+        const listMap = new Map(); // dedupe by ID
 
-        snapshots[0].forEach(doc => {
-            allUserLists.push({ id: doc.id, type: 'public', ...doc.data() });
+        // 2. Fetch FAVORITE public lists by ID
+        const favoritePromises = favoriteListIds.map(listId =>
+            db.collection('public_lists').doc(listId).get()
+        );
+
+        const favoriteSnapshots = await Promise.all(favoritePromises);
+
+        favoriteSnapshots.forEach(doc => {
+            if (!doc.exists) return;
+
+            listMap.set(doc.id, {
+                id: doc.id,
+                type: 'public',
+                isFavorite: true,
+                ...doc.data()
+            });
         });
 
-        if (snapshots[1]) {
-            snapshots[1].forEach(doc => {
-                allUserLists.push({ id: doc.id, type: 'private', ...doc.data() });
+        // 3. Fetch USER OWNED public lists
+        const publicSnapshot = await db
+            .collection('public_lists')
+            .where('userId', '==', userId)
+            .get();
+
+        publicSnapshot.forEach(doc => {
+            const existing = listMap.get(doc.id);
+
+            listMap.set(doc.id, {
+                id: doc.id,
+                type: 'public',
+                isFavorite: existing?.isFavorite || favoriteListIds.includes(doc.id),
+                ...doc.data()
+            });
+        });
+
+        // 4. Fetch PRIVATE lists (profile owner only)
+        if (isProfileOwner) {
+            const privateSnapshot = await db
+                .collection('artifacts').doc('default-app-id')
+                .collection('user_profiles').doc(userId)
+                .collection('lists')
+                .get();
+
+            privateSnapshot.forEach(doc => {
+                listMap.set(doc.id, {
+                    id: doc.id,
+                    type: 'private',
+                    isFavorite: false,
+                    ...doc.data()
+                });
             });
         }
 
-        allUserLists.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        // 5. Convert map → array + sort
+        allUserLists = Array.from(listMap.values());
+
+        allUserLists.sort((a, b) => {
+            if (a.isFavorite && !b.isFavorite) return -1;
+            if (!a.isFavorite && b.isFavorite) return 1;
+            return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
+        });
+
+        // 6. Render
         renderCreateListButton();
         renderListsPage(1);
 
     } catch (error) {
-        console.error("Error fetching lists:", error);
+        console.error('Error fetching lists:', error);
         profileListsGrid.innerHTML = '<p>Error loading lists.</p>';
     }
 }
+
 
 function renderListsPage(page) {
     listsCurrentPage = page;
@@ -323,13 +374,18 @@ function renderListsPage(page) {
         card.href = `../lists/?list=${list.id}&type=${list.type}`;
         card.className = 'item-card-link';
 
+        // Star Icon HTML - only shows if list is favorited
+        const starHtml = list.isFavorite 
+            ? `<i class="bi bi-star-fill" style="color: #ffcc00; position: absolute; top: 10px; right: 10px; font-size: 1.1rem; z-index: 2; filter: drop-shadow(0 0 2px rgba(0,0,0,0.3));"></i>` 
+            : '';
+
         card.innerHTML = `
-            <div class="list-card">
+            <div class="list-card" style="position: relative;">
+                ${starHtml}
                 <div class="list-image-wrapper">
                     <div class="list-stack-effect">
                          <i class="bi bi-journal-bookmark-fill" style="font-size: clamp(1.4rem, 2vw, 1.8rem); color: var(--accent-clr);"></i>
                     </div>
-                    ${list.type === 'private' ? '<span class="nsfw-overlay" style="background:rgba(0,0,0,0.5);  display: none;"><i class="bi bi-lock-fill;"></i> Private</span>' : ''}
                 </div>
                 <div class="list-info">
                     <h3>${list.name || 'Untitled List'}</h3>
@@ -760,7 +816,7 @@ function applySortAndFilter() {
 
     const selectedTag = tagFilterDropdown?.value;
     if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
-    
+
     // --- 2. Sorting Logic ---
     items.sort((a, b) => {
         const dataA = a.doc.data();

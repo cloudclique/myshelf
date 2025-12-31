@@ -1939,11 +1939,20 @@ addToListBtn.onclick = () => {
 
 function itemMatchesLiveQuery(itemData, query, logic = 'AND') {
     if (!query) return false;
+    
     const regex = /\{([^}]+)\}|(\S+)/g;
-    const keywords = [];
+    const requiredKeywords = [];
+    const excludedKeywords = [];
     let match;
+
+    // Separate keywords into required and excluded groups
     while ((match = regex.exec(query.toLowerCase())) !== null) {
-        keywords.push((match[1] || match[2]));
+        const term = (match[1] || match[2]);
+        if (term.startsWith('-') && term.length > 1) {
+            excludedKeywords.push(term.substring(1)); // Remove the minus sign
+        } else {
+            requiredKeywords.push(term);
+        }
     }
 
     const itemTags = Array.isArray(itemData.tags) ? itemData.tags.map(t => t.toLowerCase()) : [];
@@ -1954,10 +1963,19 @@ function itemMatchesLiveQuery(itemData, query, logic = 'AND') {
         ...itemTags
     ].join(' ').toLowerCase();
 
+    // 1. Check Exclusions: If any excluded keyword matches, the item is disqualified
+    const isExcluded = excludedKeywords.some(kw => combinedText.includes(kw));
+    if (isExcluded) return false;
+
+    // 2. If no required keywords were provided (e.g., query was just "-keyword"), 
+    // and it wasn't excluded, then it's a match
+    if (requiredKeywords.length === 0) return true;
+
+    // 3. Apply standard AND/OR logic for the remaining required keywords
     if (logic === 'OR') {
-        return keywords.some(kw => combinedText.includes(kw));
+        return requiredKeywords.some(kw => combinedText.includes(kw));
     } else {
-        return keywords.every(kw => combinedText.includes(kw));
+        return requiredKeywords.every(kw => combinedText.includes(kw));
     }
 }
 

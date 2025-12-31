@@ -22,6 +22,15 @@ const listSearchInput = document.getElementById('listSearchInput');
 const listSearchSuggestions = document.getElementById('listSearchSuggestions');
 const headerTools = document.getElementById('headerTools');
 
+const listBioSection = document.getElementById('listBioSection');
+const listBioText = document.getElementById('listBioText');
+const editBioBtn = document.getElementById('editBioBtn');
+const bioDisplayGroup = document.getElementById('bioDisplayGroup');
+const bioEditGroup = document.getElementById('bioEditGroup');
+const listBioInput = document.getElementById('listBioInput');
+const saveBioBtn = document.getElementById('saveBioBtn');
+const cancelBioBtn = document.getElementById('cancelBioBtn');
+
 // ---------- STATE ----------
 let listRef = null;
 let listData = null;
@@ -124,6 +133,19 @@ async function loadList(currentUserId) {
         listData = listSnap.data();
         listOwnerId = listData.userId;
         listTitle.textContent = listData.name || 'Unnamed List';
+        listTitlePlaceholder.textContent = listData.name  + (" - List")
+
+        // Bio Logic
+        if (listData.description || currentUserId === listOwnerId) {
+            listBioSection.style.display = 'block';
+            listBioText.textContent = listData.description || "";
+            
+            if (currentUserId === listOwnerId) {
+                editBioBtn.style.display = 'inline-block';
+                // Hide text if it's empty and owner is viewing, so they just see the edit button
+                if (!listData.description) listBioText.textContent = "No description yet.";
+            }
+        }
 
         if (currentUserId === listOwnerId) {
             if (listSettingsBtn) listSettingsBtn.style.display = 'inline-block';
@@ -227,7 +249,7 @@ function createItemCard(id, item) {
         imageWrapper.appendChild(badge);
     }
 
-    if (auth.currentUser?.uid === listOwnerId) {
+    if (auth.currentUser?.uid === listOwnerId && listData?.mode !== 'live') {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-btn';
         removeBtn.innerHTML = '✕';
@@ -671,11 +693,20 @@ editModeRadios.forEach(radio => {
 
 function filterItemsByQuery(items, query, logic = 'AND') {
     if (!query) return items;
+    
     const regex = /\{([^}]+)\}|(\S+)/g;
-    const keywords = [];
+    const requiredKeywords = [];
+    const excludedKeywords = [];
     let match;
+
     while ((match = regex.exec(query.toLowerCase())) !== null) {
-        keywords.push((match[1] || match[2]));
+        const term = (match[1] || match[2]);
+        if (term.startsWith('-') && term.length > 1) {
+            // Remove the minus sign and add to exclusions
+            excludedKeywords.push(term.substring(1));
+        } else {
+            requiredKeywords.push(term);
+        }
     }
 
     return items.filter(itemObj => {
@@ -687,9 +718,82 @@ function filterItemsByQuery(items, query, logic = 'AND') {
             ...(item.tags || [])
         ].join(' ').toLowerCase();
 
+        // 1. Check exclusions first: If any excluded keyword is found, discard immediately
+        const hasExcluded = excludedKeywords.some(kw => combinedText.includes(kw));
+        if (hasExcluded) return false;
+
+        // 2. If no required keywords were typed (only exclusions), keep the item
+        if (requiredKeywords.length === 0) return true;
+
+        // 3. Apply standard AND/OR logic for required keywords
         return logic === 'OR' 
-            ? keywords.some(kw => combinedText.includes(kw))
-            : keywords.every(kw => combinedText.includes(kw));
+            ? requiredKeywords.some(kw => combinedText.includes(kw))
+            : requiredKeywords.every(kw => combinedText.includes(kw));
     });
 }
 
+//-------------------LIST BIO---------------------//
+
+// Toggle Edit Mode
+if (editBioBtn) {
+    editBioBtn.onclick = () => {
+        listBioInput.value = listData.description || "";
+        bioDisplayGroup.style.display = 'none';
+        bioEditGroup.style.display = 'block';
+    };
+}
+
+// Cancel Edit
+if (cancelBioBtn) {
+    cancelBioBtn.onclick = () => {
+        bioDisplayGroup.style.display = 'block';
+        bioEditGroup.style.display = 'none';
+    };
+}
+
+// Save Bio to Firestore
+if (saveBioBtn) {
+    saveBioBtn.onclick = async () => {
+        const newBio = listBioInput.value.trim();
+        if (newBio.length > 1000) return alert("Maximum 1000 characters allowed.");
+
+        try {
+            saveBioBtn.disabled = true;
+            saveBioBtn.textContent = "Saving...";
+            
+            await listRef.update({ description: newBio });
+            
+            listData.description = newBio;
+            listBioText.textContent = newBio || "No description yet.";
+            
+            bioDisplayGroup.style.display = 'block';
+            bioEditGroup.style.display = 'none';
+        } catch (e) {
+            alert("Error saving: " + e.message);
+        } finally {
+            saveBioBtn.disabled = false;
+            saveBioBtn.textContent = "Save";
+        }
+    };
+}
+
+// Function to handle the auto-scaling
+function autoScaleBio() {
+    listBioInput.style.height = 'auto'; // Reset height to recalculate
+    listBioInput.style.height = listBioInput.scrollHeight + 'px';
+}
+
+// 1. Scale when the user types
+listBioInput.addEventListener('input', autoScaleBio);
+
+// 2. Scale when the Edit button is first clicked
+if (editBioBtn) {
+    editBioBtn.onclick = () => {
+        listBioInput.value = listData.description || "";
+        bioDisplayGroup.style.display = 'none';
+        bioEditGroup.style.display = 'block';
+        
+        // Use setTimeout to ensure the element is visible before calculating height
+        setTimeout(autoScaleBio, 0); 
+    };
+}

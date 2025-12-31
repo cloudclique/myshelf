@@ -21,9 +21,33 @@
 </div>
 <script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
 
+
+
     <div class="user-controlls">
+<h1 id="listTitle" style="margin-bottom: 0px;">Loading List...</h1> 
+        <div id="listBioSection" class="list-bio-container" style="display: none;">
+
+            <div id="bioDisplayGroup">
+                <button id="editBioBtn" class="action-btn" style="display: none; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">
+                    <i class="bi bi-pencil"></i> Edit Description
+                </button>
+                <p id="listBioText" style="white-space: pre-wrap; font-size: 0.95rem; opacity: 0.9; background: #f2f2f2; padding: 10px; border-radius: 10px;"></p>
+            </div>
+
+            <div id="bioEditGroup" style="display: none; margin-bottom: 15px;">
+                <div style="display: flex; gap: 10px; margin-bottom: 10px">
+                    <button id="saveBioBtn" class="action-btn" style="display: inline-block; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">Save</button>
+                    <button id="cancelBioBtn" class="secondary-btn" style="display: inline-block; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">Cancel</button>
+                </div>
+                <textarea id="listBioInput" class="modern_text_field" maxlength="1000"
+                    placeholder="Tell others about this list... (Max 1000 characters)" 
+                    style="width: 100%; resize: vertical; margin-bottom: 10px;  white-space: pre-wrap; font-size: 0.95rem; opacity: 0.9; padding: 10px; border-radius: 10px; line-height: 1.6;"></textarea>
+                
+            </div>
+        </div>
+
         <div class="status-alignment">
-            <h1 id="listTitle">Loading List...</h1> 
+            
             <div class="profile-cntrl-btns" style="justify-content: left;" >
                 <p id="listOwnerInfo" style="color: var(--accent-clr);"></p>
                 <div style="display: flex; gap: 10px;">

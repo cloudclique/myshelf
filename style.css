@@ -2979,3 +2979,18 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     font-size: 0.95rem;
     color: var(--text-clr);
 }
+
+
+.list-bio-container {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#listBioInput {
+    background: #222;
+    color: #fff;
+    border: 1px solid var(--accent-clr);
+    padding: 10px;
+    font-family: inherit;
+}

@@ -169,18 +169,23 @@ function handleSearch(resetPage = true) {
             return true;
         });
     } else {
-        // Updated Regex: Matches phrases inside {} OR individual words
         const regex = /\{([^}]+)\}|(\S+)/g;
-        const keywords = [];
+        const requiredKeywords = [];
+        const excludedKeywords = [];
         let match;
 
         while ((match = regex.exec(query)) !== null) {
-            // match[1] is the text inside {}, match[2] is the normal word
-            // We strip the curly braces by taking match[1] if it exists
-            keywords.push((match[1] || match[2]).toLowerCase());
+            const term = (match[1] || match[2]).toLowerCase();
+            // Check if the term starts with a minus sign and isn't just a "-"
+            if (term.startsWith('-') && term.length > 1) {
+                excludedKeywords.push(term.substring(1));
+            } else {
+                requiredKeywords.push(term);
+            }
         }
 
         filteredItems = allItems.filter(item => {
+            // Respect NSFW settings
             if (!allowNSFW && item.itemAgeRating === '18+') return false;
 
             const name = (item.itemName || '').toLowerCase();
@@ -189,11 +194,17 @@ function handleSearch(resetPage = true) {
             const scale = (item.itemScale || '').toLowerCase();
             const age = (item.itemAgeRating || '').toLowerCase();
 
-            // We join with a specific separator to prevent "word bleeding" 
-            // between different fields during phrase matching
+            // Use a separator to prevent word bleeding between fields
             const combinedText = [name, category, scale, age, ...tags].join(' | ');
 
-            return keywords.every(kw => combinedText.includes(kw));
+            // 1. Exclusion Check: If any excluded keyword is present, discard item
+            const hasExcluded = excludedKeywords.some(kw => combinedText.includes(kw));
+            if (hasExcluded) return false;
+
+            // 2. Requirement Check: Item must contain every required keyword
+            // If no required keywords exist (only exclusions), allow the item
+            if (requiredKeywords.length === 0) return true;
+            return requiredKeywords.every(kw => combinedText.includes(kw));
         });
     }
 

@@ -713,7 +713,6 @@ function applySortAndFilter() {
         return;
     }
 
-    // Get the base attribute (e.g., "price", "amount", "release")
     currentSortValue = sortSelect?.value ?? '';
     let items = [...lastFetchedItems];
 
@@ -722,11 +721,18 @@ function applySortAndFilter() {
     
     if (queryText) {
         const regex = /\{([^}]+)\}|[^\s{}]+/g;
-        const keywords = [];
+        const requiredKeywords = [];
+        const excludedKeywords = [];
         let match;
 
         while ((match = regex.exec(queryText)) !== null) {
-            keywords.push(match[1] ? match[1].trim() : match[0]);
+            const term = (match[1] ? match[1].trim() : match[0]).toLowerCase();
+            // Check for exclusion prefix
+            if (term.startsWith('-') && term.length > 1) {
+                excludedKeywords.push(term.substring(1));
+            } else {
+                requiredKeywords.push(term);
+            }
         }
 
         items = items.filter(item => {
@@ -741,13 +747,20 @@ function applySortAndFilter() {
             const store = (notes.store || '').toLowerCase();
 
             const combinedText = [name, category, scale, age, store, ...tags].join(' ');
-            return keywords.every(kw => combinedText.includes(kw));
+
+            // 1. Exclusion Check (Hard Filter)
+            const isExcluded = excludedKeywords.some(kw => combinedText.includes(kw));
+            if (isExcluded) return false;
+
+            // 2. Requirement Check
+            if (requiredKeywords.length === 0) return true; // Only exclusions provided
+            return requiredKeywords.every(kw => combinedText.includes(kw));
         });
     }
 
     const selectedTag = tagFilterDropdown?.value;
     if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
-
+    
     // --- 2. Sorting Logic ---
     items.sort((a, b) => {
         const dataA = a.doc.data();

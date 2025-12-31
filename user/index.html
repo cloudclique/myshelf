@@ -81,22 +81,11 @@
 
                 <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">
 
-<select id="sortSelect" class="sort-ddown">
-    <option value="">Sort By...</option>
-    <option value="amountAsc">Amount (Low to High)</option>
-    <option value="amountDesc">Amount (High to Low)</option>
-    <option value="priceAsc">Price (Low to High)</option>
-    <option value="priceDesc">Price (High to Low)</option>
-    <option value="totalPriceAsc">Price + Shipping (Low to High)</option>
-    <option value="totalPriceDesc">Price + Shipping (High to Low)</option>
-    <option value="scoreDesc">Score (High to Low)</option>
-    <option value="scoreAsc">Score (Low to High)</option>
-    <option value="storeNameAsc">Store (A-Z)</option>
-    <option value="storeNameDesc">Store (Z-A)</option>
-    <hr>
-    <option value="releaseDesc">Release Date (Newest)</option>
-    <option value="releaseAsc">Release Date (Oldest)</option>
-</select>
+<select id="sortSelect" class="sort-ddown"></select>
+
+    <button id="sortOrderBtn" class="action-btn" title="Toggle Ascending/Descending" style="background: var(--accent-color); color: rgb(255, 255, 255);">
+        <i id="sortOrderIcon" class="bi bi-sort-down"></i>
+    </button>
 
                     <div class="search-func-div" style="position: relative;">
                         </div>

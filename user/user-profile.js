@@ -183,6 +183,19 @@ async function fetchStatusCounts(userId) {
   return counts;
 }
 
+let currentSortOrder = 'desc'; // Default to Descending
+const sortOrderBtn = document.getElementById('sortOrderBtn');
+const sortOrderIcon = document.getElementById('sortOrderIcon');
+
+if (sortOrderBtn) {
+    sortOrderBtn.onclick = () => {
+        currentSortOrder = currentSortOrder === 'desc' ? 'asc' : 'desc';
+        // Toggle icon: sort-down is Descending, sort-up is Ascending
+        sortOrderIcon.className = currentSortOrder === 'desc' ? 'bi bi-sort-down' : 'bi bi-sort-up';
+        applySortAndFilter();
+    };
+}
+
 async function fetchAndRenderBanner(userId) {
     if (!userId || !profileBanner) return;
     try {
@@ -693,108 +706,114 @@ async function fetchAndRenderGalleryPreview(userId) {
 }
 
 function applySortAndFilter() {
-  if (!lastFetchedItems || !lastFetchedItems.length) {
-      profileItemsGrid.innerHTML = '';
-      loadingStatus.textContent = `No items found in this collection.`;
-      renderPaginationButtons(0);
-      return;
-  }
-
-  currentSortValue = sortSelect?.value ?? '';
-  let items = [...lastFetchedItems];
-
-  // --- 1. Apply Search & Tag Filters ---
-  const queryText = profileSearchInput.value.trim().toLowerCase();
-  
-  if (queryText) {
-      // REGEX: Matches {text inside braces} OR single words
-      const regex = /\{([^}]+)\}|[^\s{}]+/g;
-      const keywords = [];
-      let match;
-
-      while ((match = regex.exec(queryText)) !== null) {
-          // match[1] is the content inside {}, match[0] is the fallback for plain words
-          keywords.push(match[1] ? match[1].trim() : match[0]);
-      }
-
-      items = items.filter(item => {
-          const data = item.doc.data();
-          const notes = item.privateNotes || {};
-          
-          const name = (data.itemName || '').toLowerCase();
-          const tags = (data.tags || []).map(t => t.toLowerCase());
-          const category = (data.itemCategory || '').toLowerCase();
-          const scale = (data.itemScale || '').toLowerCase();
-          const age = (data.itemAgeRating || '').toLowerCase();
-          const store = (notes.store || '').toLowerCase();
-
-          const combinedText = [name, category, scale, age, store, ...tags].join(' ');
-          
-          // Ensure every identified keyword/phrase exists in the item data
-          return keywords.every(kw => combinedText.includes(kw));
-      });
-  }
-
-  const selectedTag = tagFilterDropdown?.value;
-  if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
-
-  // --- 2. Sorting Logic ---
-  items.sort((a, b) => {
-    const dataA = a.doc.data();
-    const dataB = b.doc.data();
-    const nA = a.privateNotes || {};
-    const nB = b.privateNotes || {};
-
-    const getNum = (val) => {
-      if (val === undefined || val === null || val === '') return 0;
-      let s = String(val).replace(/[^\d,.-]/g, '');
-      if (!s) return 0;
-      const lastComma = s.lastIndexOf(',');
-      const lastDot = s.lastIndexOf('.');
-      if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
-      else if (lastDot > lastComma) s = s.replace(/,/g, '');
-      else if (lastComma !== -1) s = s.replace(',', '.');
-      return parseFloat(s) || 0;
-    };
-
-    const getStr = (val) => String(val || '').toLowerCase();
-    const priorityMap = { 'High': 3, 'Medium': 2, 'Normal': 1, 'Low': 0 };
-
-    switch (currentSortValue) {
-      case 'amountDesc': return getNum(nB.amount || 1) - getNum(nA.amount || 1);
-      case 'amountAsc': return getNum(nA.amount || 1) - getNum(nB.amount || 1);
-      case 'priceDesc': return getNum(nB.price) - getNum(nA.price);
-      case 'priceAsc': return getNum(nA.price) - getNum(nB.price);
-      case 'totalPriceDesc': 
-        return (getNum(nB.price) + getNum(nB.shipping)) - (getNum(nA.price) + getNum(nA.shipping));
-      case 'totalPriceAsc': 
-        return (getNum(nA.price) + getNum(nA.shipping)) - (getNum(nB.price) + getNum(nB.shipping));
-      case 'priorityDesc': 
-    return getNum(nB.priority) - getNum(nA.priority);
-case 'priorityAsc': 
-    return getNum(nA.priority) - getNum(nB.priority);
-      case 'scoreDesc': return getNum(nB.score) - getNum(nA.score);
-      case 'scoreAsc': return getNum(nA.score) - getNum(nB.score);
-      case 'storeNameAsc': return getStr(nA.store).localeCompare(getStr(nB.store));
-      case 'storeNameDesc': return getStr(nB.store).localeCompare(getStr(nB.store));
-      case 'releaseDesc': return new Date(dataB.itemReleaseDate || 0) - new Date(dataA.itemReleaseDate || 0);
-      case 'releaseAsc': return new Date(dataA.itemReleaseDate || 0) - new Date(dataB.itemReleaseDate || 0);
-      case 'collectionDateDesc': 
-        return new Date(nB.collectionDate || 0) - new Date(nA.collectionDate || 0);
-      case 'collectionDateAsc': 
-        return new Date(nA.collectionDate || 0) - new Date(nB.collectionDate || 0);
-      default: return 0;
+    if (!lastFetchedItems || !lastFetchedItems.length) {
+        profileItemsGrid.innerHTML = '';
+        loadingStatus.textContent = `No items found in this collection.`;
+        renderPaginationButtons(0);
+        return;
     }
-  });
 
-  // --- 3. Render ---
-  const filteredTotal = items.length;
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const pagedItems = items.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  
-  profileItemsGrid.innerHTML = '';
-  pagedItems.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item.doc, item.status, item.privateNotes)));
-  renderPaginationButtons(filteredTotal);
+    // Get the base attribute (e.g., "price", "amount", "release")
+    currentSortValue = sortSelect?.value ?? '';
+    let items = [...lastFetchedItems];
+
+    // --- 1. Apply Search & Tag Filters ---
+    const queryText = profileSearchInput.value.trim().toLowerCase();
+    
+    if (queryText) {
+        const regex = /\{([^}]+)\}|[^\s{}]+/g;
+        const keywords = [];
+        let match;
+
+        while ((match = regex.exec(queryText)) !== null) {
+            keywords.push(match[1] ? match[1].trim() : match[0]);
+        }
+
+        items = items.filter(item => {
+            const data = item.doc.data();
+            const notes = item.privateNotes || {};
+            
+            const name = (data.itemName || '').toLowerCase();
+            const tags = (data.tags || []).map(t => t.toLowerCase());
+            const category = (data.itemCategory || '').toLowerCase();
+            const scale = (data.itemScale || '').toLowerCase();
+            const age = (data.itemAgeRating || '').toLowerCase();
+            const store = (notes.store || '').toLowerCase();
+
+            const combinedText = [name, category, scale, age, store, ...tags].join(' ');
+            return keywords.every(kw => combinedText.includes(kw));
+        });
+    }
+
+    const selectedTag = tagFilterDropdown?.value;
+    if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
+
+    // --- 2. Sorting Logic ---
+    items.sort((a, b) => {
+        const dataA = a.doc.data();
+        const dataB = b.doc.data();
+        const nA = a.privateNotes || {};
+        const nB = b.privateNotes || {};
+
+        const getNum = (val) => {
+            if (val === undefined || val === null || val === '') return 0;
+            let s = String(val).replace(/[^\d,.-]/g, '');
+            if (!s) return 0;
+            const lastComma = s.lastIndexOf(',');
+            const lastDot = s.lastIndexOf('.');
+            if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
+            else if (lastDot > lastComma) s = s.replace(/,/g, '');
+            else if (lastComma !== -1) s = s.replace(',', '.');
+            return parseFloat(s) || 0;
+        };
+
+        const getStr = (val) => String(val || '').toLowerCase();
+        
+        let comparison = 0;
+
+        switch (currentSortValue) {
+            case 'amount': 
+                comparison = getNum(nA.amount || 1) - getNum(nB.amount || 1); 
+                break;
+            case 'price': 
+                comparison = getNum(nA.price) - getNum(nB.price); 
+                break;
+            case 'totalPrice': 
+                comparison = (getNum(nA.price) + getNum(nA.shipping)) - (getNum(nB.price) + getNum(nB.shipping)); 
+                break;
+            case 'priority': 
+                // Assumes priority is stored as a number or mapped elsewhere
+                comparison = getNum(nA.priority) - getNum(nB.priority); 
+                break;
+            case 'score': 
+                comparison = getNum(nA.score) - getNum(nB.score); 
+                break;
+            case 'storeName': 
+                comparison = getStr(nA.store).localeCompare(getStr(nB.store)); 
+                break;
+            case 'release': 
+                comparison = new Date(dataA.itemReleaseDate || 0) - new Date(dataB.itemReleaseDate || 0); 
+                break;
+            case 'collectionDate': 
+                comparison = new Date(nA.collectionDate || 0) - new Date(nB.collectionDate || 0); 
+                break;
+            default: 
+                return 0;
+        }
+
+        // Apply the direction: If descending, multiply by -1 to flip the order
+        // currentSortOrder should be a global variable ('asc' or 'desc')
+        return currentSortOrder === 'desc' ? comparison * -1 : comparison;
+    });
+
+    // --- 3. Render ---
+    const filteredTotal = items.length;
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const pagedItems = items.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    
+    profileItemsGrid.innerHTML = '';
+    pagedItems.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item.doc, item.status, item.privateNotes)));
+    renderPaginationButtons(filteredTotal);
 }
 
 window.addEventListener('hashchange', async () => {
@@ -1265,38 +1284,29 @@ document.addEventListener('click', (e) => {
 function updateSortOptions() {
     if (!sortSelect) return;
 
-    // Standard options (Age Rating removed, Store name now both ways)
     const baseOptions = `
         <option value="">Sort By...</option>
-        <option value="releaseDesc">Release Date (Newest)</option>
-        <option value="releaseAsc">Release Date (Oldest)</option>
+        <option value="release">Release Date</option>
     `;
 
     let specificOptions = '';
 
     if (currentStatusFilter === 'Owned' || currentStatusFilter === 'Ordered') {
         specificOptions = `
-            <option value="amountDesc">Quantity (High-Low)</option>
-            <option value="amountAsc">Quantity (Low-High)</option>
-            <option value="priceDesc">Price (High-Low)</option>
-            <option value="priceAsc">Price (Low-High)</option>
-            <option value="totalPriceDesc">Price + Ship (High-Low)</option>
-            <option value="totalPriceAsc">Price + Ship (Low-High)</option>
-            <option value="storeNameAsc">Store (A-Z)</option>
-            <option value="storeNameDesc">Store (Z-A)</option>
+            <option value="amount">Quantity</option>
+            <option value="price">Price</option>
+            <option value="totalPrice">Price + Shipping</option>
+            <option value="storeName">Store</option>
         `;
         if (currentStatusFilter === 'Owned') {
             specificOptions += `
-                <option value="scoreDesc">My Score (High-Low)</option>
-                <option value="scoreAsc">My Score (Low-High)</option>
-                <option value="collectionDateDesc">Date Collected (Newest)</option>
-                <option value="collectionDateAsc">Date Collected (Oldest)</option>
+                <option value="score">My Score</option>
+                <option value="collectionDate">Date Collected</option>
             `;
         }
     } else if (currentStatusFilter === 'Wished') {
         specificOptions = `
-            <option value="priorityDesc">Priority (High-Low)</option>
-            <option value="priorityAsc">Priority (Low-High)</option>
+            <option value="priority">Priority</option>
         `;
     }
 

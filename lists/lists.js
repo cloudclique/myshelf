@@ -30,7 +30,6 @@ let isNsfwAllowed = false;
 let allFetchedItems = []; 
 const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
 
-const ICONS = { tag: '🏷️', category: '📂', name: '📦', scale: '📏', age: '🔞' };
 
 const liveQueryGroup = document.getElementById('liveQueryGroup');
 const editLiveQueryInput = document.getElementById('editLiveQuery');
@@ -250,57 +249,215 @@ function createItemCard(id, item) {
     return link;
 }
 
+const ICONS = {
+    name: '<i class="bi bi-sticky-fill"></i>',
+    category: '<i class="bi bi-folder-fill"></i>',
+    scale: '<i class="bi bi-arrows-fullscreen"></i>',
+    age: '<i class="bi bi-exclamation-octagon"></i>',
+    tag: '<i class="bi bi-tag-fill"></i>'
+};
+
 function updateSearchSuggestions() {
-    const query = listSearchInput.value.toLowerCase().trim();
-    listSearchSuggestions.innerHTML = '';
-    if (!query) return;
+    const query = listSearchInput.value.trim().toLowerCase();
+    if (!query) {
+        listSearchSuggestions.innerHTML = '';
+        return;
+    }
 
-    const suggestions = [];
-    const addedText = new Set();
+    const matchesByType = {
+        tag: [],
+        age: [],
+        scale: [],
+        category: [],
+        name: []
+    };
 
-    allFetchedItems.forEach(item => {
-        const data = item.data;
-        (data.tags || []).forEach(tag => {
-            if (tag.toLowerCase().includes(query) && !addedText.has('tag:' + tag)) {
-                suggestions.push({ type: 'tag', text: tag });
-                addedText.add('tag:' + tag);
-            }
-        });
-        if (data.itemName?.toLowerCase().includes(query) && !addedText.has('name:' + data.itemName)) {
-            suggestions.push({ type: 'name', text: data.itemName });
-            addedText.add('name:' + data.itemName);
+    const addedItemIds = new Set();
+    const addedTexts = new Set(); // Track unique text for tag/age/scale/category
+
+    for (let itemObj of allFetchedItems) {
+        const item = itemObj.data;
+        const itemId = itemObj.id;
+
+        // Skip NSFW if not allowed
+        if (!isNsfwAllowed && (item.itemAgeRating === '18+' || item.itemAgeRating === 'Adult')) continue;
+        if (addedItemIds.has(itemId)) continue;
+
+        // 1. Check tags
+        const tagMatch = (item.tags || []).find(t => t.toLowerCase().includes(query));
+        if (tagMatch && !addedTexts.has('tag:' + tagMatch.toLowerCase())) {
+            matchesByType.tag.push({ type: 'tag', text: tagMatch });
+            addedTexts.add('tag:' + tagMatch.toLowerCase());
+            addedItemIds.add(itemId);
+            continue;
         }
-    });
 
-    suggestions.slice(0, 5).forEach(s => {
+        // 2. Check age rating
+        const age = (item.itemAgeRating || '');
+        if (age.toLowerCase().includes(query) && !addedTexts.has('age:' + age.toLowerCase())) {
+            matchesByType.age.push({ type: 'age', text: age });
+            addedTexts.add('age:' + age.toLowerCase());
+            addedItemIds.add(itemId);
+            continue;
+        }
+
+        // 3. Check scale
+        const scale = (item.itemScale || '');
+        if (scale.toLowerCase().includes(query) && !addedTexts.has('scale:' + scale.toLowerCase())) {
+            matchesByType.scale.push({ type: 'scale', text: scale });
+            addedTexts.add('scale:' + scale.toLowerCase());
+            addedItemIds.add(itemId);
+            continue;
+        }
+
+        // 4. Check category
+        const cat = (item.itemCategory || '');
+        if (cat.toLowerCase().includes(query) && !addedTexts.has('cat:' + cat.toLowerCase())) {
+            matchesByType.category.push({ type: 'category', text: cat });
+            addedTexts.add('cat:' + cat.toLowerCase());
+            addedItemIds.add(itemId);
+            continue;
+        }
+
+        // 5. Check name
+        const name = (item.itemName || '');
+        if (name.toLowerCase().includes(query)) {
+            matchesByType.name.push({ type: 'name', text: name });
+            addedItemIds.add(itemId);
+        }
+
+        // Limit total results to 10
+        const totalCount = Object.values(matchesByType).flat().length;
+        if (totalCount >= 10) break;
+    }
+
+    // Merge in priority order
+    const orderedMatches = [
+        ...matchesByType.tag,
+        ...matchesByType.age,
+        ...matchesByType.scale,
+        ...matchesByType.category,
+        ...matchesByType.name
+    ].slice(0, 10);
+
+    renderSearchSuggestions(orderedMatches);
+}
+
+function renderSearchSuggestions(matches) {
+    listSearchSuggestions.innerHTML = '';
+
+    matches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'search-suggestion-item';
-        div.innerHTML = `<span>${ICONS[s.type]}</span> ${s.text}`;
+        
+        // Use ICONS mapping
+        div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type] || ''}</span> ${match.text}`;
+
         div.onclick = () => {
-            listSearchInput.value = s.text;
+            // Braced types logic
+            const bracedTypes = ['tag', 'age', 'category', 'scale'];
+            
+            if (bracedTypes.includes(match.type)) {
+                // Automatically apply braces for these types
+                listSearchInput.value = `{${match.text}}`;
+            } else {
+                listSearchInput.value = match.text;
+            }
+
             handleSearch();
             listSearchSuggestions.innerHTML = '';
         };
+
         listSearchSuggestions.appendChild(div);
     });
 }
 
+// --- UPDATED SEARCH WITH SORTING ---
+let isAscending = false; // Default to High to Low (Newest first)
+
 function handleSearch() {
     const query = listSearchInput.value.toLowerCase().trim();
+    let filtered = [];
+
     if (!query) {
-        renderFilteredItems(allFetchedItems);
-        return;
+        filtered = [...allFetchedItems];
+    } else {
+        // Exact Regex from search.js
+        const regex = /\{([^}]+)\}|(\S+)/g;
+        const keywords = [];
+        let match;
+
+        while ((match = regex.exec(query)) !== null) {
+            keywords.push((match[1] || match[2]).toLowerCase());
+        }
+
+        filtered = allFetchedItems.filter(itemObj => {
+            const item = itemObj.data;
+            const name = (item.itemName || '').toLowerCase();
+            const tags = (item.tags || []).map(t => t.toLowerCase());
+            const category = (item.itemCategory || '').toLowerCase();
+            const scale = (item.itemScale || '').toLowerCase();
+            const age = (item.itemAgeRating || '').toLowerCase();
+
+            // Prevention of "word bleeding"
+            const combinedText = [name, category, scale, age, ...tags].join(' | ');
+
+            return keywords.every(kw => combinedText.includes(kw));
+        });
     }
-    const filtered = allFetchedItems.filter(item => {
-        const d = item.data;
-        return (
-            d.itemName?.toLowerCase().includes(query) ||
-            d.itemCategory?.toLowerCase().includes(query) ||
-            (d.tags || []).some(t => t.toLowerCase().includes(query))
-        );
-    });
-    renderFilteredItems(filtered);
+
+    // Apply sorting to the final results
+    renderFilteredItems(sortItems(filtered));
 }
+
+const sortSelect = document.getElementById('sortSelect');
+if (sortSelect) {
+    sortSelect.addEventListener('change', handleSearch);
+}
+
+// --- HELPER: SORTING ---
+function sortItems(items) {
+    const sortType = document.getElementById('sortSelect')?.value || 'date';
+
+    return items.sort((a, b) => {
+        let valA, valB;
+        const dataA = a.data;
+        const dataB = b.data;
+
+        if (sortType === 'alpha') {
+            valA = (dataA.itemName || "").toLowerCase();
+            valB = (dataB.itemName || "").toLowerCase();
+            return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        } 
+        
+        if (sortType === 'date') {
+            // Sort by itemReleaseDate
+            valA = new Date(dataA.itemReleaseDate || 0).getTime();
+            valB = new Date(dataB.itemReleaseDate || 0).getTime();
+            return isAscending ? valA - valB : valB - valA;
+        }
+
+        return 0;
+    });
+}
+
+window.toggleSortDirection = function() {
+    isAscending = !isAscending;
+    const btn = document.getElementById('sortDirBtn');
+    const icon = btn.querySelector('i');
+    
+    if (isAscending) {
+        // Low to High (A-Z / Oldest First)
+        icon.className = 'bi bi-sort-down';
+    } else {
+        // High to Low (Z-A / Newest First)
+        icon.className = 'bi bi-sort-up';
+    }
+    
+    handleSearch();
+};
+
+document.getElementById('sortSelect')?.addEventListener('change', handleSearch);
 
 if (listSearchInput) {
     listSearchInput.addEventListener('input', () => {
@@ -535,3 +692,4 @@ function filterItemsByQuery(items, query, logic = 'AND') {
             : keywords.every(kw => combinedText.includes(kw));
     });
 }
+

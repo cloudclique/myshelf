@@ -1,5 +1,5 @@
 import { auth, db, collectionName } from '../firebase-config.js';
-import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS} from '../utils.js';
+import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS } from '../utils.js';
 
 // --- Constants ---
 const VERTICAL_ALIGN_OPTIONS = ['top', 'center', 'bottom'];
@@ -25,6 +25,13 @@ const addToListBtn = document.getElementById('addToListBtn');
 const existingListsDropdown = document.getElementById('existingListsDropdown');
 const listMessage = document.getElementById('listMessage');
 
+// NEW: Tag Edit Modal Elements
+const tagEditModal = document.getElementById('tagEditModal');
+const closeTagEditModalBtn = document.getElementById('closeTagEditModal');
+const tagEditInput = document.getElementById('tagEditInput');
+const saveTagsBtn = document.getElementById('saveTagsBtn');
+const tagEditMessage = document.getElementById('tagEditMessage');
+
 const itemNamePlaceholder = document.getElementById('itemNamePlaceholder');
 const itemNamePlaceholderTitle = document.getElementById('itemNamePlaceholderTitle');
 const itemDetailsContent = document.getElementById('itemDetailsContent');
@@ -39,16 +46,16 @@ const closeEditModalBtn = document.getElementById('closeEditModal');
 const editItemForm = document.getElementById('editItemForm');
 const editMessage = document.getElementById('editMessage');
 const statusMessage = document.getElementById('statusMessage');
-const editToggleBtn = document.getElementById('editToggleBtn'); 
+const editToggleBtn = document.getElementById('editToggleBtn');
 const statusToggleBtn = document.getElementById('statusToggleBtn');
 const editTitleInput = document.getElementById('editTitle');
 const editAgeRatingSelect = document.getElementById('editAgeRating');
 const editCategorySelect = document.getElementById('editCategory');
 const editReleaseDateInput = document.getElementById('editReleaseDate');
 const editScaleSelect = document.getElementById('editScale');
-const editTagsInput = document.getElementById('editTags');
-const editImageAlignVerSelect = document.getElementById('editImageAlignVer'); 
-const editImageAlignHorSelect = document.getElementById('editImageAlignHor'); 
+// REMOVED: editTagsInput
+const editImageAlignVerSelect = document.getElementById('editImageAlignVer');
+const editImageAlignHorSelect = document.getElementById('editImageAlignHor');
 const editImageInput = document.getElementById('editImage');
 // REMOVED: editImagePreview
 // NEW: Container for edit image previews
@@ -77,15 +84,15 @@ const modalNoBtn = document.getElementById('modalNoBtn');
 
 let itemId = null;
 // MODIFIED: Store an array of File objects for new uploads
-let selectedImageFiles = []; 
+let selectedImageFiles = [];
 // NEW: Store the existing image objects {url: string, deleteUrl: string} for display/edit context
 let currentItemImageUrls = [];
-const usernameCache = {}; 
+const usernameCache = {};
 
 // --- Pagination State for Comments ---
 const COMMENTS_PER_PAGE = 8;
 let commentsCurrentPage = 1;
-const pageCursors = [null]; 
+const pageCursors = [null];
 
 // --- Modal Handlers (Confirmation Modal logic omitted for brevity) ---
 function showConfirmationModal(message, onYes, yesText = 'Yes') {
@@ -130,6 +137,56 @@ function showEditModal() {
 function closeEditModal() {
     if (editModal) {
         editModal.style.display = 'none';
+    }
+}
+
+// NEW: Tag Edit Modal Functions
+function openTagEditModal(currentTags) {
+    if (tagEditModal) {
+        // Sort tags alphabetically for easier editing, case-insensitive
+        const sortedTags = currentTags ? [...currentTags].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })) : [];
+        tagEditInput.value = sortedTags.join(', ');
+        tagEditMessage.textContent = '';
+        tagEditModal.style.display = 'flex';
+    }
+}
+
+function closeTagEditModal() {
+    if (tagEditModal) {
+        tagEditModal.style.display = 'none';
+    }
+}
+
+async function saveTags() {
+    if (!itemId) return;
+
+    tagEditMessage.textContent = 'Saving...';
+    tagEditMessage.className = 'form-message';
+
+    const tagsString = tagEditInput.value.trim();
+    // Replace '?' with ',' to allow it as a separator
+    const newTags = tagsString ? tagsString.replace(/\?/g, ',').split(',').map(tag => tag.trim()).filter(tag => tag !== '') : [];
+
+    // Sort tags alphabetically on save
+    newTags.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+    try {
+        await db.collection('items').doc(itemId).update({
+            tags: newTags
+        });
+
+        tagEditMessage.textContent = 'Tags updated!';
+        tagEditMessage.className = 'form-message success-message';
+
+        setTimeout(() => {
+            closeTagEditModal();
+            fetchItemDetails(itemId); // Refresh UI
+        }, 800);
+
+    } catch (error) {
+        console.error("Error updating tags:", error);
+        tagEditMessage.textContent = 'Error updating tags.';
+        tagEditMessage.className = 'form-message error-message';
     }
 }
 
@@ -188,7 +245,7 @@ async function getUploaderUsername(userId) {
 
     try {
         const profileRef = db
-            .collection('artifacts').doc('default-app-id') 
+            .collection('artifacts').doc('default-app-id')
             .collection('user_profiles').doc(userId);
 
         const snap = await profileRef.get();
@@ -214,10 +271,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (statusToggleBtn) statusToggleBtn.addEventListener('click', toggleStatusForm);
     const removeBtn = document.getElementById('removeStatusBtn');
     if (removeBtn) removeBtn.addEventListener('click', (e) => { e.preventDefault(); handleRemoveStatus(); });
-    
+
     // Keep listener for file input change
     if (editImageInput) editImageInput.addEventListener('change', handleImageFileChange);
-    
+
     // NEW: Edit Modal Close Listener
     if (closeEditModalBtn) closeEditModalBtn.addEventListener('click', closeEditModal);
     window.addEventListener('click', (event) => {
@@ -228,6 +285,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (addRelatedBtn) addRelatedBtn.addEventListener('click', handleAddRelated);
 
+    // NEW: Tag Edit Listeners
+    if (closeTagEditModalBtn) closeTagEditModalBtn.addEventListener('click', closeTagEditModal);
+    if (saveTagsBtn) saveTagsBtn.addEventListener('click', saveTags);
+    window.addEventListener('click', (event) => {
+        if (event.target === tagEditModal) closeTagEditModal();
+    });
+
     // Pagination Event Listeners
     if (nextCommentsBtn) nextCommentsBtn.addEventListener('click', () => changeCommentPage(1));
     if (prevCommentsBtn) prevCommentsBtn.addEventListener('click', () => changeCommentPage(-1));
@@ -235,7 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
     auth.onAuthStateChanged((user) => {
         fetchItemDetails(itemId);
         setupAuthUI(user);
-        renderComments(itemId); 
+        renderComments(itemId);
         renderShops(itemId);
         setupHeaderLogoRedirect();
         fetchAndRenderPublicLists(itemId);
@@ -302,7 +366,7 @@ async function uploadImageToImgBB(imageFile) {
                 if (errorData.error?.message) {
                     errorMessage = errorData.error.message;
                 }
-            } catch {}
+            } catch { }
             throw new Error(errorMessage);
         }
 
@@ -332,10 +396,10 @@ function handleImageFileChange(e) {
         updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
         return;
     }
-    
+
     // The total count check should include existing images
     const totalPotentialImages = currentItemImageUrls.length + files.length;
-    
+
     if (totalPotentialImages > MAX_IMAGE_COUNT) {
         editMessage.textContent = `Error: Cannot have more than ${MAX_IMAGE_COUNT} images total (existing ${currentItemImageUrls.length} + new ${files.length}).`;
         editMessage.className = 'form-message error-message';
@@ -355,7 +419,7 @@ function handleImageFileChange(e) {
         }
         selectedImageFiles.push(file);
     }
-    
+
     // Update the visual previews
     updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
 
@@ -369,12 +433,12 @@ function updateEditImagePreviews(existingImageObjects, newFiles) {
     if (!editImageUploadsContainer) return;
 
     editImageUploadsContainer.innerHTML = '';
-    
+
     // 1. Display existing images
     existingImageObjects.forEach((imgObj, index) => {
         const div = document.createElement('div');
         div.className = 'image-preview-item';
-        
+
         // Determine if this is the primary image (slot 0)
         const isPrimary = index === 0;
 
@@ -382,7 +446,7 @@ function updateEditImagePreviews(existingImageObjects, newFiles) {
         div.innerHTML = `
             <img src="${imgObj.url}" alt="Existing Image ${index + 1}" class="image-preview ${isPrimary ? 'primary-image-preview' : ''}">
             <button type="button" class="remove-image-btn" data-index="${index}" title="Remove Image">&times;</button>
-            ${isPrimary 
+            ${isPrimary
                 ? '<span class="primary-tag">Primary</span>'
                 : `<button type="button" class="set-primary-btn action-btn secondary-btn" data-index="${index}">Set as Primary</button>`
             }
@@ -394,7 +458,7 @@ function updateEditImagePreviews(existingImageObjects, newFiles) {
     newFiles.forEach((file, index) => {
         const div = document.createElement('div');
         div.className = 'image-preview-item new-image';
-        
+
         // New files cannot be set as primary until they are uploaded (saved)
         div.innerHTML = `
             <img src="${URL.createObjectURL(file)}" alt="New Image ${index + 1}" class="image-preview">
@@ -406,27 +470,27 @@ function updateEditImagePreviews(existingImageObjects, newFiles) {
 
     // Add listeners for removing existing images
     document.querySelectorAll('.remove-image-btn').forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             const indexToRemove = parseInt(this.dataset.index, 10);
-            
+
             // Remove the image object from the list of current images
             // The deleteUrl is still inside the object, which is now discarded from the array.
             currentItemImageUrls.splice(indexToRemove, 1);
-            
+
             updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
             editMessage.textContent = 'Existing image marked for removal (will be removed on save).';
             editMessage.className = 'form-message info-message';
         });
     });
-    
+
     // Add listeners for removing NEW files
     document.querySelectorAll('.remove-new-file-btn').forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             const indexToRemove = parseInt(this.dataset.index, 10);
-            
+
             // Remove the file from the selected files array
             selectedImageFiles.splice(indexToRemove, 1);
-            
+
             updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
             editMessage.textContent = `New image removed from selection. Total new: ${selectedImageFiles.length}.`;
             editMessage.className = 'form-message info-message';
@@ -436,18 +500,18 @@ function updateEditImagePreviews(existingImageObjects, newFiles) {
 
     // NEW: Add listeners for setting existing images as primary
     document.querySelectorAll('.set-primary-btn').forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             const indexToMove = parseInt(this.dataset.index, 10);
-            
+
             // Get the image object
             const imageObject = currentItemImageUrls[indexToMove];
-            
+
             // Remove it from its current position
             currentItemImageUrls.splice(indexToMove, 1);
-            
+
             // Insert it at the start of the array
             currentItemImageUrls.unshift(imageObject);
-            
+
             // Re-render the previews to update UI and buttons
             updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
             editMessage.textContent = 'Primary image set. Save to confirm change.';
@@ -475,7 +539,7 @@ function setupAuthUI(user) {
     }
 
     // MODIFIED: Hide the toggle button, not the form (the form is in a modal now)
-    editToggleBtn.style.display = 'none'; 
+    editToggleBtn.style.display = 'none';
     deleteContainer.innerHTML = '';
 }
 
@@ -511,7 +575,7 @@ async function fetchItemDetails(id) {
         const itemAgeRating = itemData.itemAgeRating || '';
         if (itemAgeRating === '18+') {
             let allowNSFW = false;
-            
+
             // If logged in, check user profile settings
             if (auth.currentUser) {
                 const userId = auth.currentUser.uid;
@@ -542,14 +606,14 @@ async function fetchItemDetails(id) {
         // --- NSFW CHECK END ---
 
         applyShopPermissions(itemData);
-        
+
         // Handle image URLs (multi-image support)
         currentItemImageUrls = Array.isArray(itemData.itemImageUrls) && itemData.itemImageUrls.length > 0
             ? itemData.itemImageUrls
             : [itemData.itemImageUrl, itemData.itemImageBase64, itemData.itemImage]
-              .filter(url => url)
-              .map(url => typeof url === 'string' ? { url: url } : url)
-              .filter(obj => obj && obj.url);
+                .filter(url => url)
+                .map(url => typeof url === 'string' ? { url: url } : url)
+                .filter(obj => obj && obj.url);
 
         let userStatus = null;
         let canEdit = false;
@@ -559,15 +623,15 @@ async function fetchItemDetails(id) {
         if (auth.currentUser) {
             const userId = auth.currentUser.uid;
             const userStatusDocRef = getUserCollectionRef(db, userId).doc(id);
-            const userStatusSnap = await userStatusDocRef.get();           
-            
+            const userStatusSnap = await userStatusDocRef.get();
+
             if (userStatusSnap.exists) {
                 const userData = userStatusSnap.data();
                 userStatus = userData.status;
-                privateData = userData.privateNotes || {}; 
+                privateData = userData.privateNotes || {};
                 currentPrivateData = privateData;
             }
-            
+
             updateStatusSelection(userStatus, privateData);
 
             const userRole = await checkUserPermissions(userId);
@@ -577,7 +641,7 @@ async function fetchItemDetails(id) {
         }
 
         // ALWAYS render the page for safe items (moved outside the auth check)
-        renderItemDetails(itemData, userStatus, privateData);
+        renderItemDetails(itemData, userStatus, privateData, canEdit);
         setupRelatedItems(itemData, canEdit);
 
         // Manage Edit/Delete UI visibility
@@ -599,15 +663,15 @@ async function fetchItemDetails(id) {
 
 // MODIFIED: Render image gallery instead of single image
 // MODIFIED: Render image gallery and status-correlated private info
-function renderItemDetails(item, userStatus, privateData = {}) {
+function renderItemDetails(item, userStatus, privateData = {}, canEdit = false) {
     const titleText = item.itemName || 'Untitled Item';
     itemNamePlaceholder.textContent = titleText;
     itemNamePlaceholderTitle.textContent = titleText;
 
     const displayStatus = userStatus || 'N/A';
-    
+
     // Extract only URLs for display
-    const imageUrls = currentItemImageUrls.map(img => img.url); 
+    const imageUrls = currentItemImageUrls.map(img => img.url);
     const fallbackImage = 'https://placehold.co/400x400/333333/eeeeee?text=No+Image';
     const primaryImage = imageUrls[0] || fallbackImage;
 
@@ -635,45 +699,45 @@ function renderItemDetails(item, userStatus, privateData = {}) {
                 ${privateData.shipping ? `<div><span class="info-label">Shipping:</span><span class="info-value">${privateData.shipping}</span></div>` : ''}
                 ${privateData.score ? `<div><span class="info-label">Score:</span><span class="info-value">${privateData.score}/10</span></div>` : ''}
             `;
-            
-        if (userStatus === 'Owned') {
-            if (privateData.location) {
-                fieldsHtml += `<div>
+
+            if (userStatus === 'Owned') {
+                if (privateData.location) {
+                    fieldsHtml += `<div>
                     <span class="info-label">Location:</span>
                     <span class="info-value">${privateData.location}</span>
                 </div>`;
-            }
+                }
 
-            if (privateData.store) {
-                fieldsHtml += `<div>
+                if (privateData.store) {
+                    fieldsHtml += `<div>
                     <span class="info-label">Store:</span>
                     <span class="info-value">${privateData.store}</span>
                 </div>`;
-            }
+                }
 
-            if (privateData.collectionDate) {
-            fieldsHtml += `<div>
+                if (privateData.collectionDate) {
+                    fieldsHtml += `<div>
                     <span class="info-label">Collection Date:</span>
                     <span class="info-value">${privateData.collectionDate}</span>
                 </div>`;
+                }
             }
-        }
 
-        if (userStatus === 'Ordered') {
-            if (privateData.tracking) {
-                fieldsHtml += `<div>
+            if (userStatus === 'Ordered') {
+                if (privateData.tracking) {
+                    fieldsHtml += `<div>
                     <span class="info-label">Tracking:</span>
                     <span class="info-value">${privateData.tracking}</span>
                 </div>`;
-            }
+                }
 
-            if (privateData.store) {
-                fieldsHtml += `<div>
+                if (privateData.store) {
+                    fieldsHtml += `<div>
                     <span class="info-label">Store:</span>
                     <span class="info-value">${privateData.store}</span>
                 </div>`;
+                }
             }
-        }
 
         } else if (userStatus === 'Wished') {
             fieldsHtml += `
@@ -717,8 +781,16 @@ function renderItemDetails(item, userStatus, privateData = {}) {
     `;
 
     tagsBox.innerHTML = `
-        <div><span class="info-label">Tags:</span><span class="tags">${(item.tags && item.tags.join(', ')) || 'None'}</span></div>
+        <div class="tags-header">
+            <span class="info-label">Tags:</span>
+            ${canEdit ? `<button id="openTagEditBtn" class="tag-edit-btn" title="Edit Tags"><i class="bi bi-pencil-square"></i></button>` : ''}
+        </div>
+        <div class="tags">${(item.tags && item.tags.join(', ')) || 'None'}</div>
     `;
+
+    if (canEdit && document.getElementById('openTagEditBtn')) {
+        document.getElementById('openTagEditBtn').addEventListener('click', () => openTagEditModal(item.tags));
+    }
 
     // Re-attach listeners for gallery
     const mainImage = document.getElementById('mainGalleryImage');
@@ -755,9 +827,9 @@ function toggleEditForm() {
     } else {
         // Re-setup form content before showing modal to ensure fresh data
         fetchItemDetails(itemId).then(() => {
-             // setupEditForm is called inside fetchItemDetails for re-setup
-             showEditModal();
-             editToggleBtn.innerHTML = '<i class="bi bi-gear-wide-connected"></i>';
+            // setupEditForm is called inside fetchItemDetails for re-setup
+            showEditModal();
+            editToggleBtn.innerHTML = '<i class="bi bi-gear-wide-connected"></i>';
         });
     }
 }
@@ -772,7 +844,7 @@ function setupEditForm(item) {
 
     editTitleInput.value = item.itemName || '';
     editReleaseDateInput.value = item.itemReleaseDate || '';
-    editTagsInput.value = (item.tags && item.tags.join(', ')) || '';
+    // REMOVED: editTagsInput setup
 
     // Clear file input and temporary file object array
     if (editImageInput) editImageInput.value = '';
@@ -780,7 +852,7 @@ function setupEditForm(item) {
 
     // Update the edit previews with current URLs (which are now objects)
     updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
-    
+
     // Clear message from previous attempts
     editMessage.textContent = '';
     editMessage.className = 'form-message';
@@ -813,41 +885,37 @@ editItemForm.addEventListener('submit', async (e) => {
         itemAgeRating: editAgeRatingSelect.value,
         itemScale: editScaleSelect.value,
         itemReleaseDate: editReleaseDateInput.value,
-        // *** MODIFIED LINE START ***
-        // Replace '?' globally with ',' before splitting the tags
-        tags: editTagsInput.value.replace(/\?/g, ',').split(',').map(tag => tag.trim()).filter(tag => tag.length > 0),
-        // *** MODIFIED LINE END ***
         'img-align-ver': editImageAlignVerSelect.value,
         'img-align-hor': editImageAlignHorSelect.value,
         lastEdited: firebase.firestore.FieldValue.serverTimestamp()
     };
-    
+
     // --- NEW: Multi-Image Upload Logic ---
     // currentItemImageUrls already contains the non-removed image objects and is correctly ordered.
-    let retainedImageObjects = currentItemImageUrls; 
-    
+    let retainedImageObjects = currentItemImageUrls;
+
     if (selectedImageFiles.length > 0) {
         editMessage.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
         editMessage.className = 'form-message';
-        
+
         try {
             // uploadPromises now return image objects {url, deleteUrl}
             const uploadPromises = selectedImageFiles.map(file => uploadImageToImgBB(file));
             const uploadedImageObjects = await Promise.all(uploadPromises);
-            
+
             // Append newly uploaded objects to the existing/retained objects
             retainedImageObjects = [...retainedImageObjects, ...uploadedImageObjects];
 
             // Clear the file input and temporary file object array after successful upload
-            editImageInput.value = ''; 
-            selectedImageFiles = []; 
+            editImageInput.value = '';
+            selectedImageFiles = [];
         } catch (error) {
             editMessage.textContent = `Image upload failed: ${error.message}`;
             editMessage.className = 'form-message error-message';
             return; // Stop the save process
         }
     }
-    
+
     // Check total count before saving (This check is redundant if done in handleImageFileChange, but kept as a final safeguard)
     if (retainedImageObjects.length > MAX_IMAGE_COUNT) {
         editMessage.textContent = `Error: Total images (existing + new) exceeds maximum of ${MAX_IMAGE_COUNT}. Please remove some.`;
@@ -870,10 +938,10 @@ editItemForm.addEventListener('submit', async (e) => {
 
         editMessage.textContent = "Details updated successfully! Closing in 1 second...";
         editMessage.className = 'form-message success-message';
-        
+
         // Update the current state for subsequent display/edits
         currentItemImageUrls = retainedImageObjects;
-        
+
         // NEW: Close the modal and refresh details
         setTimeout(() => {
             closeEditModal();
@@ -900,7 +968,7 @@ function setupDeleteButton(id) {
 function showConfirmDelete(itemId) {
     showConfirmationModal(
         "Are you sure you want to permanently DELETE this item? This action cannot be undone.",
-        () => handleDeleteItem(itemId), 
+        () => handleDeleteItem(itemId),
         'DELETE'
     );
 }
@@ -972,7 +1040,7 @@ async function handleStatusUpdate(e) {
             privateData.price = document.getElementById('privPrice')?.value || '';
             privateData.shipping = document.getElementById('privShipping')?.value || '';
             // Capture the Score field
-            privateData.score = document.getElementById('privScore')?.value || ''; 
+            privateData.score = document.getElementById('privScore')?.value || '';
             privateData.store = document.getElementById('privStore')?.value || '';
 
             if (newStatus === 'Owned') {
@@ -994,7 +1062,7 @@ async function handleStatusUpdate(e) {
         }, { merge: true });
 
         await updateProfileCounters(userId);
-        
+
         // Update success message
         statusMessage.textContent = 'Status saved! Closing...';
         statusMessage.className = 'form-message success-message';
@@ -1005,7 +1073,7 @@ async function handleStatusUpdate(e) {
             collectionStatusForm.style.display = 'none';
             if (statusToggleBtn) statusToggleBtn.classList.remove('active');
             statusMessage.textContent = '';
-            fetchItemDetails(itemId); 
+            fetchItemDetails(itemId);
         }, 800);
 
     } catch (error) {
@@ -1059,29 +1127,29 @@ async function handleRemoveStatus() {
 // --- Comments ---
 function getCommentsRef(itemId, startAfterDoc = null) {
     let query = db.collection('items').doc(itemId)
-                  .collection('comments')
-                  .orderBy('createdAt', 'desc')
-                  .limit(COMMENTS_PER_PAGE);
+        .collection('comments')
+        .orderBy('createdAt', 'desc')
+        .limit(COMMENTS_PER_PAGE);
 
     if (startAfterDoc) {
         query = query.startAfter(startAfterDoc);
     }
-    
+
     return query;
 }
 
 function changeCommentPage(direction) {
-    if (direction === 1) { 
-        const nextCursor = pageCursors[commentsCurrentPage]; 
-        
+    if (direction === 1) {
+        const nextCursor = pageCursors[commentsCurrentPage];
+
         if (!nextCursor && commentsCurrentPage !== 0) {
-             return;
+            return;
         }
 
         commentsCurrentPage++;
         renderComments(itemId);
 
-    } else if (direction === -1) { 
+    } else if (direction === -1) {
         if (commentsCurrentPage > 1) {
             commentsCurrentPage--;
             renderComments(itemId);
@@ -1195,7 +1263,7 @@ async function createCommentElement(commentId, userId, text, timestamp) {
 function linkify(text) {
     const urlPattern = /(\b(https?:\/\/|www\.)[^\s]+\b)/g;
 
-    return text.replace(urlPattern, function(url) {
+    return text.replace(urlPattern, function (url) {
         let fullUrl = url;
 
         if (url.startsWith('www.')) {
@@ -1246,7 +1314,7 @@ async function renderComments(itemId) {
             commentEl.className = 'comment';
             const timestamp = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString() : 'Just now';
             const linkedText = linkify(data.text);
-            const deleteButtonHtml = canDelete ? 
+            const deleteButtonHtml = canDelete ?
                 `<button class="delete-comment-btn" data-comment-id="${commentId}">&times;</button>` : '';
 
             // Temporary innerHTML with "Loading..." for username
@@ -1309,12 +1377,12 @@ async function renderComments(itemId) {
 function updateStatusSelection(userStatus, privateData = {}) {
     const statusButtons = document.querySelectorAll('.status-btn');
     statusButtons.forEach(btn => btn.classList.remove('selected-status'));
-    
+
     const radioInputs = document.querySelectorAll('input[name="collectionStatus"]');
     radioInputs.forEach(input => {
         input.checked = false;
         // Add listener to change fields when user clicks a different status
-        input.onclick = () => renderPrivateFields(input.value); 
+        input.onclick = () => renderPrivateFields(input.value);
     });
 
     if (userStatus) {
@@ -1323,11 +1391,11 @@ function updateStatusSelection(userStatus, privateData = {}) {
             radioInput.checked = true;
             const label = document.querySelector(`label[for="${radioInput.id}"]`);
             if (label) label.classList.add('selected-status');
-            
+
             // NEW: Render the fields with existing data on load
             renderPrivateFields(userStatus, privateData);
         }
-    } 
+    }
 }
 
 function deleteComment(itemId, commentId, deleteButtonEl) {
@@ -1353,7 +1421,7 @@ function deleteComment(itemId, commentId, deleteButtonEl) {
 
             try {
                 const commentRef = db.collection('items').doc(itemId)
-                                     .collection('comments').doc(commentId);
+                    .collection('comments').doc(commentId);
                 const commentSnap = await commentRef.get();
 
                 if (!commentSnap.exists) {
@@ -1441,7 +1509,7 @@ lightboxOverlay.onclick = (e) => {
     if (e.target === lightboxOverlay) lightboxOverlay.style.display = 'none';
 };
 
-window.attachLightboxToThumbnails = function() {
+window.attachLightboxToThumbnails = function () {
     document.querySelectorAll('.item-thumbnail').forEach(thumb => {
         thumb.onclick = () => {
             const index = parseInt(thumb.dataset.index, 10);
@@ -1458,7 +1526,7 @@ window.changeMainImage = (thumbnail) => {
     mainImage.src = thumbnail.src;
     document.querySelectorAll('.item-thumbnail').forEach(t => t.classList.remove('selected-thumbnail'));
     thumbnail.classList.add('selected-thumbnail');
-    
+
     // Open lightbox on main image click
     mainImage.onclick = () => {
         const index = parseInt(thumbnail.dataset.index, 10);
@@ -1471,8 +1539,8 @@ window.changeMainImage = (thumbnail) => {
 
 function getShopRef(itemId) {
     return db.collection('items').doc(itemId)
-             .collection('shops')
-             .orderBy('createdAt', 'desc');
+        .collection('shops')
+        .orderBy('createdAt', 'desc');
 }
 
 async function postShop() {
@@ -1492,11 +1560,11 @@ async function postShop() {
     if (!text) return;
 
     let url;
-    try { url = new URL(text); } 
-    catch { 
+    try { url = new URL(text); }
+    catch {
         ShopMessage.textContent = "Please enter a valid URL.";
         ShopMessage.className = 'form-message error-message';
-        return; 
+        return;
     }
 
     const domain = url.hostname.replace(/^www\./, '');
@@ -1590,7 +1658,7 @@ async function renderShops(itemId) {
 
     const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
     const currentUserRole = currentUserId ? await checkUserPermissions(currentUserId) : null;
-    const isAdminOrModOrShop = ['admin','mod','shop'].includes(currentUserRole);
+    const isAdminOrModOrShop = ['admin', 'mod', 'shop'].includes(currentUserRole);
 
     try {
         let snapshot;
@@ -1617,7 +1685,7 @@ async function renderShops(itemId) {
             const ShopEl = document.createElement('div');
             ShopEl.className = 'shop';
             const timestamp = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString() : 'Just now';
-            const deleteButtonHtml = canDelete ? 
+            const deleteButtonHtml = canDelete ?
                 `<button class="delete-shop-btn" data-shop-id="${shopId}">&times;</button>` : '';
 
             ShopEl.innerHTML = `
@@ -1663,7 +1731,7 @@ async function renderShops(itemId) {
     }
 }
 
-function deleteShop(itemId, shopId, deleteButtonEl) { 
+function deleteShop(itemId, shopId, deleteButtonEl) {
     if (!auth.currentUser) {
         ShopMessage.textContent = "You must be logged in to delete shops.";
         ShopMessage.className = 'form-message error-message';
@@ -1673,7 +1741,7 @@ function deleteShop(itemId, shopId, deleteButtonEl) {
     // Disable the button immediately
     if (deleteButtonEl) {
         deleteButtonEl.disabled = true;
-        deleteButtonEl.textContent = '...'; 
+        deleteButtonEl.textContent = '...';
     }
 
     showConfirmationModal(
@@ -1686,7 +1754,7 @@ function deleteShop(itemId, shopId, deleteButtonEl) {
 
             try {
                 const shopRef = db.collection('items').doc(itemId)
-                                  .collection('shops').doc(shopId);
+                    .collection('shops').doc(shopId);
                 const shopSnap = await shopRef.get();
 
                 if (!shopSnap.exists) {
@@ -1703,7 +1771,7 @@ function deleteShop(itemId, shopId, deleteButtonEl) {
                 const userRole = await checkUserPermissions(userId);
                 const isCreator = userId === shopData.userId;
                 const isAdminOrModOrShop =
-                    ['admin','mod','shop'].includes(userRole);
+                    ['admin', 'mod', 'shop'].includes(userRole);
 
                 if (!(isCreator || isAdminOrModOrShop)) {
                     ShopMessage.textContent =
@@ -1780,7 +1848,7 @@ function setupHeaderLogoRedirect() {
     logo.onclick = () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
-            alert("You must be logged in to view your profile."); 
+            alert("You must be logged in to view your profile.");
             return;
         }
         const userId = currentUser.uid;
@@ -1806,18 +1874,18 @@ closeListModalBtn.onclick = () => listModal.style.display = 'none';
 
 async function loadUserLists() {
     const userId = auth.currentUser.uid;
-    
+
     // 1. Reference for Private Lists
     const privateListsRef = db.collection('artifacts').doc('default-app-id')
-                               .collection('user_profiles').doc(userId)
-                               .collection('lists');
-                               
+        .collection('user_profiles').doc(userId)
+        .collection('lists');
+
     // 2. Reference for Public Lists owned by this user
     const publicListsRef = db.collection('public_lists').where('userId', '==', userId);
-    
+
     try {
         existingListsDropdown.innerHTML = '<option value="">-- Select a List --</option>';
-        
+
         // Fetch both simultaneously for better performance
         const [privateSnap, publicSnap] = await Promise.all([
             privateListsRef.get(),
@@ -1845,7 +1913,7 @@ async function loadUserLists() {
 
 async function addItemToList(combinedValue) {
     if (!combinedValue || !itemId) return;
-    
+
     const [type, listId] = combinedValue.split('|');
     const userId = auth.currentUser.uid;
     let listRef;
@@ -1854,8 +1922,8 @@ async function addItemToList(combinedValue) {
         listRef = db.collection('public_lists').doc(listId);
     } else {
         listRef = db.collection('artifacts').doc('default-app-id')
-                    .collection('user_profiles').doc(userId)
-                    .collection('lists').doc(listId);
+            .collection('user_profiles').doc(userId)
+            .collection('lists').doc(listId);
     }
 
     try {
@@ -1863,16 +1931,16 @@ async function addItemToList(combinedValue) {
             items: firebase.firestore.FieldValue.arrayUnion(itemId),
             lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
         });
-        
+
         listMessage.textContent = "Item added to list!";
         listMessage.className = "form-message success-message";
-        
+
         // MODIFIED: Refresh the list display and close modal without reloading
         setTimeout(() => {
             listModal.style.display = 'none';
-            listMessage.textContent = ""; 
+            listMessage.textContent = "";
             fetchAndRenderPublicLists(itemId); // Refresh the "Public Lists" grid
-        }, 1500); 
+        }, 1500);
     } catch (error) {
         listMessage.textContent = "Error: " + error.message;
         listMessage.className = "form-message error-message";
@@ -1884,7 +1952,7 @@ async function addItemToList(combinedValue) {
 createNewListBtn.onclick = async () => {
     const nameInput = document.getElementById('newListName');
     const name = nameInput.value.trim();
-    const privacy = document.querySelector('input[name="listPrivacy"]:checked').value; 
+    const privacy = document.querySelector('input[name="listPrivacy"]:checked').value;
     const userId = auth.currentUser.uid;
 
     if (!name) {
@@ -1895,13 +1963,13 @@ createNewListBtn.onclick = async () => {
     try {
         let newListRef;
         if (privacy === 'public') {
-            newListRef = db.collection('public_lists').doc(); 
+            newListRef = db.collection('public_lists').doc();
         } else {
             newListRef = db.collection('artifacts').doc('default-app-id')
-                           .collection('user_profiles').doc(userId)
-                           .collection('lists').doc();
+                .collection('user_profiles').doc(userId)
+                .collection('lists').doc();
         }
-        
+
         await newListRef.set({
             name: name,
             privacy: privacy,
@@ -1916,7 +1984,7 @@ createNewListBtn.onclick = async () => {
         // MODIFIED: Close modal and refresh UI
         setTimeout(() => {
             listModal.style.display = 'none';
-            nameInput.value = ''; 
+            nameInput.value = '';
             listMessage.textContent = "";
             fetchAndRenderPublicLists(itemId); // Refresh the lists grid
         }, 1500);
@@ -1939,7 +2007,7 @@ addToListBtn.onclick = () => {
 
 function itemMatchesLiveQuery(itemData, query, logic = 'AND') {
     if (!query) return false;
-    
+
     const regex = /\{([^}]+)\}|(\S+)/g;
     const requiredKeywords = [];
     const excludedKeywords = [];
@@ -1984,35 +2052,52 @@ async function fetchAndRenderPublicLists(itemId) {
     try {
         const itemDoc = await db.collection('items').doc(itemId).get();
         const itemData = itemDoc.data();
-        
-        // 1. Fetch all Public Lists
-        const publicListsSnap = await db.collection('public_lists').get();
+
+        // OPTIMIZED: Fetch ONLY relevant lists in parallel
+        // 1. Static Lists: Direct query for lists containing this item
+        // 2. Live Lists: Fetch all live lists (usually small subset) to check logic client-side
+        const [staticListsSnap, liveListsSnap] = await Promise.all([
+            db.collection('public_lists').where('items', 'array-contains', itemId).get(),
+            db.collection('public_lists').where('mode', '==', 'live').get()
+        ]);
+
         let matchedLiveLists = [];
         let staticLists = [];
 
-        publicListsSnap.forEach(doc => {
+        // Process Static Lists (Already filtered by DB)
+        staticListsSnap.forEach(doc => {
+            const list = doc.data();
+            list.id = doc.id;
+            list.type = list.privacy;
+            staticLists.push(list);
+        });
+
+        // Process Live Lists (Client-side logic check)
+        liveListsSnap.forEach(doc => {
             const list = doc.data();
             list.id = doc.id;
             list.type = list.privacy;
 
-            if (list.mode === 'live') {
-                // 2. Check if the current item matches the Live Query
-                if (itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
-                    matchedLiveLists.push(list);
-                }
-            } else if (list.items && list.items.includes(itemId)) {
-                // Existing logic for static lists
-                staticLists.push(list);
-                
+            if (itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
+                matchedLiveLists.push(list);
             }
         });
 
-        // 3. Combine them, putting Live Lists first
-        allPublicListsForThisItem = [...matchedLiveLists, ...staticLists];
-        
+        // Combine them, ensuring uniqueness (Live lists take precedence if duplicates exist)
+        const combinedLists = [...matchedLiveLists, ...staticLists];
+        const uniqueListsMap = new Map();
+
+        combinedLists.forEach(list => {
+            if (!uniqueListsMap.has(list.id)) {
+                uniqueListsMap.set(list.id, list);
+            }
+        });
+
+        allPublicListsForThisItem = Array.from(uniqueListsMap.values());
+
         // 4. Render as usual
         renderListsPage(1);
-        
+
     } catch (error) {
         console.error("Error fetching lists:", error);
     }
@@ -2045,7 +2130,7 @@ function renderListsPage(page) {
             <div class="list-card">
                 <div class="list-image-wrapper">
                     <div class="list-stack-effect">
-                         <i class="bi bi-journal-bookmark-fill" style="font-size: clamp(1.4rem, 2vw, 1.8rem); color: var(--accent-clr);"></i>
+                         <i class="${list.mode === 'live' ? 'bi bi-journal-code' : 'bi bi-journal-bookmark-fill'}" style="font-size: clamp(1.4rem, 2vw, 1.8rem); color: var(--accent-clr);"></i>
                     </div>
                     ${list.type === 'private' ? '<span class="nsfw-overlay" style="background:rgba(0,0,0,0.5);"><i class="bi bi-lock-fill"></i> Private</span>' : ''}
                 </div>
@@ -2064,7 +2149,7 @@ function renderListsPage(page) {
 function renderListsPagination() {
     const container = document.getElementById('listsPagination');
     if (!container) return;
-    
+
     container.innerHTML = '';
     const totalPages = Math.ceil(allPublicListsForThisItem.length / LISTS_PER_PAGE);
 
@@ -2075,7 +2160,7 @@ function renderListsPagination() {
         btn.innerText = i;
         btn.className = `action-btn ${i === listsCurrentPage ? 'active' : ''}`;
         btn.onclick = () => {
-            renderListsPage(i);          
+            renderListsPage(i);
         };
         container.appendChild(btn);
     }
@@ -2103,7 +2188,7 @@ document.querySelectorAll('input[name="collectionStatus"]').forEach(radio => {
 function renderPrivateFields(status, existingData = {}) {
     const privateFieldsContainer = document.getElementById('privateStatusFields');
     const dynamicInputs = document.getElementById('dynamicPrivateInputs');
-    
+
     if (!status || status === 'N/A') {
         privateFieldsContainer.style.display = 'none';
         return;
@@ -2143,10 +2228,56 @@ function renderPrivateFields(status, existingData = {}) {
     } else if (status === 'Wished') {
         html = `
             <label>Priority (1-10):</label>
-            <input type="number" id="privPriority" class="modern_text_field" value="${existingData.priority || ''}" min="1" max="10">`;
+            <div class="star-rating" id="priorityStarRating">
+                ${Array.from({ length: 10 }, (_, i) => `<i class="bi bi-star-fill" data-value="${i + 1}"></i>`).join('')}
+            </div>
+            <input type="hidden" id="privPriority" value="${existingData.priority || ''}">
+        `;
     }
 
     dynamicInputs.innerHTML = html;
+    if (status === 'Wished') {
+        setupStarRating();
+    }
+}
+
+function setupStarRating() {
+    const container = document.getElementById('priorityStarRating');
+    const input = document.getElementById('privPriority');
+    if (!container || !input) return;
+
+    const stars = container.querySelectorAll('i');
+    let currentValue = parseInt(input.value) || 0;
+
+    // Initial render
+    updateStars(currentValue);
+
+    stars.forEach(star => {
+        star.addEventListener('mouseover', () => {
+            const hoverValue = parseInt(star.dataset.value);
+            updateStars(hoverValue, true);
+        });
+
+        star.addEventListener('mouseout', () => {
+            updateStars(currentValue);
+        });
+
+        star.addEventListener('click', () => {
+            currentValue = parseInt(star.dataset.value);
+            input.value = currentValue;
+            updateStars(currentValue);
+        });
+    });
+
+    function updateStars(value, isHover = false) {
+        stars.forEach(s => {
+            const starVal = parseInt(s.dataset.value);
+            s.classList.remove('active', 'hover');
+            if (starVal <= value) {
+                s.classList.add(isHover ? 'hover' : 'active');
+            }
+        });
+    }
 }
 
 

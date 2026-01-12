@@ -1,163 +1,176 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title id="itemNamePlaceholder">Loading Item...</title>
     <link rel="stylesheet" href="../style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
-        <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
+    <link
+        href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+        rel="stylesheet">
+    <link rel="icon" type="image/x-icon"
+        href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
     <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet">
 </head>
+
 <body>
-<div style="position: relative;">
-    <div id="header"></div>
-    <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
-</div>
-<script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
-
-
-<div id="nsfw-cover"></div>
-
-                    <div class="item-header-bg"> 
-                    <div class="item-header">
-                        <h1 class="item-title" id="itemNamePlaceholderTitle">Item Title</h1>
-                        
-
-                        <div class="item-btn-container">
-                            <button id="statusToggleBtn" class="item-manage-btn" title="Toggle Collection Status Manager" disabled><i class="bi bi-folder-plus"></i></button>
-
-                            
-                            <p id="authMessage" class="form-message"></p>
-                                <button id="editToggleBtn" class="item-manage-btn" style="display:none;"><i class="bi bi-gear-wide-connected"></i></button>
-                                <div id="deleteContainer"></div>
-                            </div>
-                        </div>
-                    </div>
-                    </div>
-
-
-<div id="confirmationModal" class="modal">
-    <div class="modal-content">
-        <p id="modalMessage"></p>
-        <div class="modal-actions">
-            <button id="modalYesBtn" class="action-btn">Yes</button>
-            <button id="modalNoBtn" class="action-btn cancel-btn">No</button>
-        </div>
+    <div style="position: relative;">
+        <div id="header"></div>
+        <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
     </div>
-</div>
-    
-        <div id="editModal" class="edit-form-modal">
-            <div class="edit-form-framing">
-                <span class="close-btn" id="closeEditModal">&times;</span>
-                <form id="editItemForm" class="action-form edit-form">
-                    <h2>Edit Item Details</h2>
-                    <label for="editTitle">Title:</label>
-                    <input type="text" id="editTitle" class="modern_text_field" required>
+    <script>fetch('../header.html').then(res => res.text()).then(html => { document.getElementById('header').innerHTML = html; });</script>
 
-                    <div>
-                        <div class="four-column-row">
-                            <div>
-                                <label for="editCategory">Category:</label>
-                                <select id="editCategory" class="modern_dropdown"></select>
-                            </div>    
-                            <div>
-                                <label for="editAgeRating">Age Rating:</label>
-                                <select id="editAgeRating" class="modern_dropdown"></select>
-                            </div>
-                            <div>
-                                <label for="editScale">Scale:</label>
-                                <select id="editScale" class="modern_dropdown"></select>
-                            </div>
-                            <div>
-                                <label for="editReleaseDate">Release Date:</label>
-                                <input type="date" id="editReleaseDate" class="modern_dropdown">
-                            </div>
-                        </div>
 
-                        <label for="editTags">Tags (comma-separated):</label>
-                        <input type="text" id="editTags" class="modern_text_field">
-                    </div>
+    <div id="nsfw-cover"></div>
 
-                    <div class="image-upload-group">
-                        <label for="editImage">Update/Add Images (Max 6, 5MB each):</label>
-                        <input type="file" id="editImage" accept="image/*" class="modern_file_field" multiple>
-                        
-                        <div id="editImageUploadsContainer" class="image-previews-container">
-                            </div>
-                        <p class="image-note" id="editImageNote">click an image to set it as the primary cover.</p>
-                    </div>
-                    <div class="two-column-row">                  
-                            <div>
-                                <label for="editImageAlignVer">Vertical Align:</label>
-                                <select id="editImageAlignVer" class="modern_dropdown"></select>
-                            </div>
-                            <div>
-                                <label for="editImageAlignHor">Horizontal Align:</label>
-                                <select id="editImageAlignHor" class="modern_dropdown"></select>
-                        </div>
-                    </div>
-                    <p id="editMessage" class="form-message"></p>
-                    <button type="submit" class="action-btn">Save Edits</button>
-                </form>
+    <div class="item-header-bg">
+        <div class="item-header">
+            <h1 class="item-title" id="itemNamePlaceholderTitle">Item Title</h1>
+
+
+            <div class="item-btn-container">
+                <button id="statusToggleBtn" class="item-manage-btn" title="Toggle Collection Status Manager"
+                    disabled><i class="bi bi-folder-plus"></i></button>
+
+
+                <p id="authMessage" class="form-message"></p>
+                <button id="editToggleBtn" class="item-manage-btn" style="display:none;"><i
+                        class="bi bi-gear-wide-connected"></i></button>
+                <div id="deleteContainer"></div>
             </div>
         </div>
-        <div class="detail-page-wrapper">
-                
-            <main class="item-detail-container">
-                
-                        <form id="collectionStatusForm" class="status-header-bar" style="display: none;">
-                            
-                            <span class="status-header-label">Set Status:</span>
-                            
-                                <div class="status-buttons-group">
-                                    <input type="radio" id="statusOwned" name="collectionStatus" value="Owned" class="status-radio-btn" style="display: none;">
-                                    <label for="statusOwned" class="status-label secondary-btn">
-                                        <i class="bi bi-house-check-fill"></i>
-                                    </label>
-
-                                    <input type="radio" id="statusWished" name="collectionStatus" value="Wished" class="status-radio-btn" style="display: none;">
-                                    <label for="statusWished" class="status-label secondary-btn">
-                                        <i class="bi bi-star-fill"></i>
-                                    </label>
-
-                                    <input type="radio" id="statusOrdered" name="collectionStatus" value="Ordered" class="status-radio-btn" style="display: none;">
-                                    <label for="statusOrdered" class="status-label secondary-btn">
-                                        <i class="bi bi-box-seam-fill" ></i>
-                                    </label>                  
-                                </div>
-                                
-<div id="privateStatusFields" style="display: none; margin-top: 15px; border-top: 1px solid #444; padding-top: 10px; width: 100%;">
-    <p style="font-size: 0.8em; color: #888; margin-bottom: 10px;"><i class="bi bi-lock-fill"></i> Private Info (Only visible to you)</p>
-    <div id="dynamicPrivateInputs"></div>
-</div>
-                                <div class="status-actions">
-                                    <p id="statusMessage" class="form-message" style="margin-right: 0px;"></p>
-                                    <button type="submit" class="action-btn save-status-btn"><i class="bi bi-floppy2-fill"></i></button>
-                                    <button type="button" id="removeStatusBtn" class="action-btn remove-status-btn"><i class="bi bi-folder-minus"></i></button>
-                                </div>
-
-                        </form>
-                    
+    </div>
+    </div>
 
 
-                        <section id="itemDetailsContent" class="tiles-unified item-details-display">
-                            <div class="loading-state">
-                                <div class="spinner"></div>
-                                <p>Loading details...</p>
-                            </div>
-                        </section>
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <p id="modalMessage"></p>
+            <div class="modal-actions">
+                <button id="modalYesBtn" class="action-btn">Yes</button>
+                <button id="modalNoBtn" class="action-btn cancel-btn">No</button>
+            </div>
+        </div>
+    </div>
 
-                    <section class="item-comments-section">
-                        <div id="commentSection" class="comment-section">
-                            <h3>Comments</h3>
-                        
-                            <div id="commentFormContainer" class="comment-form-container">
-                                <textarea id="commentInput" placeholder="Write a comment..." rows="3" class="modern_text_field""></textarea>
-                                <button id="submitCommentBtn" class="action-btn" style="margin-bottom: 10px;"><i class="bi bi-send-fill"></i></button>
+    <div id="editModal" class="edit-form-modal">
+        <div class="edit-form-framing">
+            <span class="close-btn" id="closeEditModal">&times;</span>
+            <form id="editItemForm" class="action-form edit-form">
+                <h2>Edit Item Details</h2>
+                <label for="editTitle">Title:</label>
+                <input type="text" id="editTitle" class="modern_text_field" required>
+
+                <div>
+                    <div class="four-column-row">
+                        <div>
+                            <label for="editCategory">Category:</label>
+                            <select id="editCategory" class="modern_dropdown"></select>
+                        </div>
+                        <div>
+                            <label for="editAgeRating">Age Rating:</label>
+                            <select id="editAgeRating" class="modern_dropdown"></select>
+                        </div>
+                        <div>
+                            <label for="editScale">Scale:</label>
+                            <select id="editScale" class="modern_dropdown"></select>
+                        </div>
+                        <div>
+                            <label for="editReleaseDate">Release Date:</label>
+                            <input type="date" id="editReleaseDate" class="modern_dropdown">
+                        </div>
+                    </div>
+
+
+                </div>
+
+                <div class="image-upload-group">
+                    <label for="editImage">Update/Add Images (Max 6, 5MB each):</label>
+                    <input type="file" id="editImage" accept="image/*" class="modern_file_field" multiple>
+
+                    <div id="editImageUploadsContainer" class="image-previews-container">
+                    </div>
+                    <p class="image-note" id="editImageNote">click an image to set it as the primary cover.</p>
+                </div>
+                <div class="two-column-row">
+                    <div>
+                        <label for="editImageAlignVer">Vertical Align:</label>
+                        <select id="editImageAlignVer" class="modern_dropdown"></select>
+                    </div>
+                    <div>
+                        <label for="editImageAlignHor">Horizontal Align:</label>
+                        <select id="editImageAlignHor" class="modern_dropdown"></select>
+                    </div>
+                </div>
+                <p id="editMessage" class="form-message"></p>
+                <button type="submit" class="action-btn">Save Edits</button>
+            </form>
+        </div>
+    </div>
+    <div class="detail-page-wrapper">
+
+        <main class="item-detail-container">
+
+            <form id="collectionStatusForm" class="status-header-bar" style="display: none;">
+
+                <span class="status-header-label">Set Status:</span>
+
+                <div class="status-buttons-group">
+                    <input type="radio" id="statusOwned" name="collectionStatus" value="Owned" class="status-radio-btn"
+                        style="display: none;">
+                    <label for="statusOwned" class="status-label secondary-btn">
+                        <i class="bi bi-house-check-fill"></i>
+                    </label>
+
+                    <input type="radio" id="statusWished" name="collectionStatus" value="Wished"
+                        class="status-radio-btn" style="display: none;">
+                    <label for="statusWished" class="status-label secondary-btn">
+                        <i class="bi bi-star-fill"></i>
+                    </label>
+
+                    <input type="radio" id="statusOrdered" name="collectionStatus" value="Ordered"
+                        class="status-radio-btn" style="display: none;">
+                    <label for="statusOrdered" class="status-label secondary-btn">
+                        <i class="bi bi-box-seam-fill"></i>
+                    </label>
+                </div>
+
+                <div id="privateStatusFields"
+                    style="display: none; margin-top: 15px; border-top: 1px solid #444; padding-top: 10px; width: 100%;">
+                    <p style="font-size: 0.8em; color: #888; margin-bottom: 10px;"><i class="bi bi-lock-fill"></i>
+                        Private Info (Only visible to you)</p>
+                    <div id="dynamicPrivateInputs"></div>
+                </div>
+                <div class="status-actions">
+                    <p id="statusMessage" class="form-message" style="margin-right: 0px;"></p>
+                    <button type="submit" class="action-btn save-status-btn"><i class="bi bi-floppy2-fill"></i></button>
+                    <button type="button" id="removeStatusBtn" class="action-btn remove-status-btn"><i
+                            class="bi bi-folder-minus"></i></button>
+                </div>
+
+            </form>
+
+
+
+            <section id="itemDetailsContent" class="tiles-unified item-details-display">
+                <div class="loading-state">
+                    <div class="spinner"></div>
+                    <p>Loading details...</p>
+                </div>
+            </section>
+
+            <section class="item-comments-section">
+                <div id="commentSection" class="comment-section">
+                    <h3>Comments</h3>
+
+                    <div id="commentFormContainer" class="comment-form-container">
+                        <textarea id="commentInput" placeholder="Write a comment..." rows="3" class="modern_text_field""></textarea>
+                                <button id=" submitCommentBtn" class="action-btn"
+                            style="margin-bottom: 10px;"><i class="bi bi-send-fill"></i></button>
                             </div>
 
                             <div id="commentsList" class="comments-list"></div>
@@ -183,103 +196,126 @@
                         
                             <div id="shopFormContainer" class="comment-form-container">
                                 <textarea id="ShopInput" placeholder="Enter shop URL..." rows="3" class="modern_text_field"></textarea>
-                                <button id="submitShopBtn" class="action-btn" style="margin-bottom: 20px;">Post Shop</button>
-                            </div>
+                        <button id="submitShopBtn" class="action-btn" style="margin-bottom: 20px;">Post Shop</button>
+                    </div>
 
-                            <div id="ShopList" class="shop-list"></div>
-                            <p id="ShopMessage"></p>
-                            
-                        </div> 
-                    </section>  
+                    <div id="ShopList" class="shop-list"></div>
+                    <p id="ShopMessage"></p>
 
-
-                    <section id="relatedItemsSection" class="related-items-section tiles-unified">
-                        <div class="section-header">
-                            <h3>Related Items</h3>
-                            <button id="editRelatedBtn" class="action-btn" style="display:none;" title="Edit Related Items">
-                                <i class="bi bi-pencil-square"></i>
-                            </div>
-
-                        <div id="relatedEditor" class="editor-box" style="display:none;">
-                            <div class="editor-input-group">
-                                <input type="url" id="relatedUrlInput" class="modern_text_field" placeholder="Paste item URL here...">
-                                <button id="addRelatedBtn" class="action-btn">Add</button>
-                            </div>
-                            <p id="relatedMessage" class="form-message"></p>
-                        </div>
-
-                        <div id="relatedItemsContainer" class="related-items-grid">
-                            </div>
-                    </section>
-
-
-                    <section class="tiles-unified">
-                        <div class="status-alignment">
-                            <h2>Lists</h2>
-                            <button id="addToListToggleBtn" class="action-btn" title="Add to List"><i class="bi bi-journal-plus"></i></button>
-                        </div>
-                        <div id="profileListsGrid" class="list-grid">
-                            </div>
-                        <div id="listsPagination" class="pagination-container">
-                            </div>
-                    </section>
-
-
-                <section class="side-block"> 
-                    <section id="tagsBox" class="tagsBox"></section>
-                </section>
-            </div>
-        </div>
-
-
-
-
-
-<div id="listModal" class="edit-form-modal" style="display:none;">
-    <div class="edit-form-framing">
-        <span class="close-btn" id="closeListModal">&times;</span>
-        <div class="action-form">
-            <h2>Add to List</h2>
-            
-            <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #444;">
-                <input type="text" id="newListName" placeholder="New list name..." class="modern_text_field">
-                <div style="margin-top:10px;">
-                    <label><input type="radio" name="listPrivacy" value="public" checked> Public</label>
-                    <label style="margin-left:15px;"><input type="radio" name="listPrivacy" value="private"> Private</label>
                 </div>
-                <button id="createNewListBtn" class="action-btn" style="margin-top:10px; width:100%;">Create & Add</button>
-            </div>
+            </section>
 
-            <label>Or select an existing list:</label>
-            <select id="existingListsDropdown" class="modern_dropdown">
-                <option value="">-- Loading Lists --</option>
-            </select>
-            <button id="addToListBtn" class="action-btn" style="margin-top:15px; width:100%;">Add to Selected List</button>
-            
-            <p id="listMessage" class="form-message"></p>
+
+            <section id="relatedItemsSection" class="related-items-section tiles-unified">
+                <div class="section-header">
+                    <h3>Related Items</h3>
+                    <button id="editRelatedBtn" class="action-btn" style="display:none;" title="Edit Related Items">
+                        <i class="bi bi-pencil-square"></i>
+                </div>
+
+                <div id="relatedEditor" class="editor-box" style="display:none;">
+                    <div class="editor-input-group">
+                        <input type="url" id="relatedUrlInput" class="modern_text_field"
+                            placeholder="Paste item URL here...">
+                        <button id="addRelatedBtn" class="action-btn">Add</button>
+                    </div>
+                    <p id="relatedMessage" class="form-message"></p>
+                </div>
+
+                <div id="relatedItemsContainer" class="related-items-grid">
+                </div>
+            </section>
+
+
+            <section class="tiles-unified">
+                <div class="status-alignment">
+                    <h2>Lists</h2>
+                    <button id="addToListToggleBtn" class="action-btn" title="Add to List"><i
+                            class="bi bi-journal-plus"></i></button>
+                </div>
+                <div id="profileListsGrid" class="list-grid">
+                </div>
+                <div id="listsPagination" class="pagination-container">
+                </div>
+            </section>
+
+
+            <section class="side-block">
+                <section id="tagsBox" class="tagsBox"></section>
+            </section>
+    </div>
+    </div>
+
+
+
+
+
+    <div id="listModal" class="edit-form-modal" style="display:none;">
+        <div class="edit-form-framing">
+            <span class="close-btn" id="closeListModal">&times;</span>
+            <div class="action-form">
+                <h2>Add to List</h2>
+
+                <div style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #444;">
+                    <input type="text" id="newListName" placeholder="New list name..." class="modern_text_field">
+                    <div style="margin-top:10px;">
+                        <label><input type="radio" name="listPrivacy" value="public" checked> Public</label>
+                        <label style="margin-left:15px;"><input type="radio" name="listPrivacy" value="private">
+                            Private</label>
+                    </div>
+                    <button id="createNewListBtn" class="action-btn" style="margin-top:10px; width:100%;">Create &
+                        Add</button>
+                </div>
+
+                <label>Or select an existing list:</label>
+                <select id="existingListsDropdown" class="modern_dropdown">
+                    <option value="">-- Loading Lists --</option>
+                </select>
+                <button id="addToListBtn" class="action-btn" style="margin-top:15px; width:100%;">Add to Selected
+                    List</button>
+
+                <p id="listMessage" class="form-message"></p>
+            </div>
         </div>
     </div>
-</div>
 
 
-<div id="lightboxOverlay" class="lightbox-overlay" style="display:none;">
-    <span class="lightbox-close">&times;</span>
-    <img class="lightbox-image" src="" alt="Lightbox Image">
-    <a class="lightbox-prev">&#10094;</a>
-    <a class="lightbox-next">&#10095;</a>
-</div>
+    <div id="tagEditModal" class="edit-form-modal" style="display:none;">
+        <div class="edit-form-framing">
+            <span class="close-btn" id="closeTagEditModal">&times;</span>
+            <div class="action-form">
+                <h2>Edit Tags</h2>
+                <p style="font-size: 0.9em; color: #aaa; margin-bottom: 15px;">Separate tags with commas.</p>
+
+                <textarea id="tagEditInput" placeholder="tag1, tag2, tag3" class="modern_text_field" rows="4"
+                    style="resize: vertical;"></textarea>
+
+                <p id="tagEditMessage" class="form-message"></p>
+                <button id="saveTagsBtn" class="action-btn" style="margin-top:15px; width:100%;">Save Tags</button>
+            </div>
+        </div>
+    </div>
 
 
-<div style="position: relative;">
-    <div id="footer"></div>
-</div>
-<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
+    <div id="lightboxOverlay" class="lightbox-overlay" style="display:none;">
+        <span class="lightbox-close">&times;</span>
+        <img class="lightbox-image" src="" alt="Lightbox Image">
+        <a class="lightbox-prev">&#10094;</a>
+        <a class="lightbox-next">&#10095;</a>
+    </div>
 
 
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <div style="position: relative;">
+        <div id="footer"></div>
+    </div>
+    <script>fetch('../footer.html').then(res => res.text()).then(html => { document.getElementById('footer').innerHTML = html; });</script>
 
-<script type="module" src="./item-details.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+
+    <script type="module" src="./item-details.js"></script>
 </body>
+
 </html>

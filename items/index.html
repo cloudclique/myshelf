@@ -15,8 +15,36 @@
     <link rel="icon" type="image/x-icon"
         href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
     <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 </head>
+<style>.thumbnail-selector {
+    width: 95px;
+    height: 95px;
+    border: 2px dashed #555;
+    border-radius: 8px;
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.3s;
+}
 
+.thumbnail-selector:hover {
+    border-color: var(--accent-clr, #007bff);
+}
+
+.thumbnail-selector img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+#cropModal .modal-content {
+    background: #1a1a1a;
+    color: white;
+}</style>
 <body>
     <div style="position: relative;">
         <div id="header"></div>
@@ -87,6 +115,28 @@
 
 
                 </div>
+
+<div class="image-upload-group">
+    <label>Thumbnail (95x95):</label>
+    <div id="thumbnailPreviewContainer" class="thumbnail-selector" onclick="document.getElementById('thumbnailInput').click()">
+        <img id="thumbnailPreviewDisplay" src="https://placehold.co/95x95?text=Click+to+Upload" alt="Thumbnail Preview">
+        <input type="file" id="thumbnailInput" accept="image/*" style="display: none;">
+    </div>
+    <p class="image-note">This image will be cropped to 95x95 and set as the primary image.</p>
+</div>
+
+<div id="cropModal" class="modal" style="display:none; z-index: 2000;">
+    <div class="modal-content" style="max-width: 500px;">
+        <h3>Crop Thumbnail</h3>
+        <div style="max-height: 400px; width: 100%; overflow: hidden; background: #000;">
+            <img id="imageToCrop" style="max-width: 100%;">
+        </div>
+        <div class="modal-actions" style="margin-top: 15px;">
+            <button id="saveCropBtn" class="action-btn">Crop & Save</button>
+            <button id="cancelCropBtn" class="action-btn cancel-btn">Cancel</button>
+        </div>
+    </div>
+</div>
 
                 <div class="image-upload-group">
                     <label for="editImage">Update/Add Images (Max 6, 5MB each):</label>

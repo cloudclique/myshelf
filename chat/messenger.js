@@ -619,6 +619,7 @@ async function sendMessage() {
         const tempMsgElement = messageList.firstChild;
         tempMsgElement.classList.add('optimistic', 'sending');
 
+        const timestamp = firebase.firestore.FieldValue.serverTimestamp();
         const message = {
             senderId: currentUserId,
             text: messageText,

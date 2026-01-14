@@ -342,6 +342,7 @@ const moveInteraction = (clientX, clientY) => {
 const stopInteraction = () => {
     isDragging = false;
     cropCanvas.style.cursor = 'grab';
+    clampImagePosition();
 };
 
 // Mouse Listeners
@@ -392,6 +393,7 @@ zoomSlider.oninput = (e) => {
 
 // Save the 95x95 cut
 saveCropBtn.onclick = () => {
+    clampImagePosition();
     const outCanvas = document.createElement('canvas');
     outCanvas.width = 95; outCanvas.height = 95;
     const outCtx = outCanvas.getContext('2d');

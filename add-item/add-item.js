@@ -311,6 +311,7 @@ const moveDragging = (clientX, clientY) => {
 
 const stopDragging = () => {
     isDragging = false;
+    clampImagePosition();
 };
 
 if (cropContainer) {
@@ -360,6 +361,7 @@ if (zoomSlider) {
 // 5. Save & Cut Logic (The 95x95 Requirement)
 if (saveCropBtn) {
     saveCropBtn.onclick = () => {
+        clampImagePosition();
         const outputCanvas = document.createElement('canvas');
         outputCanvas.width = 95;
         outputCanvas.height = 95;

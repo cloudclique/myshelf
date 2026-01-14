@@ -2473,6 +2473,13 @@ function setupStarRating() {
     updateStars(currentValue);
 
     stars.forEach(star => {
+        const setValue = (e) => {
+            e.preventDefault(); // Prevent touch triggering click twice
+            currentValue = parseInt(star.dataset.value);
+            input.value = currentValue;
+            updateStars(currentValue);
+        };
+
         star.addEventListener('mouseover', () => {
             const hoverValue = parseInt(star.dataset.value);
             updateStars(hoverValue, true);
@@ -2482,11 +2489,9 @@ function setupStarRating() {
             updateStars(currentValue);
         });
 
-        star.addEventListener('click', () => {
-            currentValue = parseInt(star.dataset.value);
-            input.value = currentValue;
-            updateStars(currentValue);
-        });
+        // Handle both click and touch
+        star.addEventListener('click', setValue);
+        star.addEventListener('touchstart', setValue);
     });
 
     function updateStars(value, isHover = false) {
@@ -2499,6 +2504,7 @@ function setupStarRating() {
         });
     }
 }
+
 
 
 // --- DOM Elements ---

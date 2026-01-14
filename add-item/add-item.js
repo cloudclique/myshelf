@@ -280,24 +280,47 @@ function drawCropper() {
     );
 }
 
-// 3. Dragging Logic
-if (cropContainer) {
-    cropContainer.onmousedown = (e) => {
-        isDragging = true;
-        startDragPos = { x: e.clientX - currentPos.x, y: e.clientY - currentPos.y };
-    };
-    
-    window.onmousemove = (e) => {
-        if (!isDragging) return;
-        e.preventDefault();
-        currentPos.x = e.clientX - startDragPos.x;
-        currentPos.y = e.clientY - startDragPos.y;
-        drawCropper();
-    };
+// --- 3. Dragging Logic (Mouse & Touch) ---
 
-    window.onmouseup = () => {
-        isDragging = false;
-    };
+const startDragging = (clientX, clientY) => {
+    isDragging = true;
+    startDragPos = { x: clientX - currentPos.x, y: clientY - currentPos.y };
+};
+
+const moveDragging = (clientX, clientY) => {
+    if (!isDragging) return;
+    currentPos.x = clientX - startDragPos.x;
+    currentPos.y = clientY - startDragPos.y;
+    drawCropper();
+};
+
+const stopDragging = () => {
+    isDragging = false;
+};
+
+if (cropContainer) {
+    // Mouse Events
+    cropContainer.onmousedown = (e) => startDragging(e.clientX, e.clientY);
+    window.onmousemove = (e) => moveDragging(e.clientX, e.clientY);
+    window.onmouseup = stopDragging;
+
+    // Touch Events
+    cropContainer.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            // Prevent scrolling while dragging inside the cropper
+            e.preventDefault(); 
+            startDragging(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchmove', (e) => {
+        if (isDragging && e.touches.length === 1) {
+            e.preventDefault(); // Prevent page bounce/scroll
+            moveDragging(e.touches[0].clientX, e.touches[0].clientY);
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchend', stopDragging);
 }
 
 // 4. Zoom Logic

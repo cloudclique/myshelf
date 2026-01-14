@@ -257,21 +257,37 @@ async function convertFileToWebp(file) {
 
 function resetCropper() {
     const containerSize = 300;
-    // Fit scale logic used in add-item.js
-    const fitScale = Math.min(containerSize / cropperImg.width, containerSize / cropperImg.height);
-    
+
+    const imgW = cropperImg.width;
+    const imgH = cropperImg.height;
+
+    let fitScale;
+
+    // Portrait → fit width, Landscape → fit height
+    if (imgH > imgW) {
+        // Portrait
+        fitScale = containerSize / imgW;
+    } else {
+        // Landscape or square
+        fitScale = containerSize / imgH;
+    }
+
     currentScale = fitScale;
-    zoomSlider.min = fitScale * 0.5;
+
+    zoomSlider.min = fitScale;
     zoomSlider.max = fitScale * 5;
     zoomSlider.step = 0.001;
     zoomSlider.value = fitScale;
 
+    // Center image
     currentPos = {
-        x: (containerSize - cropperImg.width * fitScale) / 2,
-        y: (containerSize - cropperImg.height * fitScale) / 2
+        x: (containerSize - imgW * fitScale) / 2,
+        y: (containerSize - imgH * fitScale) / 2
     };
+
     drawCropper();
 }
+
 
 // --- Interaction Logic (Mouse + Touch) ---
 

@@ -3017,7 +3017,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 .star-rating {
     display: flex;
-    gap: 2px;
+    gap: 5px;
 }
 
 .star-rating i {

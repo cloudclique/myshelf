@@ -797,7 +797,7 @@ function renderItemDetails(item, userStatus, privateData = {}, canEdit = false) 
     const mainImage = document.getElementById('mainGalleryImage');
     if (mainImage) {
         mainImage.onclick = () => {
-            const index = parseInt(mainImage.dataset.index || 0, 10);
+            const index = parseInt(mainImage.dataset.index || 1, 10);
             openLightbox(index);
         };
     }

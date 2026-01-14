@@ -3013,3 +3013,25 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     grid-template-columns: repeat(1, 1fr);
     }
 }
+
+
+.star-rating {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 15px;
+}
+
+.star-rating i {
+    font-size: 1.5rem;
+    color: #666;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.star-rating i.hover {
+    color: #ffc107;
+}
+
+.star-rating i.active {
+    color: #ffc107;
+}

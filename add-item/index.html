@@ -37,7 +37,10 @@
 </head>
 <body>
 
-<div id="header"></div>
+<div style="position: relative;">
+    <div id="header"></div>
+    <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
+</div>
 <script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
 
 <div id="confirmationModal" class="modal">

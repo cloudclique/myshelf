@@ -14,7 +14,22 @@ let allPublicListsForThisItem = [];
 let listsCurrentPage = 1;
 let currentPrivateData = {};
 
+// New Cropper DOM
+const thumbnailInput = document.getElementById('editThumbnailInput');
+const thumbnailTrigger = document.getElementById('editThumbnailTrigger');
+const cropperModal = document.getElementById('cropperModal');
+const cropCanvas = document.getElementById('cropCanvas');
+const zoomSlider = document.getElementById('zoomSlider');
+const saveCropBtn = document.getElementById('saveCropBtn');
+const cancelCropBtn = document.getElementById('cancelCropBtn');
 
+// New State
+let selectedThumbnailFile = null; // Holds the 95x95 Blob
+let cropperImg = new Image();
+let currentScale = 1;
+let currentPos = { x: 0, y: 0 };
+let isDragging = false;
+let startDrag = { x: 0, y: 0 };
 
 // --- DOM Elements ---
 const listModal = document.getElementById('listModal');
@@ -190,6 +205,67 @@ async function saveTags() {
     }
 }
 
+// --- Cropper Logic ---
+thumbnailTrigger.onclick = () => thumbnailInput.click();
+
+thumbnailInput.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        cropperImg.onload = () => {
+            cropperModal.style.display = 'block';
+            resetCropper();
+        };
+        cropperImg.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+};
+
+function resetCropper() {
+    const ratio = Math.min(300 / cropperImg.width, 300 / cropperImg.height);
+    currentScale = ratio;
+    zoomSlider.value = ratio;
+    currentPos = { x: (300 - cropperImg.width * ratio) / 2, y: (300 - cropperImg.height * ratio) / 2 };
+    drawCropper();
+}
+
+function drawCropper() {
+    const ctx = cropCanvas.getContext('2d');
+    cropCanvas.width = 300; cropCanvas.height = 300;
+    ctx.clearRect(0, 0, 300, 300);
+    ctx.drawImage(cropperImg, currentPos.x, currentPos.y, cropperImg.width * currentScale, cropperImg.height * currentScale);
+}
+
+// Drag & Zoom Listeners
+cropCanvas.onmousedown = (e) => { isDragging = true; startDrag = { x: e.clientX - currentPos.x, y: e.clientY - currentPos.y }; };
+window.onmousemove = (e) => { if (!isDragging) return; currentPos.x = e.clientX - startDrag.x; currentPos.y = e.clientY - startDrag.y; drawCropper(); };
+window.onmouseup = () => isDragging = false;
+zoomSlider.oninput = (e) => {
+    const oldScale = currentScale;
+    currentScale = parseFloat(e.target.value);
+    currentPos.x = 150 - (150 - currentPos.x) * (currentScale / oldScale);
+    currentPos.y = 150 - (150 - currentPos.y) * (currentScale / oldScale);
+    drawCropper();
+};
+
+// Save the 95x95 cut
+saveCropBtn.onclick = () => {
+    const outCanvas = document.createElement('canvas');
+    outCanvas.width = 95; outCanvas.height = 95;
+    const outCtx = outCanvas.getContext('2d');
+    const offset = (300 - 95) / 2; // Offset to match the visual frame
+    outCtx.drawImage(cropperImg, currentPos.x - offset, currentPos.y - offset, cropperImg.width * currentScale, cropperImg.height * currentScale);
+    
+    outCanvas.toBlob((blob) => {
+        selectedThumbnailFile = new File([blob], "thumb.webp", { type: "image/webp" });
+        thumbnailTrigger.innerHTML = `<img src="${URL.createObjectURL(blob)}" style="width:100%; height:100%; object-fit:cover;">`;
+        cropperModal.style.display = 'none';
+        updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
+    }, 'image/webp');
+};
+
+cancelCropBtn.onclick = () => { cropperModal.style.display = 'none'; };
 
 // --- Helpers ---
 async function updateProfileCounters(userId) {
@@ -891,48 +967,63 @@ editItemForm.addEventListener('submit', async (e) => {
         lastEdited: firebase.firestore.FieldValue.serverTimestamp()
     };
 
-    // --- NEW: Multi-Image Upload Logic ---
-    // currentItemImageUrls already contains the non-removed image objects and is correctly ordered.
-    let retainedImageObjects = currentItemImageUrls;
+    // --- UPDATED: Multi-Image & Thumbnail Logic ---
+    let finalImageObjects = [...currentItemImageUrls]; 
 
-    if (selectedImageFiles.length > 0) {
-        editMessage.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
-        editMessage.className = 'form-message';
+    try {
+        // 1. Handle New Cropped Thumbnail (95x95)
+        // This ensures the cropped image ALWAYS becomes Index 0
+        if (selectedThumbnailFile) {
+            editMessage.textContent = "Uploading new thumbnail...";
+            const thumbObject = await uploadImageToImgBB(selectedThumbnailFile);
+            
+            // If the user cropped a new thumbnail, we insert it at the start.
+            // We usually remove the old index 0 if it was the previous thumbnail, 
+            // or simply unshift it to make it the new primary.
+            finalImageObjects.unshift(thumbObject);
+            
+            // Clean up the variable after assignment
+            selectedThumbnailFile = null; 
+        }
 
-        try {
-            // uploadPromises now return image objects {url, deleteUrl}
+        // 2. Handle Additional Multi-Image Uploads
+        if (selectedImageFiles.length > 0) {
+            const currentTotal = finalImageObjects.length;
+            editMessage.textContent = `Uploading ${selectedImageFiles.length} additional image(s)...`;
+            
             const uploadPromises = selectedImageFiles.map(file => uploadImageToImgBB(file));
-            const uploadedImageObjects = await Promise.all(uploadPromises);
+            const uploadedNewImages = await Promise.all(uploadPromises);
 
-            // Append newly uploaded objects to the existing/retained objects
-            retainedImageObjects = [...retainedImageObjects, ...uploadedImageObjects];
+            // Append new images after the thumbnail and existing images
+            finalImageObjects = [...finalImageObjects, ...uploadedNewImages];
 
-            // Clear the file input and temporary file object array after successful upload
+            // Reset file inputs
             editImageInput.value = '';
             selectedImageFiles = [];
-        } catch (error) {
-            editMessage.textContent = `Image upload failed: ${error.message}`;
-            editMessage.className = 'form-message error-message';
-            return; // Stop the save process
         }
-    }
 
-    // Check total count before saving (This check is redundant if done in handleImageFileChange, but kept as a final safeguard)
-    if (retainedImageObjects.length > MAX_IMAGE_COUNT) {
-        editMessage.textContent = `Error: Total images (existing + new) exceeds maximum of ${MAX_IMAGE_COUNT}. Please remove some.`;
+        // 3. Final Validation & Array Cleanup
+        if (finalImageObjects.length > MAX_IMAGE_COUNT) {
+            editMessage.textContent = `Error: Total images (${finalImageObjects.length}) exceeds maximum of ${MAX_IMAGE_COUNT}.`;
+            editMessage.className = 'form-message error-message';
+            return;
+        }
+
+        // Assign the ordered array to our update object
+        updatedData.itemImageUrls = finalImageObjects;
+
+    } catch (error) {
+        editMessage.textContent = `Upload failed: ${error.message}`;
         editMessage.className = 'form-message error-message';
         return;
     }
-
-    // Save the new array of image objects. 
-    updatedData.itemImageUrls = retainedImageObjects;
 
     // Explicitly clean up legacy single-image fields
     if (itemData.itemImageUrl) updatedData.itemImageUrl = firebase.firestore.FieldValue.delete();
     if (itemData.itemImageBase64) updatedData.itemImageBase64 = firebase.firestore.FieldValue.delete();
     if (itemData.itemImage) updatedData.itemImage = firebase.firestore.FieldValue.delete();
 
-    // --- END NEW: Multi-Image Upload Logic ---
+    // --- END UPDATED Logic ---
 
     try {
         await db.collection('items').doc(itemId).set(updatedData, { merge: true });
@@ -940,15 +1031,14 @@ editItemForm.addEventListener('submit', async (e) => {
         editMessage.textContent = "Details updated successfully! Closing in 1 second...";
         editMessage.className = 'form-message success-message';
 
-        // Update the current state for subsequent display/edits
-        currentItemImageUrls = retainedImageObjects;
+        // Update local state
+        currentItemImageUrls = finalImageObjects;
 
-        // NEW: Close the modal and refresh details
         setTimeout(() => {
             closeEditModal();
             editToggleBtn.innerHTML = '<i class="bi bi-gear-wide-connected"></i>';
             fetchItemDetails(itemId);
-        }, 100);
+        }, 1000); // Slightly longer delay to allow user to see success
 
     } catch (error) {
         editMessage.textContent = `Error saving edits: ${error.message}`;

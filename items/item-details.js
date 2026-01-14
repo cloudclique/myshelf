@@ -223,10 +223,24 @@ thumbnailInput.onchange = (e) => {
 };
 
 function resetCropper() {
-    const ratio = Math.min(300 / cropperImg.width, 300 / cropperImg.height);
-    currentScale = ratio;
-    zoomSlider.value = ratio;
-    currentPos = { x: (300 - cropperImg.width * ratio) / 2, y: (300 - cropperImg.height * ratio) / 2 };
+    const containerSize = 300;
+    // Calculate the scale that fits the entire image inside the 300x300 box
+    const fitScale = Math.min(containerSize / cropperImg.width, containerSize / cropperImg.height);
+    
+    currentScale = fitScale;
+    // Allow zooming out to 80% of the "fit" size so you can see the edges clearly
+    const minZoomLimit = fitScale * 0.8; 
+    
+    zoomSlider.min = minZoomLimit;
+    zoomSlider.max = fitScale * 5; // Allow zooming in up to 5x from fit
+    zoomSlider.step = 0.001;       // High precision for smooth movement
+    zoomSlider.value = fitScale;
+
+    // Center the image initially within the 300x300 container
+    currentPos = {
+        x: (containerSize - cropperImg.width * fitScale) / 2,
+        y: (containerSize - cropperImg.height * fitScale) / 2
+    };
     drawCropper();
 }
 
@@ -244,8 +258,15 @@ window.onmouseup = () => isDragging = false;
 zoomSlider.oninput = (e) => {
     const oldScale = currentScale;
     currentScale = parseFloat(e.target.value);
-    currentPos.x = 150 - (150 - currentPos.x) * (currentScale / oldScale);
-    currentPos.y = 150 - (150 - currentPos.y) * (currentScale / oldScale);
+    
+    // Calculate the center of the canvas
+    const centerX = 150;
+    const centerY = 150;
+
+    // Adjust the position (X and Y) so the zoom stays centered on the preview frame
+    currentPos.x = centerX - (centerX - currentPos.x) * (currentScale / oldScale);
+    currentPos.y = centerY - (centerY - currentPos.y) * (currentScale / oldScale);
+    
     drawCropper();
 };
 

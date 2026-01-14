@@ -50,6 +50,60 @@ const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 
+// --- Hover Tooltip Logic ---
+const hoverTooltip = document.createElement('div');
+hoverTooltip.className = 'hover-tooltip';
+document.body.appendChild(hoverTooltip);
+
+let hoverTimeout = null;
+
+latestAdditionsGrid.addEventListener('mouseover', (e) => {
+    const cardLink = e.target.closest('.item-card-link');
+    if (!cardLink) return;
+
+    const itemName = cardLink.querySelector('h3')?.textContent || 'No Title';
+    const displayTitle = itemName.length > 50 ? itemName.substring(0, 50) + '...' : itemName;
+
+    hoverTimeout = setTimeout(() => {
+        hoverTooltip.textContent = displayTitle;
+        hoverTooltip.classList.add('visible');
+    }, 500);
+});
+
+latestAdditionsGrid.addEventListener('mouseout', (e) => {
+    const cardLink = e.target.closest('.item-card-link');
+    if (!cardLink) return;
+
+    clearTimeout(hoverTimeout);
+    hoverTooltip.classList.remove('visible');
+});
+
+latestAdditionsGrid.addEventListener('mousemove', (e) => {
+    if (hoverTooltip.classList.contains('visible') || hoverTimeout) {
+        const tooltipWidth = hoverTooltip.offsetWidth;
+        const tooltipHeight = hoverTooltip.offsetHeight;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        let left = e.clientX + 15;
+        let top = e.clientY + 15;
+
+        // Reflect horizontally if it goes off screen
+        if (left + tooltipWidth > viewportWidth) {
+            left = e.clientX - tooltipWidth - 15;
+        }
+
+        // Reflect vertically if it goes off screen
+        if (top + tooltipHeight > viewportHeight) {
+            top = e.clientY - tooltipHeight - 15;
+        }
+
+        hoverTooltip.style.left = left + 'px';
+        hoverTooltip.style.top = top + 'px';
+    }
+});
+
+
 // --- HELPERS ---
 function createItemCard(itemData) {
     const link = document.createElement('a');
@@ -71,9 +125,13 @@ function createItemCard(itemData) {
         } img-align-ver-${['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'
         }`;
 
+    const isAdultContent = (itemData.itemAgeRating === '18+' || itemData.itemAgeRating === 'Adult');
+    const shouldBlur = isAdultContent && !allowNSFW;
+
     card.innerHTML = `
-        <div class="item-image-wrapper">
+        <div class="item-image-wrapper ${shouldBlur ? 'nsfw-blur' : ''}">
             <img src="${imageSource}" alt="${itemData.itemName}" class="${imageClasses}">
+            ${shouldBlur ? '<div class="nsfw-overlay">18+</div>' : ''}
         </div>
         <div class="item-info">
             <h3>${itemData.itemName || 'Untitled'}</h3>
@@ -159,13 +217,8 @@ async function fetchAllItems() {
             return data;
         });
 
-        // --- APPLY NSFW FILTER ---
-        filteredItems = allItems.filter(item => {
-            if (!allowNSFW && item.itemAgeRating === '18+') {
-                return false;
-            }
-            return true;
-        });
+        // --- NO LONGER FILTERING NSFW ---
+        filteredItems = [...allItems];
 
         restoreStateFromURL();
         handleSearch(false);
@@ -186,10 +239,7 @@ function handleSearch(resetPage = true) {
     const query = searchInput.value.trim().toLowerCase();
 
     if (!query) {
-        filteredItems = allItems.filter(item => {
-            if (!allowNSFW && item.itemAgeRating === '18+') return false;
-            return true;
-        });
+        filteredItems = [...allItems];
     } else {
         const regex = /\{([^}]+)\}|(\S+)/g;
         const requiredKeywords = [];
@@ -207,8 +257,7 @@ function handleSearch(resetPage = true) {
         }
 
         filteredItems = allItems.filter(item => {
-            // Respect NSFW settings
-            if (!allowNSFW && item.itemAgeRating === '18+') return false;
+            // No longer filtering by 18+ here, we will blur in the card rendering
 
             const name = (item.itemName || '').toLowerCase();
             const tags = (item.tags || []).map(t => t.toLowerCase());
@@ -237,10 +286,7 @@ function handleSearch(resetPage = true) {
 
 function handleClearSearch() {
     searchInput.value = '';
-    filteredItems = allItems.filter(item => {
-        if (!allowNSFW && item.itemAgeRating === '18+') return false;
-        return true;
-    });
+    filteredItems = [...allItems];
 
     currentPage = 1;
     renderItemsWithPagination(filteredItems);
@@ -357,7 +403,6 @@ function updateSearchSuggestions() {
     const addedTexts = new Set(); // track unique text for tag/age/scale/category
 
     for (let item of allItems) {
-        if (!allowNSFW && item.itemAgeRating === '18+') continue;
         if (addedItemIds.has(item.id)) continue;
 
         // Check tags

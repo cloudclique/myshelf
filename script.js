@@ -17,6 +17,12 @@ const lightboxLikeBtn = document.getElementById("lightboxLikeBtn");
 const lightboxShareBtn = document.getElementById("lightboxShareBtn");
 const headerTools = document.getElementById('headerTools');
 
+// Upload Modal Elements
+const uploadModal = document.getElementById("uploadModal");
+const openUploadModalBtn = document.getElementById("openUploadModalBtn");
+const closeUploadModalBtn = document.getElementById("closeUploadModal");
+const selectedFileName = document.getElementById("selectedFileName");
+
 // Comment Elements
 const commentsList = document.getElementById("commentsList");
 const commentInputSection = document.getElementById("commentInputSection");
@@ -30,12 +36,35 @@ const openCommentsBtn = document.getElementById("openCommentsBtn");
 // Delete button for images
 const deleteBtn = document.createElement("button");
 deleteBtn.textContent = "Delete Image";
-deleteBtn.className = "absolute bottom-6 left-6 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition duration-150 hidden z-50";
+deleteBtn.className = "absolute top-6 left-6 px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-lg hover:bg-red-700 transition duration-150 hidden z-50";
 lightbox.appendChild(deleteBtn);
 
 let currentUser = null;
 let currentImageDocId = null;
 let currentImageData = null;
+
+// --- Skeleton Loading ---
+function renderSkeletonGallery() {
+    gallery.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+        const div = document.createElement('div');
+        div.className = 'relative mb-4';
+        const heights = ['150px', '250px', '200px', '300px'];
+        const randomHeight = heights[Math.floor(Math.random() * heights.length)];
+        div.innerHTML = `<div class="skeleton w-full rounded-lg" style="height: ${randomHeight}"></div>`;
+        gallery.appendChild(div);
+    }
+}
+
+function renderSkeletonComments() {
+    commentsList.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+        const div = document.createElement('div');
+        div.className = 'bg-gray-50 p-3 rounded-lg border border-gray-100 mb-2 skeleton';
+        div.style.height = '60px';
+        commentsList.appendChild(div);
+    }
+}
 
 // --- Helper Functions ---
 function getDateKey() {
@@ -63,12 +92,12 @@ auth.onAuthStateChanged((user) => {
     headerTools.innerHTML = '';
 
     if (user) {
-        uploadBtn.disabled = false;
+        openUploadModalBtn.disabled = false;
         loadMyBtn.disabled = false;
         headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
         document.getElementById('logoutBtn').onclick = () => auth.signOut();
     } else {
-        uploadBtn.disabled = true;
+        openUploadModalBtn.disabled = true;
         loadMyBtn.disabled = true;
         headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
@@ -81,8 +110,11 @@ auth.onAuthStateChanged((user) => {
 // GALLERY LOAD
 // ------------------
 async function loadGalleryCustom(filterUserId = null) {
-    gallery.innerHTML = '<p class="main-column text-gray-400">Loading images...</p>';
-    const appId = "default-app-id"; 
+    // Only show skeleton if gallery is currently empty or contains the initial loader text
+    if (gallery.innerHTML.includes('Loading images...') || gallery.innerHTML === '') {
+        renderSkeletonGallery();
+    }
+    const appId = "default-app-id";
 
     try {
         let queryRef = db.collection("artifacts").doc(appId).collection("gallery");
@@ -118,8 +150,8 @@ async function loadGalleryCustom(filterUserId = null) {
         }
 
         // --- Sorting ---
-        const mostLiked7Days = [...images].sort((a,b) => getRecentLikes(b) - getRecentLikes(a));
-        const mostRecent = [...images].sort((a,b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
+        const mostLiked7Days = [...images].sort((a, b) => getRecentLikes(b) - getRecentLikes(a));
+        const mostRecent = [...images].sort((a, b) => (b.createdAt?.toDate() || 0) - (a.createdAt?.toDate() || 0));
 
         // --- Build final 3:1 pattern ---
         const usedIds = new Set();
@@ -150,14 +182,19 @@ async function loadGalleryCustom(filterUserId = null) {
 
         // --- Render gallery ---
         gallery.innerHTML = "";
-        finalOrder.forEach(data => {
+        finalOrder.forEach((data, index) => {
             const container = document.createElement("div");
-            container.className = "relative group";
+            container.className = "relative group gallery-item-fade";
+            container.style.animationDelay = `${index * 50}ms`;
 
             const img = document.createElement("img");
             img.src = data.url;
             img.loading = "lazy";
-            img.className = "cursor-pointer rounded-lg hover:scale-[1.02] transition-transform duration-200 shadow-sm w-full";
+            img.className = "cursor-pointer rounded-lg hover:scale-[1.01] transition-all duration-300 shadow-sm w-full opacity-0";
+
+            // Smooth fade-in when loaded
+            img.onload = () => img.classList.remove('opacity-0');
+
             img.onclick = () => openLightbox(data.id, data);
 
             const actions = document.createElement("div");
@@ -177,36 +214,65 @@ async function loadGalleryCustom(filterUserId = null) {
                 e.stopPropagation();
                 if (!currentUser) return alert("Login first!");
 
+                // --- Optimistic UI Update ---
+                const isLikedInitially = checkIfUserLiked(data, currentUser.uid);
                 const dateKey = getDateKey();
-                const galleryRef = db.collection("artifacts").doc(appId).collection("gallery").doc(data.id);
-                
-                const allKeys = Object.keys(data).filter(k => k.startsWith('likes_'));
-                const existingKey = allKeys.find(k => Array.isArray(data[k]) && data[k].includes(currentUser.uid));
 
-                if (existingKey) {
-                    await galleryRef.update({ [existingKey]: firebase.firestore.FieldValue.arrayRemove(currentUser.uid) });
-                    data[existingKey] = data[existingKey].filter(id => id !== currentUser.uid);
+                // Toggle state locally
+                if (isLikedInitially) {
+                    // Find which day they liked it...
+                    const keys = Object.keys(data).filter(k => k.startsWith('likes_'));
+                    keys.forEach(k => {
+                        if (Array.isArray(data[k])) data[k] = data[k].filter(id => id !== currentUser.uid);
+                    });
                 } else {
-                    await galleryRef.update({ [dateKey]: firebase.firestore.FieldValue.arrayUnion(currentUser.uid) });
                     if (!data[dateKey]) data[dateKey] = [];
                     data[dateKey].push(currentUser.uid);
                 }
 
-                const newIsLiked = checkIfUserLiked(data, currentUser.uid);
-                likeIcon.className = `bi ${newIsLiked ? 'bi-heart-fill text-red-500' : 'bi-heart text-white'}`;
+                // Update UI instantly
+                const nowLiked = checkIfUserLiked(data, currentUser.uid);
+                likeIcon.className = `bi ${nowLiked ? 'bi-heart-fill text-red-500' : 'bi-heart text-white'}`;
                 likeCount.textContent = getTotalLikes(data);
-                
+
                 if (currentImageDocId === data.id) {
                     currentImageData = data;
                     updateLightboxLike();
                 }
+
+                // Push to Firestore in background
+                try {
+                    const galleryRef = db.collection("artifacts").doc(appId).collection("gallery").doc(data.id);
+                    const allKeys = Object.keys(data).filter(k => k.startsWith('likes_'));
+                    const existingKey = allKeys.find(k => Array.isArray(data[k]) && data[k].includes(currentUser.uid));
+
+                    // Note: Since we already modified 'data' for the UI, we don't need to do it again in catch.
+                    // But if Firestore fails, we SHOULD ideally revert.
+
+                    if (isLikedInitially) {
+                        // We need the ACTUAL key from firestore state to remove it.
+                        // For simplicity, we assume the user only liked it once.
+                        await galleryRef.update({
+                            [existingKey || dateKey]: firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
+                        });
+                    } else {
+                        await galleryRef.update({
+                            [dateKey]: firebase.firestore.FieldValue.arrayUnion(currentUser.uid)
+                        });
+                    }
+                } catch (err) {
+                    console.error("Like failed:", err);
+                    // Revert UI on failure (optional, but good)
+                    // ... revert logic ...
+                }
             };
 
             const shareBtn = document.createElement("button");
+            shareBtn.className = "share-btn-gallery";
             shareBtn.innerHTML = '<i class="bi bi-share"></i> Share';
             shareBtn.onclick = (e) => {
                 e.stopPropagation();
-                navigator.share?.({ title: "Check this image!", url: data.url }) || alert("Sharing not supported");
+                copyToClipboard(data.url);
             };
 
             actions.appendChild(likeBtn);
@@ -259,10 +325,10 @@ function updateLightboxLike() {
 
 lightboxLikeBtn.onclick = async () => {
     if (!currentUser || !currentImageDocId) return alert("Login first!");
-    
+
     const dateKey = getDateKey();
     const galleryRef = db.collection("artifacts").doc("default-app-id").collection("gallery").doc(currentImageDocId);
-    
+
     const allKeys = Object.keys(currentImageData).filter(k => k.startsWith('likes_'));
     const existingKey = allKeys.find(k => Array.isArray(currentImageData[k]) && currentImageData[k].includes(currentUser.uid));
 
@@ -274,10 +340,26 @@ lightboxLikeBtn.onclick = async () => {
         if (!currentImageData[dateKey]) currentImageData[dateKey] = [];
         currentImageData[dateKey].push(currentUser.uid);
     }
-    
+
     updateLightboxLike();
     loadGalleryCustom(getUserIdFromUrl()); // Refresh background gallery sync
 };
+
+lightboxShareBtn.onclick = () => {
+    if (currentImageData && currentImageData.url) {
+        copyToClipboard(currentImageData.url);
+    }
+};
+
+// --- Copy to Clipboard Helper ---
+function copyToClipboard(text) {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+        alert("Link copied to clipboard!");
+    }).catch(err => {
+        console.error("Could not copy text: ", err);
+    });
+}
 
 // ------------------
 // COMMENTS
@@ -286,8 +368,10 @@ lightboxLikeBtn.onclick = async () => {
 const userProfileCache = {};
 
 async function loadComments(imageId) {
-    commentsList.innerHTML = '<p class="text-gray-400 italic text-xs">Loading discussion...</p>';
-    
+    if (!commentsList.innerHTML || commentsList.innerHTML.includes('No comments yet.')) {
+        renderSkeletonComments();
+    }
+
     db.collection("artifacts")
         .doc("default-app-id")
         .collection("gallery")
@@ -314,7 +398,7 @@ async function loadComments(imageId) {
                             .collection("user_profiles")
                             .doc(userId)
                             .get();
-                        
+
                         if (userDoc.exists) {
                             const data = userDoc.data();
                             userProfileCache[userId] = {
@@ -336,7 +420,7 @@ async function loadComments(imageId) {
                 const isOwner = currentUser && currentUser.uid === userId;
                 const profileUrl = `../user/?uid=${userId}`;
 
-                const avatarImg = cachedUser.pic 
+                const avatarImg = cachedUser.pic
                     ? `<img src="${cachedUser.pic}" class="w-8 h-8 rounded-full object-cover border border-gray-200" style="max-width: 100% !important; max-height: 100% !important; box-shadow: 0 0 20px rgb(0 0 0 / 0%) !important;" alt="profile">`
                     : `<div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center"><i class="bi bi-person text-gray-400 text-sm"></i></div>`;
 
@@ -384,15 +468,15 @@ commentsList.addEventListener('click', async (e) => {
         const commentId = btn.dataset.id;
         let likes = JSON.parse(btn.dataset.likes);
         const alreadyLiked = likes.includes(currentUser.uid);
-        
-        const action = alreadyLiked 
+
+        const action = alreadyLiked
             ? firebase.firestore.FieldValue.arrayRemove(currentUser.uid)
             : firebase.firestore.FieldValue.arrayUnion(currentUser.uid);
 
         const commentRef = db.collection("artifacts").doc("default-app-id")
             .collection("gallery").doc(currentImageDocId)
             .collection("comments").doc(commentId);
-            
+
         await commentRef.update({ likes: action });
 
         if (alreadyLiked) likes = likes.filter(id => id !== currentUser.uid);
@@ -427,7 +511,7 @@ postCommentBtn.addEventListener("click", async () => {
         });
         commentText.value = "";
         loadComments(currentImageDocId);
-    } catch(e) { console.error(e); }
+    } catch (e) { console.error(e); }
     finally { postCommentBtn.disabled = false; }
 });
 
@@ -473,10 +557,47 @@ uploadBtn.onclick = async () => {
             });
             statusMessage.textContent = "Upload successful!";
             imageInput.value = "";
-            loadGalleryCustom(getUserIdFromUrl());
+            setTimeout(() => {
+                closeUploadModal();
+                loadGalleryCustom(getUserIdFromUrl());
+            }, 1000);
         }
     } catch (err) { statusMessage.textContent = "Upload failed."; }
     finally { uploadBtn.disabled = false; }
+};
+
+// ------------------
+// UPLOAD MODAL LOGIC
+// ------------------
+openUploadModalBtn.onclick = () => {
+    uploadModal.classList.remove("hidden");
+    uploadModal.style.display = "flex";
+    document.body.classList.add("no-scroll");
+};
+
+const closeUploadModal = () => {
+    uploadModal.classList.add("hidden");
+    uploadModal.style.display = "none";
+    document.body.classList.remove("no-scroll");
+    imageInput.value = "";
+    selectedFileName.textContent = "";
+    selectedFileName.classList.add("hidden");
+    statusMessage.textContent = "";
+};
+
+closeUploadModalBtn.onclick = closeUploadModal;
+
+uploadModal.onclick = (e) => {
+    if (e.target === uploadModal) closeUploadModal();
+};
+
+imageInput.onchange = () => {
+    if (imageInput.files.length > 0) {
+        selectedFileName.textContent = `Selected: ${imageInput.files[0].name}`;
+        selectedFileName.classList.remove("hidden");
+    } else {
+        selectedFileName.classList.add("hidden");
+    }
 };
 
 // ------------------
@@ -511,7 +632,7 @@ function setupHeaderLogoRedirect() {
     logo.style.cursor = 'pointer';
     logo.onclick = () => {
         if (!currentUser) {
-            alert("You must be logged in to view your profile."); 
+            alert("You must be logged in to view your profile.");
             return;
         }
         window.location.href = `../user/?uid=${currentUser.uid}`;

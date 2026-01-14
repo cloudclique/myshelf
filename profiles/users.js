@@ -11,19 +11,71 @@ const headerTools = document.getElementById("headerTools");
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
+// --- Local Cache ---
+let cachedProfiles = null;
+let lastFetchTime = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
+/**
+ * Render skeleton loaders for user cards
+ */
+function renderSkeletonProfiles(container, count = 1) {
+    container.innerHTML = "";
+    for (let i = 0; i < count; i++) {
+        const div = document.createElement("div");
+        div.className = "user-card"; // Reusing user-card for basic layout
+        div.style.pointerEvents = "none";
+        div.innerHTML = `
+            <div class="user-card-left">
+                <div class="skeleton user-avatar"></div>
+            </div>
+            <div class="user-card-body">
+                <div class="skeleton skeleton-text" style="width: 120px; margin: 5px 0 10px 0;"></div>
+                <div class="skeleton skeleton-text short" style="margin: 5px 0;"></div>
+                <div class="skeleton skeleton-text short" style="margin: 5px 0;"></div>
+            </div>
+        `;
+        container.appendChild(div);
+    }
+}
+
 /**
  * Fetch all user profiles from Firestore
  */
 async function fetchAllUserProfiles() {
+    // Return cache if valid
+    if (cachedProfiles && (Date.now() - lastFetchTime < CACHE_DURATION)) {
+        return cachedProfiles;
+    }
+
     try {
         const profilesRef = db.collection('artifacts')
             .doc(appId)
             .collection('user_profiles');
 
         const snap = await profilesRef.get();
-        return snap.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+        cachedProfiles = snap.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+        lastFetchTime = Date.now();
+        return cachedProfiles;
     } catch (e) {
         console.error("Error fetching all user profiles:", e);
+        return cachedProfiles || []; // Return stale cache on error if available
+    }
+}
+
+/**
+ * Optimized fetch for top users (Firestore side)
+ */
+async function fetchTopUsers(limitCount = 10) {
+    try {
+        const profilesRef = db.collection('artifacts')
+            .doc(appId)
+            .collection('user_profiles');
+
+        const snap = await profilesRef.orderBy('itemsOwned', 'desc').limit(limitCount + 1).get();
+        return snap.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+    } catch (e) {
+        console.error("Error fetching top users:", e);
         return [];
     }
 }
@@ -48,7 +100,7 @@ function createUserCard(user, container, isPinned = false) {
 
     // Use user.profilePic (Base64 or URL), else fallback image
     const profilePic = user.profilePic
-        ? user.profilePic 
+        ? user.profilePic
         : "https://placehold.co/40x40/cccccc/ffffff?text=User"; // provide an existing placeholder in your project
 
     card.innerHTML = `
@@ -74,19 +126,30 @@ function createUserCard(user, container, isPinned = false) {
  * Show pinned logged-in user
  */
 async function showPinnedUser(currentUserUid) {
+    if (!currentUserUid) {
+        pinnedContainer.innerHTML = "<p>No logged-in user.</p>";
+        return null;
+    }
+
+    renderSkeletonProfiles(pinnedContainer, 1);
     try {
-        const allProfiles = await fetchAllUserProfiles();
-        const currentUser = allProfiles.find(u => u.uid === currentUserUid);
+        // Fetch only the specific user doc
+        const profileDoc = await db.collection('artifacts')
+            .doc(appId)
+            .collection('user_profiles')
+            .doc(currentUserUid)
+            .get();
 
         pinnedContainer.innerHTML = "";
 
-        if (!currentUser) {
-            pinnedContainer.innerHTML = "<p>No logged-in user found.</p>";
+        if (!profileDoc.exists) {
+            pinnedContainer.innerHTML = "<p>Profile not found.</p>";
             return null;
         }
 
-        createUserCard(currentUser, pinnedContainer, true);
-        return currentUser.uid;
+        const userData = { ...profileDoc.data(), uid: profileDoc.id };
+        createUserCard(userData, pinnedContainer, true);
+        return userData.uid;
     } catch (e) {
         console.error("Error showing pinned user:", e);
         pinnedContainer.innerHTML = "<p>Error loading your profile.</p>";
@@ -98,21 +161,18 @@ async function showPinnedUser(currentUserUid) {
  * Show top 10 users
  */
 async function showTopUsers(excludeUid = null) {
-    searchResults.innerHTML = "";
+    renderSkeletonProfiles(searchResults, 5);
     searchMessage.textContent = "Loading top users...";
     searchMessage.classList.remove("hidden");
 
     try {
-        const allProfiles = await fetchAllUserProfiles();
+        const topUsers = await fetchTopUsers(TOP_USERS);
 
         const filtered = excludeUid
-            ? allProfiles.filter(u => u.uid !== excludeUid)
-            : allProfiles;
+            ? topUsers.filter(u => u.uid !== excludeUid)
+            : topUsers;
 
-        const sorted = filtered
-            .map(u => ({ ...u, ownedCount: u.itemsOwned || 0 }))
-            .sort((a, b) => b.ownedCount - a.ownedCount)
-            .slice(0, TOP_USERS);
+        const sorted = filtered.slice(0, TOP_USERS);
 
         if (sorted.length === 0) {
             searchMessage.textContent = "No users found.";
@@ -121,6 +181,7 @@ async function showTopUsers(excludeUid = null) {
 
         searchMessage.textContent = `Top ${TOP_USERS} users with the most owned items:`;
 
+        searchResults.innerHTML = "";
         sorted.forEach(user => createUserCard(user, searchResults));
     } catch (error) {
         console.error(error);
@@ -138,7 +199,7 @@ searchForm.addEventListener("submit", async (e) => {
     if (!inputRaw) return;
 
     const input = inputRaw.toLowerCase();
-    searchResults.innerHTML = "";
+    renderSkeletonProfiles(searchResults, 3);
     searchMessage.textContent = "Searching...";
     searchMessage.classList.remove("hidden");
 
@@ -148,6 +209,7 @@ searchForm.addEventListener("submit", async (e) => {
         const uidMatch = allProfiles.find(p => p.uid === inputRaw);
         if (uidMatch) {
             searchMessage.textContent = "1 user found.";
+            searchResults.innerHTML = "";
             createUserCard(uidMatch, searchResults);
             return;
         }
@@ -158,10 +220,12 @@ searchForm.addEventListener("submit", async (e) => {
 
         if (usernameMatches.length === 0) {
             searchMessage.textContent = `No user found matching "${inputRaw}".`;
+            searchResults.innerHTML = "";
             return;
         }
 
         searchMessage.textContent = `${usernameMatches.length} user(s) found.`;
+        searchResults.innerHTML = "";
         usernameMatches.forEach(user => createUserCard(user, searchResults));
     } catch (error) {
         console.error("Search error:", error);
@@ -206,7 +270,7 @@ function setupHeaderLogoRedirect() {
     logo.onclick = () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
-            alert("You must be logged in to view your profile."); 
+            alert("You must be logged in to view your profile.");
             return;
         }
         const userId = currentUser.uid;
@@ -221,15 +285,13 @@ auth.onAuthStateChanged(async (user) => {
     updateLoginButton(user);
     setupHeaderLogoRedirect();
 
-    let pinnedUid = null;
+    // Parallelize loading pinned user and top users
+    const pinnedPromise = user ? showPinnedUser(user.uid) : Promise.resolve(null);
+    const topUsersPromise = showTopUsers(user ? user.uid : null);
 
-    if (user) {
-        pinnedUid = await showPinnedUser(user.uid);
-    } else {
-        pinnedContainer.innerHTML = "<p>No logged-in user.</p>";
-    }
-
-    showTopUsers(pinnedUid);
+    // Initial load doesn't need to await everything sequentially
+    const pinnedUid = await pinnedPromise;
+    // showTopUsers already handles its own internal loading and excludes the pinned user if needed
 });
 
 

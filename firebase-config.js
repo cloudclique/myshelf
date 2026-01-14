@@ -15,12 +15,55 @@ const db = app.firestore();
 const auth = app.auth();
 const collectionName = "items";
 
+// --- Notifications Helper ---
+function requestNotificationPermission() {
+    if (!("Notification" in window)) return;
+    if (Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission();
+    }
+}
+
+async function showBrowserNotification(title, body, clickUrl = null, icon = null) {
+    if (Notification.permission === "granted") {
+        const n = new Notification(title, {
+            body: body,
+            icon: icon || '/myshelf_logo_favicon_color.ico'
+        });
+        if (clickUrl) {
+            n.onclick = () => {
+                window.focus();
+                window.location.href = clickUrl;
+            };
+        }
+    }
+}
+
+// Helper to get profile info for notifications
+const notificationProfileCache = new Map();
+async function getSenderName(uid) {
+    if (notificationProfileCache.has(uid)) return notificationProfileCache.get(uid);
+    try {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const snap = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(uid).get();
+        const name = snap.exists ? (snap.data().username || "Someone") : "Someone";
+        notificationProfileCache.set(uid, name);
+        return name;
+    } catch (e) {
+        return "Someone";
+    }
+}
+
 // Export services and constants
 export { app, auth, db, collectionName };
 
 // --- Global Message Notification Listener ---
+const lastUnreadCounts = new Map();
+let isInitialSnapshot = true;
+
 auth.onAuthStateChanged(user => {
     if (user) {
+        requestNotificationPermission(); // Ask on any page if logged in
+
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
         // Listen to all chats where the user is a participant
@@ -28,22 +71,62 @@ auth.onAuthStateChanged(user => {
             .where('users', 'array-contains', user.uid)
             .onSnapshot(snapshot => {
                 let totalUnread = 0;
+
                 snapshot.forEach(doc => {
                     const data = doc.data();
+                    const chatId = doc.id;
                     const count = data.unreadCount?.[user.uid] || 0;
                     totalUnread += count;
+
+                    // Notification Logic
+                    const prevCount = lastUnreadCounts.has(chatId) ? lastUnreadCounts.get(chatId) : null;
+                    if (!isInitialSnapshot && prevCount !== null && count > prevCount && data.lastSenderId !== user.uid) {
+                        // Check if we are currently looking at this chat on the messenger page
+                        const isMessengerPage = window.location.pathname.includes('/chat/');
+                        const params = new URLSearchParams(window.location.search);
+                        const activeChatId = params.get('chat');
+
+                        // If not on messenger OR looking at a different chat, notify
+                        if (!isMessengerPage || activeChatId !== data.lastSenderId) {
+                            getSenderName(data.lastSenderId).then(name => {
+                                const chatUrl = `${window.location.origin}/chat/?chat=${data.lastSenderId}`;
+                                showBrowserNotification(`New message from ${name}`, data.lastMessage || "Sent an image", chatUrl);
+                            });
+                        }
+                    }
+                    lastUnreadCounts.set(chatId, count);
                 });
+
+                isInitialSnapshot = false;
 
                 const hasUnread = totalUnread > 0;
 
                 // Helper to update the icon (handles delayed header loading)
                 const updateIcon = () => {
                     const chatIcon = document.getElementById('headerChatIcon');
+                    const badge = document.getElementById('globalUnreadBadge');
+                    const isChatPage = window.location.pathname.includes('/chat/');
+
                     if (chatIcon) {
-                        if (hasUnread) {
+                        if (hasUnread && !isChatPage) {
                             chatIcon.classList.add('new-message');
+                            if (!badge && totalUnread > 0) {
+                                // Add badge if missing
+                                const newBadge = document.createElement('span');
+                                newBadge.id = 'globalUnreadBadge';
+                                newBadge.className = 'unread-badge';
+                                newBadge.style.position = 'absolute';
+                                newBadge.style.top = '-8px';
+                                newBadge.style.right = '-8px';
+                                newBadge.textContent = totalUnread;
+                                chatIcon.parentElement.style.position = 'relative';
+                                chatIcon.parentElement.appendChild(newBadge);
+                            } else if (badge) {
+                                badge.textContent = totalUnread;
+                            }
                         } else {
                             chatIcon.classList.remove('new-message');
+                            if (badge) badge.remove();
                         }
                     }
                 };

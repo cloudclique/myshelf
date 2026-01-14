@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -7,13 +8,13 @@
 
   <!-- Styles -->
   <link rel="stylesheet" href="../style.css" />
-  <link rel="stylesheet"
-    href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
 
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:wght@300..800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:wght@300..800&display=swap"
+    rel="stylesheet">
 
   <!-- Favicon -->
   <link rel="icon" type="image/x-icon"
@@ -22,223 +23,233 @@
 
 <body>
 
-<!-- Header -->
-<div style="position: relative;">
-  <div id="header"></div>
-  <div class="header-tools" id="headerTools"
-       style="position:absolute; top:20%; right:15px;"></div>
-</div>
+  <!-- Header -->
+  <div style="position: relative;">
+    <div id="header"></div>
+    <div class="header-tools" id="headerTools" style="position:absolute; top:20%; right:15px;"></div>
+  </div>
 
-<script>
-  fetch('../header.html')
-    .then(r => r.text())
-    .then(html => document.getElementById('header').innerHTML = html);
-</script>
+  <script>
+    fetch('../header.html')
+      .then(r => r.text())
+      .then(html => document.getElementById('header').innerHTML = html);
+  </script>
 
-<!-- Login box -->
-<div class="login-container">
-  <h1 id="form-title">Sign In</h1>
+  <!-- Login box -->
+  <div class="login-container">
+    <h1 id="form-title">Sign In</h1>
 
-  <form id="login-form" class="action-form input">
+    <form id="login-form" class="action-form input">
 
-    <input type="email" id="email" placeholder="Email" required />
-    <input type="password" id="password" placeholder="Password" required />
+      <input type="email" id="email" placeholder="Email" required />
+      <input type="password" id="password" placeholder="Password" required />
+      <input type="password" id="confirm-password" placeholder="Confirm Password" style="display: none;" />
 
-    <button type="submit" id="main-auth-btn" class="action-btn">
-      Sign In
-    </button>
+      <button type="submit" id="main-auth-btn" class="action-btn">
+        Sign In
+      </button>
 
-    <!-- Google Sign-In -->
-    <button type="button" id="google-auth-btn"
-      class="action-btn google-btn">
-      <i class="bi bi-google"></i> Continue with Google
-    </button>
+      <!-- Google Sign-In -->
+      <button type="button" id="google-auth-btn" class="action-btn google-btn">
+        <i class="bi bi-google"></i> Continue with Google
+      </button>
 
-    <button type="button" id="toggle-mode-btn"
-      class="toggle-mode-btn">
-      Need an account? Sign Up
-    </button>
+      <button type="button" id="toggle-mode-btn" class="toggle-mode-btn">
+        Need an account? Sign Up
+      </button>
 
-    <p id="auth-message" class="form-message"></p>
-  </form>
-</div>
+      <p id="auth-message" class="form-message"></p>
+    </form>
+  </div>
 
-<div style="position: relative;">
+  <div style="position: relative;">
     <div id="footer"></div>
-</div>
-<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
+  </div>
+  <script>fetch('../footer.html').then(res => res.text()).then(html => { document.getElementById('footer').innerHTML = html; });</script>
 
-<!-- Firebase v8 -->
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+  <!-- Firebase v8 -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
 
-<!-- App Logic -->
-<script type="module">
+  <!-- App Logic -->
+  <script type="module">
 
-  import { auth, db } from '../firebase-config.js';
+    import { auth, db } from '../firebase-config.js';
 
-  /* ===============================
-     DOM
-  =============================== */
+    /* ===============================
+       DOM
+    =============================== */
 
-  const loginForm = document.getElementById('login-form');
-  const emailInput = document.getElementById('email');
-  const passwordInput = document.getElementById('password');
-  const formTitle = document.getElementById('form-title');
-  const mainAuthBtn = document.getElementById('main-auth-btn');
-  const toggleModeBtn = document.getElementById('toggle-mode-btn');
-  const authMessage = document.getElementById('auth-message');
-  const googleBtn = document.getElementById('google-auth-btn');
+    const loginForm = document.getElementById('login-form');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+    const confirmPasswordInput = document.getElementById('confirm-password');
+    const formTitle = document.getElementById('form-title');
+    const mainAuthBtn = document.getElementById('main-auth-btn');
+    const toggleModeBtn = document.getElementById('toggle-mode-btn');
+    const authMessage = document.getElementById('auth-message');
+    const googleBtn = document.getElementById('google-auth-btn');
 
-  let isLoginMode = true;
+    let isLoginMode = true;
 
-  /* ===============================
-     Firestore Path
-  =============================== */
+    /* ===============================
+       Firestore Path
+    =============================== */
 
-  function getFirestorePath() {
-    return `artifacts/default-app-id/user_profiles`;
-  }
-
-  /* ===============================
-     Redirect Logic
-  =============================== */
-
-  function redirectUser() {
-    const params = new URLSearchParams(window.location.search);
-    const redirect = params.get('redirect');
-
-    if (redirect) {
-      window.location.href = redirect;
-      return;
+    function getFirestorePath() {
+      return `artifacts/default-app-id/user_profiles`;
     }
 
-    if (
-      document.referrer &&
-      document.referrer.includes(location.origin) &&
-      !document.referrer.includes('/login/')
-    ) {
-      window.location.href = document.referrer;
-    } else {
-      window.location.href = '../';
-    }
-  }
+    /* ===============================
+       Redirect Logic
+    =============================== */
 
-  /* ===============================
-     Create User Profile
-  =============================== */
+    function redirectUser() {
+      const params = new URLSearchParams(window.location.search);
+      const redirect = params.get('redirect');
 
-  async function createUserProfile(user) {
-    const data = {
-      uid: user.uid,
-      email: user.email,
-      username: user.email.split('@')[0],
-      displayName: user.displayName || '',
-      photoURL: user.photoURL || '',
-      createdAt:firebase.firestore.FieldValue.serverTimestamp(),
-      role: 'user',
-      itemsOwned: 0,
-      itemsWished: 0,
-      itemsOrdered: 0
-    };
+      if (redirect) {
+        window.location.href = redirect;
+        return;
+      }
 
-    await db
-      .collection(getFirestorePath())
-      .doc(user.uid)
-      .set(data);
-  }
-
-  /* ===============================
-     Email / Password Auth
-  =============================== */
-
-  loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const email = emailInput.value;
-    const password = passwordInput.value;
-
-    try {
-      authMessage.textContent =
-        isLoginMode ? 'Signing in…' : 'Creating account…';
-
-      let user;
-
-      if (isLoginMode) {
-        user = (await auth
-          .signInWithEmailAndPassword(email, password)).user;
+      if (
+        document.referrer &&
+        document.referrer.includes(location.origin) &&
+        !document.referrer.includes('/login/')
+      ) {
+        window.location.href = document.referrer;
       } else {
-        user = (await auth
-          .createUserWithEmailAndPassword(email, password)).user;
-        await createUserProfile(user);
+        window.location.href = '../';
       }
-
-      authMessage.textContent = 'Success! Redirecting…';
-      authMessage.className = 'form-message success-message';
-      setTimeout(redirectUser, 800);
-
-    } catch (err) {
-      authMessage.textContent = err.message;
-      authMessage.className = 'form-message error-message';
     }
-  });
 
-  /* ===============================
-     Google Sign-In
-  =============================== */
+    /* ===============================
+       Create User Profile
+    =============================== */
 
-  const googleProvider = new firebase.auth.GoogleAuthProvider();
+    async function createUserProfile(user) {
+      const data = {
+        uid: user.uid,
+        email: user.email,
+        username: user.email.split('@')[0],
+        displayName: user.displayName || '',
+        photoURL: user.photoURL || '',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        role: 'user',
+        itemsOwned: 0,
+        itemsWished: 0,
+        itemsOrdered: 0
+      };
 
-  googleBtn.addEventListener('click', async () => {
-    authMessage.textContent = 'Signing in with Google…';
-    authMessage.className = 'form-message';
-
-    try {
-      const result =
-        await auth.signInWithPopup(googleProvider);
-
-      const user = result.user;
-      const ref = db
+      await db
         .collection(getFirestorePath())
-        .doc(user.uid);
+        .doc(user.uid)
+        .set(data);
+    }
 
-      const snap = await ref.get();
-      if (!snap.exists) {
-        await createUserProfile(user);
+    /* ===============================
+       Email / Password Auth
+    =============================== */
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = emailInput.value;
+      const password = passwordInput.value;
+      const confirmPassword = confirmPasswordInput.value;
+
+      if (!isLoginMode && password !== confirmPassword) {
+        authMessage.textContent = "Passwords do not match.";
+        authMessage.className = "form-message error-message";
+        return;
       }
 
-      authMessage.textContent = 'Welcome! Redirecting…';
-      authMessage.className = 'form-message success-message';
-      setTimeout(redirectUser, 800);
+      try {
+        authMessage.textContent =
+          isLoginMode ? 'Signing in…' : 'Creating account…';
 
-    } catch (err) {
-      authMessage.textContent = err.message;
-      authMessage.className = 'form-message error-message';
-    }
-  });
+        let user;
 
-  /* ===============================
-     Toggle Mode
-  =============================== */
+        if (isLoginMode) {
+          user = (await auth
+            .signInWithEmailAndPassword(email, password)).user;
+        } else {
+          user = (await auth
+            .createUserWithEmailAndPassword(email, password)).user;
+          await createUserProfile(user);
+        }
 
-  toggleModeBtn.addEventListener('click', () => {
-    isLoginMode = !isLoginMode;
+        authMessage.textContent = 'Success! Redirecting…';
+        authMessage.className = 'form-message success-message';
+        setTimeout(redirectUser, 800);
 
-    formTitle.textContent =
-      isLoginMode ? 'Sign In' : 'Create Account';
+      } catch (err) {
+        authMessage.textContent = err.message;
+        authMessage.className = 'form-message error-message';
+      }
+    });
 
-    mainAuthBtn.textContent =
-      isLoginMode ? 'Sign In' : 'Sign Up';
+    /* ===============================
+       Google Sign-In
+    =============================== */
 
-    toggleModeBtn.textContent =
-      isLoginMode
-        ? 'Need an account? Sign Up'
-        : 'Already have an account? Sign In';
+    const googleProvider = new firebase.auth.GoogleAuthProvider();
 
-    authMessage.textContent = '';
-  });
+    googleBtn.addEventListener('click', async () => {
+      authMessage.textContent = 'Signing in with Google…';
+      authMessage.className = 'form-message';
 
-</script>
+      try {
+        const result =
+          await auth.signInWithPopup(googleProvider);
+
+        const user = result.user;
+        const ref = db
+          .collection(getFirestorePath())
+          .doc(user.uid);
+
+        const snap = await ref.get();
+        if (!snap.exists) {
+          await createUserProfile(user);
+        }
+
+        authMessage.textContent = 'Welcome! Redirecting…';
+        authMessage.className = 'form-message success-message';
+        setTimeout(redirectUser, 800);
+
+      } catch (err) {
+        authMessage.textContent = err.message;
+        authMessage.className = 'form-message error-message';
+      }
+    });
+
+    /* ===============================
+       Toggle Mode
+    =============================== */
+
+    toggleModeBtn.addEventListener('click', () => {
+      isLoginMode = !isLoginMode;
+
+      formTitle.textContent =
+        isLoginMode ? 'Sign In' : 'Create Account';
+
+      mainAuthBtn.textContent =
+        isLoginMode ? 'Sign In' : 'Sign Up';
+
+      toggleModeBtn.textContent =
+        isLoginMode
+          ? 'Need an account? Sign Up'
+          : 'Already have an account? Sign In';
+
+      confirmPasswordInput.style.display = isLoginMode ? 'none' : 'block';
+      confirmPasswordInput.required = !isLoginMode;
+
+      authMessage.textContent = '';
+    });
+
+  </script>
 
 </body>
+
 </html>

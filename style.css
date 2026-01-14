@@ -3347,3 +3347,83 @@ body {
     align-items: center;
     width: 100%;
 }
+
+/* --- Hover Title Tooltip --- */
+.hover-tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(0, 0, 0, 0.85);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 9999;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.hover-tooltip.visible {
+    opacity: 1;
+}
+
+/* --- Community Gallery Masonry --- */
+.gallery-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+#gallery {
+    column-count: 3;
+    column-gap: 15px;
+}
+
+#gallery .relative {
+    break-inside: avoid;
+    margin-bottom: 15px;
+}
+
+@media (max-width: 1024px) {
+    #gallery {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 640px) {
+    #gallery {
+        column-count: 1;
+    }
+
+    /* Hide share button in gallery grid on mobile */
+    .share-btn-gallery {
+        display: none !important;
+    }
+
+    /* Make image actions (likes) persistent on mobile */
+    .image-actions {
+        display: flex !important;
+        opacity: 1 !important;
+        background: rgba(0, 0, 0, 0.4) !important;
+    }
+}
+
+/* Smooth fade-in for gallery items */
+.gallery-item-fade {
+    animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

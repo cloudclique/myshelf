@@ -23,12 +23,46 @@ let currentChatUserId = null;
 let currentChatUsername = null;
 let messageListener = null; // To store the Firestore snapshot listener
 let contactsListener = null; // To store the contacts list listener
+const profileCache = new Map(); // Global cache for user profiles
 
 // --- Constants ---
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 const MAX_IMAGES = 5; // User requested limit
 
 // --- Utility Functions ---
+
+function renderSkeletonContacts() {
+    userList.innerHTML = '';
+    for (let i = 0; i < 5; i++) {
+        const item = document.createElement('div');
+        item.className = 'chat-item';
+        item.innerHTML = `
+            <div style="display:flex;align-items:center;gap:8px">
+                <div class="skeleton skeleton-avatar"></div>
+                <div style="flex:1">
+                    <div class="chat-item-header">
+                        <div class="skeleton skeleton-name"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between">
+                        <div class="skeleton skeleton-msg"></div>
+                        <div class="skeleton skeleton-time"></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        userList.appendChild(item);
+    }
+}
+
+function renderSkeletonMessages() {
+    messageList.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+        const div = document.createElement('div');
+        const isSent = i % 2 === 0;
+        div.className = `skeleton skeleton-message-bubble ${isSent ? 'skeleton-message-sent' : 'skeleton-message-received'}`;
+        messageList.appendChild(div);
+    }
+}
 
 function getChatId(userId1, userId2) {
     return [userId1, userId2].sort().join('_');
@@ -321,6 +355,11 @@ async function fetchUserContacts() {
     if (!currentUserId) return;
     if (contactsListener) contactsListener();
 
+    // Show skeletons on initial load
+    if (userList.children.length === 0 || userList.querySelector('p')) {
+        renderSkeletonContacts();
+    }
+
     try {
         const chatsRef = db
             .collection('artifacts')
@@ -376,15 +415,22 @@ async function renderContacts(contactUids, chatData) {
     try {
         const profiles = await Promise.all(
             [...contactUids].map(async uid => {
+                // Check cache first
+                if (profileCache.has(uid)) {
+                    return { ...profileCache.get(uid), ...chatData[uid] };
+                }
+
                 const snap = await getProfilesRef().doc(uid).get();
                 if (!snap.exists) return null;
 
-                return {
+                const profile = {
                     uid,
                     username: snap.data().username || `User ${uid.slice(0, 6)}`,
-                    profilePic: snap.data().profilePic || 'https://placehold.co/40x40',
-                    ...chatData[uid]
+                    profilePic: snap.data().profilePic || 'https://placehold.co/40x40'
                 };
+
+                profileCache.set(uid, profile);
+                return { ...profile, ...chatData[uid] };
             })
         );
 
@@ -438,8 +484,13 @@ function startChat(userId, username) {
     currentChatUserId = userId;
     currentChatUsername = username;
 
+    // Update URL without reloading to signal active chat for global notifications
+    const url = new URL(window.location.href);
+    url.searchParams.set('chat', userId);
+    window.history.pushState({}, '', url);
+
     chatHeader.textContent = `Chatting with: ${username}`;
-    messageList.innerHTML = '<p style="text-align: center; opacity: 0.6;">Loading messages...</p>';
+    renderSkeletonMessages();
     messageInput.disabled = false;
     sendMessageBtn.disabled = false;
 
@@ -482,7 +533,9 @@ function listenForMessages(targetUserId) {
                 return;
             }
             // Reverse to display chronologically from bottom up (since we are using flex-direction: column-reverse)
-            snapshot.docs.reverse().forEach(doc => {
+            const docs = snapshot.docs.reverse();
+
+            docs.forEach(doc => {
                 renderMessage(doc.data(), doc.id); // pass doc.id for deletion
             });
 
@@ -504,6 +557,15 @@ function listenForMessages(targetUserId) {
 async function sendMessage() {
     const text = messageInput.value.trim();
     const files = Array.from(imageUpload.files);
+
+    // Capture previews for optimistic UI
+    const imagesPreviews = await Promise.all(files.map(file => {
+        return new Promise(resolve => {
+            const reader = new FileReader();
+            reader.onload = e => resolve(e.target.result);
+            reader.readAsDataURL(file);
+        });
+    }));
 
     if (!currentChatUserId || (!text && files.length === 0)) return;
 
@@ -540,9 +602,22 @@ async function sendMessage() {
         const chatId = getChatId(currentUserId, currentChatUserId);
         const chatDocRef = getChatRef(chatId);
         // Use firebase.firestore.FieldValue.serverTimestamp() for reliable time
-        const timestamp = firebase.firestore.FieldValue.serverTimestamp();
         // Determine message text content
         const messageText = text || (imageUrls.length > 0 ? `[${imageUrls.length} image(s) sent]` : '');
+
+        // --- OPTIMISTIC UI: Render immediately ---
+        const tempId = 'temp_' + Date.now();
+        const optimisticMessage = {
+            senderId: currentUserId,
+            text: messageText,
+            timestamp: null, // Triggers "Sending..." in renderMessage
+            imageUrls: imagesPreviews // Use the local previews for instant display if available
+        };
+
+        // Render with optimistic state
+        renderMessage(optimisticMessage, tempId);
+        const tempMsgElement = messageList.firstChild;
+        tempMsgElement.classList.add('optimistic', 'sending');
 
         const message = {
             senderId: currentUserId,
@@ -570,6 +645,10 @@ async function sendMessage() {
             // Update last image data for contact list preview (optional, but good)
             ...(imageUrls.length > 0 && { imageUrls: imageUrls })
         }, { merge: true });
+
+        // onSnapshot will clear the list and re-render everything.
+        // If it's fast, we don't need to do anything. If slow, we keep it till then.
+        // We'll trust onSnapshot for the final state.
 
         // Clear input fields and reset state
         messageInput.value = '';

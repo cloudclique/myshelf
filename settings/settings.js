@@ -1,30 +1,28 @@
 import { auth, db } from '../firebase-config.js';
 
 // --- DOM Elements ---
-const usernameForm     = document.getElementById('usernameForm');
-const usernameInput    = document.getElementById('usernameInput');
-const usernameMessage  = document.getElementById('usernameMessage');
+const usernameForm = document.getElementById('usernameForm');
+const usernameInput = document.getElementById('usernameInput');
+const usernameMessage = document.getElementById('usernameMessage');
 const currentUsernameSpan = document.getElementById('currentUsername');
 
-const emailForm        = document.getElementById('emailForm');
-const emailInput       = document.getElementById('emailInput');
-const emailMessage     = document.getElementById('emailMessage');
 const currentEmailSpan = document.getElementById('currentEmail');
 
-const passwordForm     = document.getElementById('passwordForm');
-const passwordInput    = document.getElementById('passwordInput');
-const passwordMessage  = document.getElementById('passwordMessage');
+const passwordForm = document.getElementById('passwordForm');
+const oldPasswordInput = document.getElementById('oldPasswordInput');
+const passwordInput = document.getElementById('passwordInput');
+const passwordMessage = document.getElementById('passwordMessage');
 
-const currentRoleSpan  = document.getElementById('currentRole');
-const logoutBtn        = document.getElementById('logoutBtn');
+const currentRoleSpan = document.getElementById('currentRole');
+const logoutBtn = document.getElementById('logoutBtn');
 
-const profilePicInput   = document.getElementById('profilePicInput');
+const profilePicInput = document.getElementById('profilePicInput');
 const profilePicPreview = document.getElementById('profilePicPreview');
-const profilePicForm    = document.getElementById('profilePicForm');
+const profilePicForm = document.getElementById('profilePicForm');
 const profilePicMessage = document.getElementById('profilePicMessage');
 
 const allowNsfwCheckbox = document.getElementById('allowNsfwCheckbox');
-const allowNsfwMessage  = document.getElementById('allowNsfwMessage');
+const allowNsfwMessage = document.getElementById('allowNsfwMessage');
 
 let selectedFile = null;
 
@@ -56,7 +54,6 @@ auth.onAuthStateChanged(async (user) => {
   const userId = user.uid;
 
   currentEmailSpan.textContent = user.email || 'Not set';
-  emailInput.value = '';
 
   try {
     const snap = await getProfileRef(userId).get();
@@ -111,34 +108,7 @@ usernameForm.addEventListener('submit', async (e) => {
   }
 });
 
-// --- Update email ---
-emailForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const user = auth.currentUser;
-  if (!user) return;
 
-  const newEmail = emailInput.value.trim();
-  if (!newEmail) {
-    emailMessage.textContent = "Email cannot be empty.";
-    emailMessage.className = "form-message error-message";
-    return;
-  }
-
-  emailMessage.textContent = "Updating...";
-  emailMessage.className = "form-message";
-
-  try {
-    await user.updateEmail(newEmail);
-    emailMessage.textContent = "Email updated successfully!";
-    emailMessage.className = "form-message success-message";
-
-    currentEmailSpan.textContent = newEmail;
-    emailInput.value = '';
-  } catch (err) {
-    emailMessage.textContent = `Error: ${err.message}`;
-    emailMessage.className = "form-message error-message";
-  }
-});
 
 // --- Update password ---
 passwordForm.addEventListener('submit', async (e) => {
@@ -146,20 +116,36 @@ passwordForm.addEventListener('submit', async (e) => {
   const user = auth.currentUser;
   if (!user) return;
 
+  const oldPassword = oldPasswordInput.value.trim();
   const newPassword = passwordInput.value.trim();
-  if (newPassword.length < 6) {
-    passwordMessage.textContent = "Password must be at least 6 characters.";
+
+  if (!oldPassword) {
+    passwordMessage.textContent = "Old password is required.";
     passwordMessage.className = "form-message error-message";
     return;
   }
 
-  passwordMessage.textContent = "Updating...";
+  if (newPassword.length < 6) {
+    passwordMessage.textContent = "New password must be at least 6 characters.";
+    passwordMessage.className = "form-message error-message";
+    return;
+  }
+
+  passwordMessage.textContent = "Verifying and updating...";
   passwordMessage.className = "form-message";
 
   try {
+    // Re-authenticate user before sensitive action
+    const credential = firebase.auth.EmailAuthProvider.credential(user.email, oldPassword);
+    await user.reauthenticateWithCredential(credential);
+
+    // After re-auth, update password
     await user.updatePassword(newPassword);
-    passwordMessage.textContent = "Password updated!";
+
+    passwordMessage.textContent = "Password updated successfully!";
     passwordMessage.className = "form-message success-message";
+
+    oldPasswordInput.value = '';
     passwordInput.value = '';
   } catch (err) {
     passwordMessage.textContent = `Error: ${err.message}`;
@@ -244,17 +230,17 @@ logoutBtn.addEventListener('click', () => {
 
 // --- Redirect to the logged-in user's profile when clicking the header logo ---
 function setupHeaderLogoRedirect() {
-    const logo = document.querySelector('.header-logo');
-    if (!logo) return;
+  const logo = document.querySelector('.header-logo');
+  if (!logo) return;
 
-    logo.style.cursor = 'pointer';
-    logo.onclick = () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            alert("You must be logged in to view your profile."); 
-            return;
-        }
-        const userId = currentUser.uid;
-        window.location.href = `../user/?uid=${userId}`;
-    };
+  logo.style.cursor = 'pointer';
+  logo.onclick = () => {
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      alert("You must be logged in to view your profile.");
+      return;
+    }
+    const userId = currentUser.uid;
+    window.location.href = `../user/?uid=${userId}`;
+  };
 }

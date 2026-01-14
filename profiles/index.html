@@ -1,58 +1,57 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Find Users | MYEVERYCOLLECTION</title>
+    <title>MyShelf Users</title>
     <link rel="stylesheet" href="../style.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
-    <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
+    <link
+        href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+        rel="stylesheet">
+    <link rel="icon" type="image/x-icon"
+        href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
     <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* Custom styles for the search page layout */
-
     </style>
 </head>
-<body>
-<div style="position: relative;">
-    <div id="header"></div>
-    <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
-</div>
-<script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
 
-    <div class="user-search-container"> 
-        <h3 style="margin-left: 20px; font-weight: bold; font-size: 1.2em;">My Profile</h3> 
+<body>
+    <div style="position: relative;">
+        <div id="header"></div>
+        <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
+    </div>
+    <script>fetch('../header.html').then(res => res.text()).then(html => { document.getElementById('header').innerHTML = html; });</script>
+
+    <div class="user-search-container">
+        <h3 style="margin-left: 20px; font-weight: bold; font-size: 1.2em;">My Profile</h3>
         <div id="pinnedUser"></div>
     </div>
 
     <div class="user-search-container">
         <h1 class="text-3xl font-bold mb-6 text-gray-800">Find Users</h1>
         <form id="searchForm" class="flex items-center">
-            <input 
-                type="text" 
-                id="searchQuery" 
-                placeholder="Search by Username or User ID..." 
-                class="modern_search_bar" 
-                required
-            >
+            <input type="text" id="searchQuery" placeholder="Search by Username or User ID..." class="modern_search_bar"
+                required>
             <button type="submit" class="action-btn" style="margin-left: 20px;">Search</button>
         </form>
 
         <p id="searchMessage" class="info-message hidden">Enter a search query to find users.</p>
-        
+
         <div id="searchResults" class="search-results-list">
             <!-- User cards will be injected here -->
         </div>
     </div>
 
-<div style="position: relative;">
-    <div id="footer"></div>
-</div>
-<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
+    <div style="position: relative;">
+        <div id="footer"></div>
+    </div>
+    <script>fetch('../footer.html').then(res => res.text()).then(html => { document.getElementById('footer').innerHTML = html; });</script>
 
     <!-- Firebase and Page Script -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
@@ -62,4 +61,5 @@
     <script type="module" src="./users.js"></script>
 
 </body>
+
 </html>

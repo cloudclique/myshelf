@@ -262,7 +262,7 @@ function clampImagePosition() {
     const cropSize = 95;
 
     const cropLeft = (containerSize - cropSize) / 2;
-    const cropTop  = cropLeft;
+    const cropTop = cropLeft;
     const cropRight = cropLeft + cropSize;
     const cropBottom = cropTop + cropSize;
 
@@ -377,7 +377,7 @@ function drawCropper() {
 
 // Drag & Zoom Listeners
 cropCanvas.onmousedown = (e) => { isDragging = true; startDrag = { x: e.clientX - currentPos.x, y: e.clientY - currentPos.y }; };
-window.onmousemove = (e) => { if (!isDragging) return; currentPos.x = e.clientX - startDrag.x; currentPos.y = e.clientY - startDrag.y;drawCropper(); };
+window.onmousemove = (e) => { if (!isDragging) return; currentPos.x = e.clientX - startDrag.x; currentPos.y = e.clientY - startDrag.y; drawCropper(); };
 window.onmouseup = () => isDragging = false;
 zoomSlider.oninput = (e) => {
     const oldScale = currentScale;
@@ -401,7 +401,7 @@ saveCropBtn.onclick = () => {
     const outCtx = outCanvas.getContext('2d');
     const offset = (300 - 95) / 2; // Offset to match the visual frame
     outCtx.drawImage(cropperImg, currentPos.x - offset, currentPos.y - offset, cropperImg.width * currentScale, cropperImg.height * currentScale);
-    
+
     outCanvas.toBlob((blob) => {
         selectedThumbnailFile = new File([blob], "thumb.webp", { type: "image/webp" });
         thumbnailTrigger.innerHTML = `<img src="${URL.createObjectURL(blob)}" style="width:100%; height:100%; object-fit:cover;">`;
@@ -518,6 +518,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (prevCommentsBtn) prevCommentsBtn.addEventListener('click', () => changeCommentPage(-1));
 
     auth.onAuthStateChanged((user) => {
+        // Initial render of skeleton before everything starts
+        renderItemSkeleton();
+
+        // Start fetch
         fetchItemDetails(itemId);
         setupAuthUI(user);
         renderComments(itemId);
@@ -649,14 +653,20 @@ function updateEditImagePreviews(existingImageObjects, newFiles) {
         // Determine if this is the primary image (slot 0)
         const isPrimary = index === 0;
 
+        // Only images after index 0 are draggable
+        if (!isPrimary) {
+            div.draggable = true;
+            div.dataset.index = index;
+            div.classList.add('draggable-image');
+        } else {
+            div.classList.add('locked-thumbnail');
+        }
+
         // Add a button to remove existing images
         div.innerHTML = `
             <img src="${imgObj.url}" alt="Existing Image ${index + 1}" class="image-preview ${isPrimary ? 'primary-image-preview' : ''}">
             <button type="button" class="remove-image-btn" data-index="${index}" title="Remove Image">&times;</button>
-            ${isPrimary
-                ? '<span class="primary-tag">Primary</span>'
-                : `<button type="button" class="set-primary-btn action-btn secondary-btn" data-index="${index}">Set as Primary</button>`
-            }
+            ${isPrimary ? '<span class="primary-tag">Thumbnail</span>' : ''}
         `;
         editImageUploadsContainer.appendChild(div);
     });
@@ -704,25 +714,69 @@ function updateEditImagePreviews(existingImageObjects, newFiles) {
         });
     });
 
+    // NEW: Add drag-and-drop listeners for reordering (only for existing images, not thumbnail)
+    setupDragAndDrop();
+}
 
-    // NEW: Add listeners for setting existing images as primary
-    document.querySelectorAll('.set-primary-btn').forEach(button => {
-        button.addEventListener('click', function () {
-            const indexToMove = parseInt(this.dataset.index, 10);
+// NEW: Drag-and-drop functionality for reordering images
+function setupDragAndDrop() {
+    const draggableItems = document.querySelectorAll('.draggable-image');
+    let draggedElement = null;
+    let draggedIndex = null;
 
-            // Get the image object
-            const imageObject = currentItemImageUrls[indexToMove];
+    draggableItems.forEach(item => {
+        item.addEventListener('dragstart', function (e) {
+            draggedElement = this;
+            draggedIndex = parseInt(this.dataset.index, 10);
+            this.style.opacity = '0.5';
+            e.dataTransfer.effectAllowed = 'move';
+        });
 
-            // Remove it from its current position
-            currentItemImageUrls.splice(indexToMove, 1);
+        item.addEventListener('dragend', function () {
+            this.style.opacity = '1';
+            draggedElement = null;
+        });
 
-            // Insert it at the start of the array
-            currentItemImageUrls.unshift(imageObject);
+        item.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        });
 
-            // Re-render the previews to update UI and buttons
-            updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
-            editMessage.textContent = 'Primary image set. Save to confirm change.';
-            editMessage.className = 'form-message info-message';
+        item.addEventListener('dragenter', function (e) {
+            if (draggedElement && this !== draggedElement) {
+                this.classList.add('drag-over');
+            }
+        });
+
+        item.addEventListener('dragleave', function () {
+            this.classList.remove('drag-over');
+        });
+
+        item.addEventListener('drop', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            this.classList.remove('drag-over');
+
+            if (draggedElement && this !== draggedElement) {
+                const dropIndex = parseInt(this.dataset.index, 10);
+
+                // Don't allow dropping into index 0 (thumbnail position)
+                if (dropIndex === 0 || draggedIndex === 0) return;
+
+                // Reorder the array
+                const draggedItem = currentItemImageUrls[draggedIndex];
+                currentItemImageUrls.splice(draggedIndex, 1);
+                currentItemImageUrls.splice(dropIndex, 0, draggedItem);
+
+                // Re-render
+                updateEditImagePreviews(currentItemImageUrls, selectedImageFiles);
+                editMessage.textContent = 'Image order changed. Save to confirm.';
+                editMessage.className = 'form-message info-message';
+            }
+
+            return false;
         });
     });
 }
@@ -766,7 +820,44 @@ function toggleStatusForm() {
     statusMessage.textContent = '';
 }
 
+
+function renderItemSkeleton() {
+    // A structure mimicking the item details layout
+    itemNamePlaceholder.textContent = '';
+    itemNamePlaceholderTitle.textContent = '';
+
+    // Skeleton structure
+    const skeletonHTML = `
+        <div class="image-gallery-container skeleton-gallery">
+            <div class="skeleton" style="width: 100%; height: 0; padding-top: 100%; border-radius: 8px;"></div>
+        </div>
+        <div class="item-metadata">
+            <div class="skeleton" style="width: 80px; height: 24px; border-radius: 20px; margin-bottom: 20px;"></div>
+            <div class="two-column-row">
+                ${Array(6).fill('<div class="skeleton skeleton-text" style="width: 100%;"></div>').join('')}
+            </div>
+            <!-- Private data section -->
+            <div style="margin-top: 20px;">
+                 <div class="skeleton" style="width: 40%; height: 16px; margin-bottom: 15px;"></div>
+                 <div class="skeleton" style="width: 100%; height: 60px;"></div>
+            </div>
+        </div>
+    `;
+
+    itemDetailsContent.innerHTML = skeletonHTML;
+
+    // Also clear other dynamic areas
+    if (tagsBox) tagsBox.innerHTML = '<div class="skeleton skeleton-text" style="width: 50%;"></div>';
+}
+
 async function fetchItemDetails(id) {
+    // Render skeleton immediately
+    if (Object.keys(usernameCache).length === 0) { // Naive check to only show on first load if needed
+        renderItemSkeleton();
+    } else if (!itemDetailsContent.querySelector('.item-metadata')) {
+        renderItemSkeleton();
+    }
+
     try {
         const docRef = db.collection('items').doc(id);
         const itemDoc = await docRef.get();
@@ -1099,7 +1190,7 @@ editItemForm.addEventListener('submit', async (e) => {
     };
 
     // --- UPDATED: Multi-Image & Thumbnail Logic ---
-    let finalImageObjects = [...currentItemImageUrls]; 
+    let finalImageObjects = [...currentItemImageUrls];
 
     try {
         // 1. Handle New Cropped Thumbnail (95x95)
@@ -1107,21 +1198,19 @@ editItemForm.addEventListener('submit', async (e) => {
         if (selectedThumbnailFile) {
             editMessage.textContent = "Uploading new thumbnail...";
             const thumbObject = await uploadImageToImgBB(selectedThumbnailFile);
-            
-            // If the user cropped a new thumbnail, we insert it at the start.
-            // We usually remove the old index 0 if it was the previous thumbnail, 
-            // or simply unshift it to make it the new primary.
-            finalImageObjects.unshift(thumbObject);
-            
+
+            // Replace slot 0 directly instead of moving the array
+            finalImageObjects[0] = thumbObject;
+
             // Clean up the variable after assignment
-            selectedThumbnailFile = null; 
+            selectedThumbnailFile = null;
         }
 
         // 2. Handle Additional Multi-Image Uploads
         if (selectedImageFiles.length > 0) {
             const currentTotal = finalImageObjects.length;
             editMessage.textContent = `Uploading ${selectedImageFiles.length} additional image(s)...`;
-            
+
             const uploadPromises = selectedImageFiles.map(file => uploadImageToImgBB(file));
             const uploadedNewImages = await Promise.all(uploadPromises);
 

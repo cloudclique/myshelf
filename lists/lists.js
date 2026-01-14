@@ -3,7 +3,7 @@ import { auth, db } from '../firebase-config.js';
 // ---------- URL PARAMETERS ----------
 const params = new URLSearchParams(window.location.search);
 const listId = params.get('list');
-const listType = params.get('type'); 
+const listType = params.get('type');
 
 // ---------- DOM ELEMENTS ----------
 const listTitle = document.getElementById('listTitle');
@@ -41,7 +41,7 @@ let listRef = null;
 let listData = null;
 let listOwnerId = null;
 let isNsfwAllowed = false;
-let allFetchedItems = []; 
+let allFetchedItems = [];
 const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
 
 
@@ -62,11 +62,11 @@ function updateHeaderAuthButton(user) {
     if (user) {
         btn.className = 'logout-btn';
         btn.textContent = 'Logout';
-        btn.onclick = async () => { 
-            try { 
-                await auth.signOut(); 
+        btn.onclick = async () => {
+            try {
+                await auth.signOut();
                 window.location.reload();
-            } catch (err) { console.error(err); } 
+            } catch (err) { console.error(err); }
         };
     } else {
         btn.className = 'login-btn';
@@ -82,9 +82,9 @@ function setupHeaderLogoRedirect() {
     logo.style.cursor = 'pointer';
     logo.onclick = () => {
         const currentUser = auth.currentUser;
-        if (!currentUser) { 
-            alert("You must be logged in to view your profile."); 
-            return; 
+        if (!currentUser) {
+            alert("You must be logged in to view your profile.");
+            return;
         }
         window.location.href = `../user/?uid=${currentUser.uid}`;
     };
@@ -104,7 +104,7 @@ auth.onAuthStateChanged(async (user) => {
             checkFavoriteStatus(user.uid);
         } catch (err) { isNsfwAllowed = false; }
     } else { isNsfwAllowed = false; }
-    
+
     if (!listId || !listType) {
         if (listTitle) listTitle.textContent = "Invalid List Link";
         if (listLoader) listLoader.style.display = 'none';
@@ -126,8 +126,8 @@ async function loadList(currentUserId) {
             listRef = db.collection('public_lists').doc(listId);
         } else {
             listRef = db.collection('artifacts').doc('default-app-id')
-                        .collection('user_profiles').doc(currentUserId)
-                        .collection('lists').doc(listId);
+                .collection('user_profiles').doc(currentUserId)
+                .collection('lists').doc(listId);
         }
 
         const listSnap = await listRef.get();
@@ -139,13 +139,13 @@ async function loadList(currentUserId) {
         listData = listSnap.data();
         listOwnerId = listData.userId;
         listTitle.textContent = listData.name || 'Unnamed List';
-        listTitlePlaceholder.textContent = listData.name  + (" - List")
+        listTitlePlaceholder.textContent = listData.name + (" - List")
 
         // Bio Logic
         if (listData.description || currentUserId === listOwnerId) {
             listBioSection.style.display = 'block';
             listBioText.textContent = listData.description || "";
-            
+
             if (currentUserId === listOwnerId) {
                 editBioBtn.style.display = 'inline-block';
                 // Hide text if it's empty and owner is viewing, so they just see the edit button
@@ -163,7 +163,7 @@ async function loadList(currentUserId) {
             // 1. Get every item in the DB
             const allSnap = await db.collection('items').get();
             const allItems = allSnap.docs.map(doc => ({ id: doc.id, data: doc.data() }));
-            
+
             // 2. Determine which items SHOULD be in the list based on query
             const matchedItems = filterItemsByQuery(allItems, listData.liveQuery, listData.liveLogic || 'AND');
             const matchedIds = matchedItems.map(item => item.id);
@@ -177,7 +177,7 @@ async function loadList(currentUserId) {
                 await listRef.update({ items: matchedIds });
                 listData.items = matchedIds; // Update local state
             }
-            
+
             allFetchedItems = matchedItems;
             renderFilteredItems(allFetchedItems);
         } else {
@@ -199,7 +199,7 @@ async function fetchAllItems(itemIds) {
     allFetchedItems = [];
     const promises = itemIds.map(id => db.collection('items').doc(id).get());
     const snapshots = await Promise.all(promises);
-    
+
     snapshots.forEach(snap => {
         if (snap.exists) {
             allFetchedItems.push({ id: snap.id, data: snap.data() });
@@ -242,7 +242,7 @@ function createItemCard(id, item) {
     const img = document.createElement('img');
     img.src = (item.itemImageUrls && item.itemImageUrls[0]?.url) || DEFAULT_IMAGE_URL;
     img.className = 'item-image';
-    
+
     const hor = (item['img-align-hor'] || 'center').toLowerCase();
     const ver = (item['img-align-ver'] || 'center').toLowerCase();
     img.classList.add(`img-align-hor-${hor}`, `img-align-ver-${ver}`);
@@ -261,7 +261,7 @@ function createItemCard(id, item) {
         removeBtn.className = 'remove-btn';
         removeBtn.innerHTML = '✕';
         removeBtn.onclick = (e) => {
-            e.preventDefault(); 
+            e.preventDefault();
             e.stopPropagation();
             removeItemFromList(id);
         };
@@ -378,14 +378,14 @@ function renderSearchSuggestions(matches) {
     matches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'search-suggestion-item';
-        
+
         // Use ICONS mapping
         div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type] || ''}</span> ${match.text}`;
 
         div.onclick = () => {
             // Braced types logic
             const bracedTypes = ['tag', 'age', 'category', 'scale'];
-            
+
             if (bracedTypes.includes(match.type)) {
                 // Automatically apply braces for these types
                 listSearchInput.value = `{${match.text}}`;
@@ -428,16 +428,16 @@ function handleSearch() {
         filtered = allFetchedItems.filter(itemObj => {
             const item = itemObj.data;
             const combinedText = [
-                item.itemName, 
-                item.itemCategory, 
-                item.itemScale, 
+                item.itemName,
+                item.itemCategory,
+                item.itemScale,
                 (item.itemAgeRating || ''),
                 ...(item.tags || [])
             ].join(' | ').toLowerCase();
 
             const hasExcluded = excluded.some(kw => combinedText.includes(kw));
             if (hasExcluded) return false;
-            
+
             if (required.length === 0) return true;
             return required.every(kw => combinedText.includes(kw));
         });
@@ -464,8 +464,8 @@ function sortItems(items) {
             valA = (dataA.itemName || "").toLowerCase();
             valB = (dataB.itemName || "").toLowerCase();
             return isAscending ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        } 
-        
+        }
+
         if (sortType === 'date') {
             // Sort by itemReleaseDate
             valA = new Date(dataA.itemReleaseDate || 0).getTime();
@@ -477,11 +477,11 @@ function sortItems(items) {
     });
 }
 
-window.toggleSortDirection = function() {
+window.toggleSortDirection = function () {
     isAscending = !isAscending;
     const btn = document.getElementById('sortDirBtn');
     const icon = btn.querySelector('i');
-    
+
     if (isAscending) {
         // Low to High (A-Z / Oldest First)
         icon.className = 'bi bi-sort-down';
@@ -489,7 +489,7 @@ window.toggleSortDirection = function() {
         // High to Low (Z-A / Newest First)
         icon.className = 'bi bi-sort-up';
     }
-    
+
     handleSearch();
 };
 
@@ -517,17 +517,17 @@ function goBackToPrevious() {
 }
 
 async function removeItemFromList(itemId) {
-    if(!confirm("Remove this item from the list?")) return;
+    if (!confirm("Remove this item from the list?")) return;
     try {
         await listRef.update({ items: firebase.firestore.FieldValue.arrayRemove(itemId) });
         allFetchedItems = allFetchedItems.filter(i => i.id !== itemId);
-        handleSearch(); 
+        handleSearch();
     } catch (e) { alert(e.message); }
 }
 
 if (deleteListBtn) {
     deleteListBtn.onclick = async () => {
-        if(confirm("Delete this list?")) {
+        if (confirm("Delete this list?")) {
             await listRef.delete();
             goBackToPrevious();
         }
@@ -537,7 +537,7 @@ if (deleteListBtn) {
 if (listSettingsBtn) {
     listSettingsBtn.onclick = () => {
         editListNameInput.value = listData.name || "";
-        
+
         // Restore Privacy
         const privacyRadio = document.querySelector(`input[name="editPrivacy"][value="${listType}"]`);
         if (privacyRadio) privacyRadio.checked = true;
@@ -551,7 +551,7 @@ if (listSettingsBtn) {
         const liveQueryGroup = document.getElementById('liveQueryGroup');
         liveQueryGroup.style.display = currentMode === 'live' ? 'block' : 'none';
         document.getElementById('editLiveQuery').value = listData.liveQuery || "";
-        
+
         const currentLogic = listData.liveLogic || 'AND';
         const logicRadio = document.querySelector(`input[name="editLiveLogic"][value="${currentLogic}"]`);
         if (logicRadio) logicRadio.checked = true;
@@ -582,14 +582,14 @@ if (saveListChangesBtn) {
 
             // If switching to Live, we force a sync by clearing items so loadList catches it
             if (newMode === 'live') {
-                updatePayload.items = []; 
+                updatePayload.items = [];
             }
 
             if (newPrivacy !== listType) {
-                const newPath = newPrivacy === 'public' 
+                const newPath = newPrivacy === 'public'
                     ? db.collection('public_lists').doc(listId)
                     : db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(auth.currentUser.uid).collection('lists').doc(listId);
-                
+
                 await newPath.set({ ...listData, ...updatePayload, privacy: newPrivacy });
                 await listRef.delete();
                 window.location.href = `?list=${listId}&type=${newPrivacy}`;
@@ -609,7 +609,7 @@ if (shareListBtn) {
         try {
             // Copy current URL to clipboard
             await navigator.clipboard.writeText(window.location.href);
-            
+
             // Visual feedback
             const originalText = shareListBtn.innerHTML;
             shareListBtn.innerHTML = '<i class="bi bi-check2"></i> Copied!';
@@ -630,11 +630,11 @@ if (shareListBtn) {
 const rouletteModal = document.getElementById('rouletteModal');
 const openRouletteBtn = document.getElementById('openRouletteBtn');
 const closeRouletteModal = document.getElementById('closeRouletteModal');
-const rollBtn = document.getElementById('rollBtn'); 
+const rollBtn = document.getElementById('rollBtn');
 const rouletteTrack = document.getElementById('rouletteTrack');
 const winnerDisplay = document.getElementById('winnerDisplay');
 
-let winningItemId = null; 
+let winningItemId = null;
 
 if (openRouletteBtn) {
     openRouletteBtn.onclick = () => {
@@ -660,7 +660,7 @@ function setupRouletteTrack() {
         shuffled.forEach(item => {
             const div = document.createElement('div');
             div.className = 'roulette-item';
-            div.setAttribute('data-id', item.id); 
+            div.setAttribute('data-id', item.id);
             const imgUrl = (item.data.itemImageUrls && item.data.itemImageUrls[0]?.url) || DEFAULT_IMAGE_URL;
             div.innerHTML = `<img src="${imgUrl}"><p>${item.data.itemName || 'Unnamed'}</p>`;
             rouletteTrack.appendChild(div);
@@ -674,10 +674,10 @@ if (rollBtn) {
             window.location.href = `../items/?id=${winningItemId}`;
             return;
         }
-        const itemWidth = 120; 
+        const itemWidth = 120;
         const totalItems = rouletteTrack.children.length;
         const visibleWidth = document.querySelector('.roulette-container').offsetWidth;
-        const minIndex = Math.floor(totalItems * 0.8); 
+        const minIndex = Math.floor(totalItems * 0.8);
         const maxIndex = totalItems - 10;
         const winningIndex = Math.floor(Math.random() * (maxIndex - minIndex)) + minIndex;
         const stopPosition = (winningIndex * itemWidth) - (visibleWidth / 2) + (itemWidth / 2);
@@ -688,13 +688,13 @@ if (rollBtn) {
         setTimeout(() => {
             const winningElement = rouletteTrack.children[winningIndex];
             const itemName = winningElement.querySelector('p').textContent;
-            winningItemId = winningElement.getAttribute('data-id'); 
+            winningItemId = winningElement.getAttribute('data-id');
             winnerDisplay.innerHTML = `✨ Winner: ${itemName} ✨`;
             rollBtn.disabled = false;
             rollBtn.textContent = "Go to";
             winningElement.style.outline = "3px solid var(--accent-clr)";
             winningElement.style.background = "rgba(255,255,255,0.1)";
-        }, 10000); 
+        }, 10000);
     };
 }
 
@@ -707,7 +707,7 @@ editModeRadios.forEach(radio => {
 
 function filterItemsByQuery(items, query, logic = 'AND') {
     if (!query) return items;
-    
+
     const regex = /\{([^}]+)\}|(\S+)/g;
     const requiredKeywords = [];
     const excludedKeywords = [];
@@ -726,9 +726,9 @@ function filterItemsByQuery(items, query, logic = 'AND') {
     return items.filter(itemObj => {
         const item = itemObj.data;
         const combinedText = [
-            item.itemName, 
-            item.itemCategory, 
-            item.itemScale, 
+            item.itemName,
+            item.itemCategory,
+            item.itemScale,
             ...(item.tags || [])
         ].join(' ').toLowerCase();
 
@@ -740,7 +740,7 @@ function filterItemsByQuery(items, query, logic = 'AND') {
         if (requiredKeywords.length === 0) return true;
 
         // 3. Apply standard AND/OR logic for required keywords
-        return logic === 'OR' 
+        return logic === 'OR'
             ? requiredKeywords.some(kw => combinedText.includes(kw))
             : requiredKeywords.every(kw => combinedText.includes(kw));
     });
@@ -774,12 +774,12 @@ if (saveBioBtn) {
         try {
             saveBioBtn.disabled = true;
             saveBioBtn.textContent = "Saving...";
-            
+
             await listRef.update({ description: newBio });
-            
+
             listData.description = newBio;
             listBioText.textContent = newBio || "No description yet.";
-            
+
             bioDisplayGroup.style.display = 'block';
             bioEditGroup.style.display = 'none';
         } catch (e) {
@@ -806,9 +806,9 @@ if (editBioBtn) {
         listBioInput.value = listData.description || "";
         bioDisplayGroup.style.display = 'none';
         bioEditGroup.style.display = 'block';
-        
+
         // Use setTimeout to ensure the element is visible before calculating height
-        setTimeout(autoScaleBio, 0); 
+        setTimeout(autoScaleBio, 0);
     };
 }
 
@@ -827,11 +827,11 @@ async function checkFavoriteStatus(currentUserId) {
 
     try {
         const userDoc = await db.collection('artifacts').doc('default-app-id')
-                                .collection('user_profiles').doc(currentUserId).get();
-        
+            .collection('user_profiles').doc(currentUserId).get();
+
         const favorites = userDoc.data()?.favoriteLists || [];
         isFavorited = favorites.includes(listId); // listId is defined from URL params
-        
+
         updateFavButtonUI();
         favoriteListBtn.style.display = 'inline-block';
     } catch (err) {
@@ -856,10 +856,10 @@ function updateFavButtonUI() {
 if (favoriteListBtn) {
     favoriteListBtn.onclick = async () => {
         const user = auth.currentUser;
-        if (!user) return; 
+        if (!user) return;
 
         const userRef = db.collection('artifacts').doc('default-app-id')
-                          .collection('user_profiles').doc(user.uid);
+            .collection('user_profiles').doc(user.uid);
 
         try {
             if (isFavorited) {

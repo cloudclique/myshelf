@@ -1,54 +1,63 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title id="listTitlePlaceholder">User List</title>  
+    <title id="listTitlePlaceholder">User List</title>
     <link rel="stylesheet" href="../style.css">
-    <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
+    <link rel="icon" type="image/x-icon"
+        href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
 
     <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:wght@300..800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:wght@300..800&display=swap"
+        rel="stylesheet">
 </head>
+
 <body>
 
-<div style="position: relative;">
-    <div id="header"></div>
-    <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
-</div>
-<script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
+    <div style="position: relative;">
+        <div id="header"></div>
+        <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
+    </div>
+    <script>fetch('../header.html').then(res => res.text()).then(html => { document.getElementById('header').innerHTML = html; });</script>
 
 
 
     <div class="user-controlls">
-<h1 id="listTitle" style="margin-bottom: 0px;">Loading List...</h1> 
+        <h1 id="listTitle" style="margin-bottom: 0px;">Loading List...</h1>
         <div id="listBioSection" class="list-bio-container" style="display: none;">
 
             <div id="bioDisplayGroup">
-                <button id="editBioBtn" class="action-btn" style="display: none; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">
+                <button id="editBioBtn" class="action-btn"
+                    style="display: none; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">
                     <i class="bi bi-pencil"></i> Edit Description
                 </button>
-                <p id="listBioText" style="white-space: pre-wrap; font-size: 0.95rem; opacity: 0.9; background: #f2f2f2; padding: 10px; border-radius: 10px;"></p>
+                <p id="listBioText"
+                    style="white-space: pre-wrap; font-size: 0.95rem; opacity: 0.9; background: #f2f2f2; padding: 10px; border-radius: 10px;">
+                </p>
             </div>
 
             <div id="bioEditGroup" style="display: none; margin-bottom: 15px;">
                 <div style="display: flex; gap: 10px; margin-bottom: 10px">
-                    <button id="saveBioBtn" class="action-btn" style="display: inline-block; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">Save</button>
-                    <button id="cancelBioBtn" class="secondary-btn" style="display: inline-block; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">Cancel</button>
+                    <button id="saveBioBtn" class="action-btn"
+                        style="display: inline-block; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">Save</button>
+                    <button id="cancelBioBtn" class="secondary-btn"
+                        style="display: inline-block; padding: 5px 10px; font-size: 0.8rem; margin-top: 5px;">Cancel</button>
                 </div>
                 <textarea id="listBioInput" class="modern_text_field" maxlength="1000"
-                    placeholder="Tell others about this list... (Max 1000 characters)" 
+                    placeholder="Tell others about this list... (Max 1000 characters)"
                     style="width: 100%; resize: vertical; margin-bottom: 10px;  white-space: pre-wrap; font-size: 0.95rem; opacity: 0.9; padding: 10px; border-radius: 10px; line-height: 1.6;"></textarea>
-                
+
             </div>
         </div>
 
         <div class="status-alignment">
-            
-            <div class="profile-cntrl-btns" style="justify-content: left;" >
+
+            <div class="profile-cntrl-btns" style="justify-content: left;">
                 <p id="listOwnerInfo" style="color: var(--accent-clr);"></p>
                 <div style="display: flex; gap: 10px;">
 
@@ -57,66 +66,69 @@
                     </button>
                     <button id="openRouletteBtn" class="action-btn"><i class="bi bi-dice-5"></i> Roll</button>
                     <button id="shareListBtn" class="action-btn"><i class="bi bi-share-fill"></i> Share</button>
-                    <button id="listSettingsBtn" class="action-btn" style="display: none;"><i class="bi bi-gear-fill"></i> Settings</button>
-                    <button id="deleteListBtn" class="action-btn" style="display: none; background-color: #d9534f;"><i class="bi bi-trash-fill"></i> Delete</button>
+                    <button id="listSettingsBtn" class="action-btn" style="display: none;"><i
+                            class="bi bi-gear-fill"></i> Settings</button>
+                    <button id="deleteListBtn" class="action-btn" style="display: none; background-color: #d9534f;"><i
+                            class="bi bi-trash-fill"></i> Delete</button>
                 </div>
             </div>
         </div>
     </div>
 
-<div id="rouletteModal" class="modal" style="display: none;">
-    <div class="modal-content roulette-content">
-        <h3>Figure Roulette</h3>
-        <div class="tiles-unified roulette-container">
-            <div class="roulette-pointer"></div>
-            <div id="rouletteTrack" class="roulette-track"></div>
-        </div>
-        <div id="winnerDisplay" class="winner-display"></div>
-        <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
-            <button id="rollBtn" class="action-btn">Spin!</button>
-            <button id="closeRouletteModal" class="secondary-btn">Close</button>
-        </div>
-    </div>
-</div>
-
-<div class="detail-page-wrapper">
-    <div id="listLoader" class="profile-loader">
-        <div class="spinner"></div>
-        <p>Loading list content...</p>
-    </div>
-
-    <main class="tiles-unified main-column" style="height: fit-content; width: 100%;">
-        <section class="item-section">
-            <div class="profile-search-container">
-                <div class="search-input-wrapper" style="position: relative;">
-                    <i class="bi bi-search" style="position: absolute; right: 15px; top: 7px; cursor: pointer;"></i>
-                    <input type="text" id="listSearchInput" placeholder="Search items in this list..." class="modern_text_field">
-                    <div id="listSearchSuggestions" class="search-suggestions"></div>
-                </div>
-
-
-                <div class="sort-container">
-                    <select id="sortSelect" onchange="handleSearch()" class="sort-dropdown">
-                        <option value="date">Release Date</option>
-                        <option value="alpha">Alphabetical</option>
-                    </select>
-
-                    <button id="sortDirBtn" onclick="toggleSortDirection()" class="sort-toggle-btn">
-                        
-                        <i id="sortOrderIcon" class="bi bi-sort-down"></i>
-                    </button>
-                </div>
-
-
+    <div id="rouletteModal" class="modal" style="display: none;">
+        <div class="modal-content roulette-content">
+            <h3>Figure Roulette</h3>
+            <div class="tiles-unified roulette-container">
+                <div class="roulette-pointer"></div>
+                <div id="rouletteTrack" class="roulette-track"></div>
             </div>
-        </section>
+            <div id="winnerDisplay" class="winner-display"></div>
+            <div style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                <button id="rollBtn" class="action-btn">Spin!</button>
+                <button id="closeRouletteModal" class="secondary-btn">Close</button>
+            </div>
+        </div>
+    </div>
 
-        <section class="item-section">
-            <div id="listItemsGrid" class="item-grid">
+    <div class="detail-page-wrapper">
+        <div id="listLoader" class="profile-loader">
+            <div class="spinner"></div>
+            <p>Loading list content...</p>
+        </div>
+
+        <main class="tiles-unified main-column" style="height: fit-content; width: 100%;">
+            <section class="item-section">
+                <div class="profile-search-container">
+                    <div class="search-input-wrapper" style="position: relative;">
+                        <i class="bi bi-search" style="position: absolute; right: 15px; top: 7px; cursor: pointer;"></i>
+                        <input type="text" id="listSearchInput" placeholder="Search items in this list..."
+                            class="modern_text_field">
+                        <div id="listSearchSuggestions" class="search-suggestions"></div>
+                    </div>
+
+
+                    <div class="sort-container">
+                        <select id="sortSelect" onchange="handleSearch()" class="sort-dropdown">
+                            <option value="date">Release Date</option>
+                            <option value="alpha">Alphabetical</option>
+                        </select>
+
+                        <button id="sortDirBtn" onclick="toggleSortDirection()" class="sort-toggle-btn">
+
+                            <i id="sortOrderIcon" class="bi bi-sort-down"></i>
+                        </button>
+                    </div>
+
+
                 </div>
-        </section>
-    </main>
-</div>
+            </section>
+
+            <section class="item-section">
+                <div id="listItemsGrid" class="item-grid">
+                </div>
+            </section>
+        </main>
+    </div>
 
     <div id="editListModal" class="modal" style="display: none;">
         <div class="modal-content">
@@ -126,17 +138,19 @@
                 <input type="text" id="editListName" class="modern_text_field">
             </div>
 
-            
+
             <div class="form-group tiles-unified" style="margin-bottom: 20px;">
                 <label>Privacy</label>
                 <div style="margin-bottom: 20px; display: flex; gap: 10px;">
                     <div class="switch-container">
-                        <input type="radio" name="editPrivacy" value="public" id="privacyPublic" class="ios-switch-input">
+                        <input type="radio" name="editPrivacy" value="public" id="privacyPublic"
+                            class="ios-switch-input">
                         <label for="privacyPublic" class="ios-switch-label"></label>
                         <span class="switch-text">Public</span>
                     </div>
                     <div class="switch-container">
-                        <input type="radio" name="editPrivacy" value="private" id="privacyPrivate" class="ios-switch-input">
+                        <input type="radio" name="editPrivacy" value="private" id="privacyPrivate"
+                            class="ios-switch-input">
                         <label for="privacyPrivate" class="ios-switch-label"></label>
                         <span class="switch-text">Private</span>
                     </div>
@@ -146,31 +160,35 @@
             <div class="form-group tiles-unified" style="margin-bottom: 20px;">
                 <label>List Mode</label>
                 <div style="display: flex; flex-direction: row; gap: 10px;">
-                <div class="switch-container">
-                    <input type="radio" name="editMode" value="default" id="modeDefault" class="ios-switch-input" checked>
-                    <label for="modeDefault" class="ios-switch-label"></label>
-                    <span class="switch-text">Default (Static)</span>
-                </div>
-                <div class="switch-container">
-                    <input type="radio" name="editMode" value="live" id="modeLive" class="ios-switch-input">
-                    <label for="modeLive" class="ios-switch-label"></label>
-                    <span class="switch-text">Live (Dynamic)</span>
-                </div>
+                    <div class="switch-container">
+                        <input type="radio" name="editMode" value="default" id="modeDefault" class="ios-switch-input"
+                            checked>
+                        <label for="modeDefault" class="ios-switch-label"></label>
+                        <span class="switch-text">Default (Static)</span>
+                    </div>
+                    <div class="switch-container">
+                        <input type="radio" name="editMode" value="live" id="modeLive" class="ios-switch-input">
+                        <label for="modeLive" class="ios-switch-label"></label>
+                        <span class="switch-text">Live (Dynamic)</span>
+                    </div>
                 </div>
             </div>
 
             <div id="liveQueryGroup" style="display: none;" class="tiles-unified">
                 <div class="form-group" style="margin-top: 15px;">
                     <label>Live Query</label>
-                    <input type="text" id="editLiveQuery" class="modern_text_field" placeholder="e.g. {Action Figures} bandai">
-                    <small style="color: var(--accent-clr); font-size: 0.8rem;">Use {example} to group multiple words. Use - to exclude words.</small>
+                    <input type="text" id="editLiveQuery" class="modern_text_field"
+                        placeholder="e.g. {Action Figures} bandai">
+                    <small style="color: var(--accent-clr); font-size: 0.8rem;">Use {example} to group multiple words.
+                        Use - to exclude words.</small>
                 </div>
 
                 <div class="form-group" style="margin-top: 10px;">
-                        <label>Query Logic</label>
+                    <label>Query Logic</label>
                     <div style="display: flex; flex-direction: row; gap: 10px;">
                         <div class="switch-container">
-                            <input type="radio" name="editLiveLogic" value="AND" id="ligicAND" class="ios-switch-input" checked>
+                            <input type="radio" name="editLiveLogic" value="AND" id="ligicAND" class="ios-switch-input"
+                                checked>
                             <label for="ligicAND" class="ios-switch-label"></label>
                             <span class="switch-text">AND</span>
                         </div>
@@ -190,15 +208,16 @@
         </div>
     </div>
 
-<div style="position: relative;">
-    <div id="footer"></div>
-</div>
-<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
+    <div style="position: relative;">
+        <div id="footer"></div>
+    </div>
+    <script>fetch('../footer.html').then(res => res.text()).then(html => { document.getElementById('footer').innerHTML = html; });</script>
 
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
-<script type="module" src="lists.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script type="module" src="lists.js"></script>
 
 </body>
+
 </html>

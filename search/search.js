@@ -24,6 +24,20 @@ const latestAdditionsGrid = document.getElementById('latestAdditionsGrid');
 const headerTools = document.getElementById('headerTools');
 const loadingStatus = document.getElementById('loadingStatus');
 
+// --- SKELETON LOADING ---
+function renderSkeletonGrid() {
+    latestAdditionsGrid.innerHTML = '';
+    const tempLimit = PAGE_SIZE; // Show a reasonable number of skeletons
+    for (let i = 0; i < tempLimit; i++) {
+        const div = document.createElement('div');
+        div.className = 'skeleton-card';
+        div.innerHTML = `
+            <div class="skeleton skeleton-img"></div>
+        `;
+        latestAdditionsGrid.appendChild(div);
+    }
+}
+
 const prevPageBtn = document.getElementById('prevPageBtn');
 const nextPageBtn = document.getElementById('nextPageBtn');
 const pageStatusElement = document.getElementById('pageStatus');
@@ -53,11 +67,9 @@ function createItemCard(itemData) {
 
     const horAlign = itemData['img-align-hor']?.toLowerCase() || 'center';
     const verAlign = itemData['img-align-ver']?.toLowerCase() || 'center';
-    const imageClasses = `item-image img-align-hor-${
-        ['left', 'center', 'right'].includes(horAlign) ? horAlign : 'center'
-    } img-align-ver-${
-        ['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'
-    }`;
+    const imageClasses = `item-image img-align-hor-${['left', 'center', 'right'].includes(horAlign) ? horAlign : 'center'
+        } img-align-ver-${['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'
+        }`;
 
     card.innerHTML = `
         <div class="item-image-wrapper">
@@ -123,7 +135,12 @@ function updateURLPage() {
 }
 
 async function fetchAllItems() {
-    loadingStatus.textContent = 'Loading items...';
+    loadingStatus.textContent = '';
+
+    // Only show skeletons if grid is empty (initial load)
+    if (latestAdditionsGrid.children.length === 0) {
+        renderSkeletonGrid();
+    }
 
     try {
         const snapshot = await db
@@ -152,15 +169,20 @@ async function fetchAllItems() {
 
         restoreStateFromURL();
         handleSearch(false);
-
-        loadingStatus.textContent = '';
     } catch (err) {
         console.error(err);
         loadingStatus.textContent = `Error: ${err.message}`;
+        latestAdditionsGrid.innerHTML = '<p>Error loading items.</p>';
     }
 }
 
 function handleSearch(resetPage = true) {
+    // If resetting page (new search), show skeletons briefly if we were fetching (though this is client-side filtering, so it's fast)
+    // For client-side filter it might be too fast to need skeletons, BUT if we had async search, we'd put it here.
+    // For now, let's keep it snappy without skeletons for local filtering, 
+    // OR we can add a tiny artificial delay/skeleton if the dataset is huge (optional).
+    // Given the request is for "gimics", let's clear loading status.
+
     const query = searchInput.value.trim().toLowerCase();
 
     if (!query) {
@@ -400,14 +422,14 @@ function renderSearchSuggestions(matches) {
     matches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'search-suggestion-item';
-        
+
         // The display remains clean without braces
         div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type]}</span> ${match.text}`;
 
         div.onclick = () => {
             // Define which types should be treated as "complete parts"
             const bracedTypes = ['tag', 'age', 'category', 'scale'];
-            
+
             if (bracedTypes.includes(match.type)) {
                 // Wrap in braces for the search bar
                 searchInput.value = `{${match.text}}`;
@@ -446,19 +468,19 @@ const listSearchInput = document.getElementById('listSearchInput');
 async function fetchPublicLists() {
     const grid = document.getElementById('publicListsGrid');
     if (!grid) return;
-    
+
     grid.innerHTML = '<p>Loading lists...</p>';
 
     try {
         const snapshot = await db.collection('public_lists').orderBy('createdAt', 'desc').get();
-        
+
         allPublicLists = snapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
         }));
 
         // Initialize filtered list with all lists
-        filteredPublicLists = [...allPublicLists]; 
+        filteredPublicLists = [...allPublicLists];
         renderPublicLists(1);
     } catch (error) {
         console.error("Error fetching public lists:", error);
@@ -473,7 +495,7 @@ function handleListSearch() {
     if (!query) {
         filteredPublicLists = [...allPublicLists];
     } else {
-        filteredPublicLists = allPublicLists.filter(list => 
+        filteredPublicLists = allPublicLists.filter(list =>
             (list.name || '').toLowerCase().includes(query)
         );
     }
@@ -489,7 +511,7 @@ function renderPublicLists(page) {
 
     const start = (page - 1) * LISTS_PER_PAGE;
     const end = start + LISTS_PER_PAGE;
-    
+
     // Use the filtered array here
     const paginatedLists = filteredPublicLists.slice(start, end);
 
@@ -500,7 +522,7 @@ function renderPublicLists(page) {
 
     paginatedLists.forEach(list => {
         const card = document.createElement('a');
-        card.href = `../lists/?list=${list.id}&type=public`; 
+        card.href = `../lists/?list=${list.id}&type=public`;
         card.className = 'item-card-link';
 
         const listIcon = list.mode === 'live' ? 'bi-journal-code' : 'bi-journal-bookmark-fill';

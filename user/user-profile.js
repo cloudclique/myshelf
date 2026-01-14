@@ -228,24 +228,22 @@ async function fetchAndRenderBanner(userId) {
 async function initializeProfile() {
     updateViewAppearance();
 
-    if (profileLoader) profileLoader.classList.remove('hidden');
+    // 1. Immediate Skeleton Feedback
+    if (profileLoader) profileLoader.classList.add('hidden'); // Hide the old spinner
+    renderSkeletonGrid(); // Show the new skeletons
+
     targetUserId = getUserIdFromUrl();
 
     if (!targetUserId) {
         profileTitle.textContent = 'Error: No User ID Provided';
         loadingStatus.textContent = 'Please return to the Users search page.';
-        if (profileLoader) profileLoader.classList.add('hidden');
+        profileItemsGrid.innerHTML = ''; // Clear skeletons
         return;
     }
 
     if (viewMoreGalleryBtn) {
         viewMoreGalleryBtn.onclick = () => { window.location.href = `../?uid=${targetUserId}`; };
     }
-
-    // Await core user data
-    await fetchAndRenderBanner(targetUserId);
-    targetUsername = await fetchUsername(targetUserId);
-    profileTitle.textContent = `${targetUsername}'s Collection`;
 
     const currentUser = auth.currentUser;
     isProfileOwner = currentUser && targetUserId === currentUser.uid;
@@ -256,39 +254,69 @@ async function initializeProfile() {
         setupRoleModal(currentUser.uid);
     }
 
-    // Parse URL Hash for state
+    // Parse URL Hash for state early
     const { status: hashStatus, page: hashPage, search: hashSearch, sort: hashSort, order: hashOrder } = parseURLHash();
     currentStatusFilter = STATUS_OPTIONS.includes(hashStatus) ? hashStatus : 'Owned';
     currentPage = hashPage || 1;
     currentSortOrder = hashOrder || 'desc';
 
-    await renderStatusButtons(); // This calls updateSortOptions() internally
-
     // Apply sort from URL
     if (hashSort && sortSelect) {
         sortSelect.value = hashSort;
     }
-
-    // Update the sort icon to match the URL state
     if (sortOrderIcon) {
         sortOrderIcon.className = currentSortOrder === 'desc' ? 'bi bi-sort-down' : 'bi bi-sort-up';
     }
 
-    await fetchProfileItems(currentStatusFilter);
-    await fetchUserLists(targetUserId);
 
-    // After the await above, lastFetchedItems is guaranteed to be populated
+    // 2. Parallel Data Fetching
+    // Fire all requests at once!
+    const bannerPromise = fetchAndRenderBanner(targetUserId);
+    const usernamePromise = fetchUsername(targetUserId);
+    const statusCountsPromise = renderStatusButtons(); // This calls updateSortOptions
+    const itemsPromise = fetchProfileItems(currentStatusFilter); // Fetch items immediately
+    const listsPromise = fetchUserLists(targetUserId);
+    const commentsPromise = loadComments(targetUserId);
+    const galleryPromise = fetchAndRenderGalleryPreview(targetUserId);
+
+    // 3. Await Critical UI Elements
+    // We await username to set the title, but items might finish before or after
+    targetUsername = await usernamePromise;
+    profileTitle.textContent = `${targetUsername}'s Collection`;
+
+    // We don't strictly need to await these for functionality, but good to know they are done
+    await Promise.all([bannerPromise, statusCountsPromise]);
+
+    // Items are handled by fetchProfileItems updating the DOM itself
+    await itemsPromise;
+
+    // After items are potentially loaded, handle search logic
     if (hashSearch) {
         profileSearchInput.value = hashSearch;
-        handleProfileSearch(); // This internally calls applySortAndFilter()
+        // Search re-triggers a render, so we might want to check if search is different from default
+        handleProfileSearch();
     } else {
-        applySortAndFilter(); // Standard render for current page/sort
+        // If items fetch completed, they are rendered. 
+        // If sorting/filtering needed adjustment beyond what fetch did:
+        applySortAndFilter();
     }
 
-    await loadComments(targetUserId);
-    await fetchAndRenderGalleryPreview(targetUserId);
+    // Non-critical background fetches
+    await Promise.all([listsPromise, commentsPromise, galleryPromise]);
+}
 
-    if (profileLoader) profileLoader.classList.add('hidden');
+function renderSkeletonGrid() {
+    if (!profileItemsGrid) return;
+    profileItemsGrid.innerHTML = '';
+    const tempLimit = ITEMS_PER_PAGE || 32;
+    for (let i = 0; i < tempLimit; i++) {
+        const div = document.createElement('div');
+        div.className = 'skeleton-card';
+        div.innerHTML = `
+            <div class="skeleton skeleton-img"></div>
+        `;
+        profileItemsGrid.appendChild(div);
+    }
 }
 
 async function fetchUserLists(userId) {
@@ -527,16 +555,20 @@ async function renderStatusButtons() {
 
 async function fetchProfileItems(status) {
     if (!targetUserId) return;
-    profileItemsGrid.innerHTML = '';
+    // Don't clear grid here if skeletons are present and we are initial loading
+    // But if switching tabs, we might want skeletons again
+    if (profileItemsGrid.children.length === 0 || !profileItemsGrid.querySelector('.skeleton-card')) {
+        renderSkeletonGrid();
+    }
+
     paginationContainer.innerHTML = '';
-    loadingStatus.textContent = `Loading ${targetUsername}'s ${status.toLowerCase()} items...`;
+    loadingStatus.textContent = ''; // Hide text status, use skeletons
     return await fetchPage();
 }
 
 async function fetchPage() {
     if (!targetUserId) return;
-    profileItemsGrid.innerHTML = '';
-    loadingStatus.textContent = `Loading collection data...`;
+    // Removed clearing grid here to keep skeletons until data is ready
     try {
         const userCollectionRef = getUserCollectionRef(targetUserId);
         const snapshot = await userCollectionRef.where('status', '==', currentStatusFilter).get();
@@ -549,9 +581,25 @@ async function fetchPage() {
         const mainCollectionRef = db.collection(collectionName);
         const detailedItems = await Promise.all(snapshot.docs.map(async doc => {
             const userItemData = doc.data();
+
+            // OPTIMIZATION: Check for denormalized data on the user item itself
+            // If the user_profiles/{uid}/items document has the item data, use it!
+            if (userItemData.itemName && userItemData.itemImageUrls) {
+                // Construct a mock document object that mimics Firestore doc interface
+                return {
+                    doc: {
+                        id: userItemData.itemId,
+                        exists: true,
+                        data: () => userItemData // The userItemData now acts as the item data
+                    },
+                    status: userItemData.status,
+                    privateNotes: userItemData.privateNotes || {}
+                };
+            }
+
+            // Fallback: Fetch from main collection (slower)
             const itemDoc = await mainCollectionRef.doc(userItemData.itemId).get();
             if (!itemDoc.exists) return null;
-            // We now capture privateNotes from the user's specific document to display in list view
             return {
                 doc: itemDoc,
                 status: userItemData.status,
@@ -563,6 +611,7 @@ async function fetchPage() {
     } catch (err) {
         console.error(err);
         loadingStatus.textContent = `Error loading collection: ${err.message}`;
+        profileItemsGrid.innerHTML = ''; // Clear skeletons on error
     }
 }
 

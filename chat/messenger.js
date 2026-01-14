@@ -22,6 +22,7 @@ let currentUserId = null;
 let currentChatUserId = null;
 let currentChatUsername = null;
 let messageListener = null; // To store the Firestore snapshot listener
+let contactsListener = null; // To store the contacts list listener
 
 // --- Constants ---
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
@@ -96,14 +97,14 @@ async function uploadImageToImgBB(file) {
     try {
         const processedBlob = await processImage(file, 1); // 1MB max
         const formData = new FormData();
-        
+
         // Append the processed image. The Worker will add the API key.
         formData.append('image', processedBlob, file.name.replace(/\.\w+$/, '.webp'));
-        
+
         // REMOVED: formData.append('key', Messimages);
 
         // Fetch the Cloudflare Worker endpoint (adjust URL if needed)
-        const response = await fetch('https://imgbbapi.stanislav-zhukov.workers.dev/', { 
+        const response = await fetch('https://imgbbapi.stanislav-zhukov.workers.dev/', {
             method: 'POST',
             body: formData,
         });
@@ -132,13 +133,13 @@ async function uploadImageToImgBB(file) {
 // -----------------------------------------------------------------
 
 
-window.openLightbox = function(url) {
+window.openLightbox = function (url) {
     lightboxImage.src = url;
     lightboxOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
 }
 
-window.closeLightbox = function() {
+window.closeLightbox = function () {
     lightboxOverlay.classList.remove('active');
     lightboxImage.src = '';
     document.body.style.overflow = '';
@@ -146,14 +147,14 @@ window.closeLightbox = function() {
 
 function renderMessage(message, docId = null) {
     const isSent = message.senderId === currentUserId;
-    const time = message.timestamp 
+    const time = message.timestamp
         ? new Date(message.timestamp.seconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         : 'Sending...';
 
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
     messageDiv.style.position = 'relative'; // For menu positioning
-    
+
     let contentHtml = '';
 
     if (message.imageUrls && message.imageUrls.length > 0) {
@@ -266,8 +267,8 @@ function renderMessage(message, docId = null) {
 }
 
 // --- Image Preview Logic ---
-imageUpload.onchange = function() {
-    imagePreviewContainer.innerHTML = ''; 
+imageUpload.onchange = function () {
+    imagePreviewContainer.innerHTML = '';
     const files = Array.from(imageUpload.files);
     let filesToUse = files;
 
@@ -297,7 +298,7 @@ imageUpload.onchange = function() {
     sendMessageBtn.disabled = !(messageInput.value.trim() || imageUpload.files.length > 0);
 };
 
-imagePreviewContainer.onclick = function(e) {
+imagePreviewContainer.onclick = function (e) {
     if (e.target.classList.contains('remove-img-btn')) {
         const indexToRemove = parseInt(e.target.dataset.index);
         const files = Array.from(imageUpload.files);
@@ -312,12 +313,13 @@ imagePreviewContainer.onclick = function(e) {
     }
 };
 
-messageInput.oninput = function() {
+messageInput.oninput = function () {
     sendMessageBtn.disabled = !(messageInput.value.trim() || imageUpload.files.length > 0);
 };
 
 async function fetchUserContacts() {
     if (!currentUserId) return;
+    if (contactsListener) contactsListener();
 
     try {
         const chatsRef = db
@@ -325,42 +327,53 @@ async function fetchUserContacts() {
             .doc(appId)
             .collection('chats');
 
-        const chatsSnap = await chatsRef
+        contactsListener = chatsRef
             .where('users', 'array-contains', currentUserId)
-            .get();
+            .onSnapshot(async (chatsSnap) => {
+                // Build data FIRST (no DOM touching yet)
+                const contactUids = new Set();
+                const chatData = {};
 
-        // Build data FIRST (no DOM touching yet)
-        const contactUids = new Set();
-        const chatData = {};
+                chatsSnap.forEach(doc => {
+                    const data = doc.data();
+                    const otherUserId = data.users?.find(uid => uid !== currentUserId);
+                    if (!otherUserId) return;
 
-        chatsSnap.forEach(doc => {
-            const data = doc.data();
-            const otherUserId = data.users?.find(uid => uid !== currentUserId);
-            if (!otherUserId) return;
+                    contactUids.add(otherUserId);
+                    chatData[otherUserId] = {
+                        lastMessage:
+                            data.lastMessage ||
+                            (data.imageUrls?.length
+                                ? `[${data.imageUrls.length} image(s) sent]`
+                                : ''),
+                        lastSent: data.lastSent
+                            ? data.lastSent.toDate()
+                            : new Date(0),
+                        unreadCount: data.unreadCount?.[currentUserId] || 0
+                    };
+                });
 
-            contactUids.add(otherUserId);
-            chatData[otherUserId] = {
-                lastMessage:
-                    data.lastMessage ||
-                    (data.imageUrls?.length
-                        ? `[${data.imageUrls.length} image(s) sent]`
-                        : ''),
-                lastSent: data.lastSent
-                    ? data.lastSent.toDate()
-                    : new Date(0)
-            };
-        });
+                if (contactUids.size === 0) {
+                    if (userList.children.length === 0) {
+                        userList.innerHTML = '<p style="padding:10px;">No conversations yet.</p>';
+                    }
+                    return;
+                }
 
-        if (contactUids.size === 0) {
-            // Only update UI if it's actually empty
-            if (userList.children.length === 0) {
-                userList.innerHTML =
-                    '<p style="padding:10px;">No conversations yet.</p>';
-            }
-            return;
-        }
+                // Fetch profiles in parallel... 
+                // To avoid flickering, we still fetch profiles, but maybe we can cache them.
+                // For now, let's keep it simple.
+                renderContacts(contactUids, chatData);
+            }, err => {
+                console.error('Contacts listener error:', err);
+            });
+    } catch (err) {
+        console.error('Failed to setup contacts listener:', err);
+    }
+}
 
-        // Fetch profiles in parallel
+async function renderContacts(contactUids, chatData) {
+    try {
         const profiles = await Promise.all(
             [...contactUids].map(async uid => {
                 const snap = await getProfilesRef().doc(uid).get();
@@ -368,12 +381,8 @@ async function fetchUserContacts() {
 
                 return {
                     uid,
-                    username:
-                        snap.data().username ||
-                        `User ${uid.slice(0, 6)}`,
-                    profilePic:
-                        snap.data().profilePic ||
-                        'https://placehold.co/40x40',
+                    username: snap.data().username || `User ${uid.slice(0, 6)}`,
+                    profilePic: snap.data().profilePic || 'https://placehold.co/40x40',
                     ...chatData[uid]
                 };
             })
@@ -381,35 +390,26 @@ async function fetchUserContacts() {
 
         const contacts = profiles
             .filter(Boolean)
-            .sort(
-                (a, b) => b.lastSent.getTime() - a.lastSent.getTime()
-            );
+            .sort((a, b) => b.lastSent.getTime() - a.lastSent.getTime());
 
-        // ===== DOM UPDATE PHASE (single paint) =====
         const fragment = document.createDocumentFragment();
 
         contacts.forEach(user => {
             const item = document.createElement('div');
             item.className = 'chat-item';
+            if (currentChatUserId === user.uid) item.classList.add('active');
 
-            const lastTime =
-                user.lastSent.getTime() === 0
-                    ? ''
-                    : user.lastSent.toLocaleTimeString([], {
-                          hour: '2-digit',
-                          minute: '2-digit'
-                      });
+            const lastTime = user.lastSent.getTime() === 0
+                ? ''
+                : user.lastSent.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
             item.innerHTML = `
                 <div style="display:flex;align-items:center;gap:8px">
-                    <img
-                        src="${user.profilePic}"
-                        class="small-user-avatar"
-                        loading="lazy"
-                    >
+                    <img src="${user.profilePic}" class="small-user-avatar" loading="lazy">
                     <div style="flex:1">
-                        <div style="font-weight:bold">
-                            ${user.username}
+                        <div class="chat-item-header">
+                            <div style="font-weight:bold">${user.username}</div>
+                            ${user.unreadCount > 0 ? `<span class="unread-badge">${user.unreadCount}</span>` : ''}
                         </div>
                         <div style="font-size:.8em;color:#555;display:flex;justify-content:space-between">
                             <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:75%">
@@ -421,18 +421,13 @@ async function fetchUserContacts() {
                 </div>
             `;
 
-            item.onclick = () =>
-                startChat(user.uid, user.username);
-
+            item.onclick = () => startChat(user.uid, user.username);
             fragment.appendChild(item);
         });
 
-        // Replace content AT ONCE (no flicker)
         userList.replaceChildren(fragment);
-
     } catch (err) {
-        console.error('Failed to refresh contacts:', err);
-        // IMPORTANT: do NOT clear existing UI on error
+        console.error('Failed to render contacts:', err);
     }
 }
 
@@ -447,17 +442,29 @@ function startChat(userId, username) {
     messageList.innerHTML = '<p style="text-align: center; opacity: 0.6;">Loading messages...</p>';
     messageInput.disabled = false;
     sendMessageBtn.disabled = false;
-    
+
     // Highlight the active chat item
     document.querySelectorAll('.chat-item').forEach(item => item.classList.remove('active'));
     Array.from(userList.children).forEach(el => {
         // This is a crude way to check, relying on the username in the inner HTML
-        if (el.querySelector('div')?.textContent.includes(username)) { 
+        if (el.querySelector('div')?.textContent.includes(username)) {
             el.classList.add('active');
         }
     });
 
     listenForMessages(userId);
+
+    // Mark as seen and reset unread count
+    const chatId = getChatId(currentUserId, userId);
+    getChatRef(chatId).set({
+        lastSeenBy: {
+            [currentUserId]: firebase.firestore.FieldValue.serverTimestamp()
+        },
+        unreadCount: {
+            [currentUserId]: 0
+        }
+    }, { merge: true }).catch(console.error);
+
     handleLayout();
 }
 
@@ -467,7 +474,7 @@ function listenForMessages(targetUserId) {
 
     messageListener = chatDocRef.collection('messages')
         .orderBy('timestamp', 'desc')
-        .limit(50) 
+        .limit(50)
         .onSnapshot(snapshot => {
             messageList.innerHTML = '';
             if (snapshot.empty) {
@@ -478,6 +485,16 @@ function listenForMessages(targetUserId) {
             snapshot.docs.reverse().forEach(doc => {
                 renderMessage(doc.data(), doc.id); // pass doc.id for deletion
             });
+
+            // Mark as seen and reset unread count when new messages arrive while in chat
+            chatDocRef.set({
+                lastSeenBy: {
+                    [currentUserId]: firebase.firestore.FieldValue.serverTimestamp()
+                },
+                unreadCount: {
+                    [currentUserId]: 0
+                }
+            }, { merge: true }).catch(console.error);
         }, error => {
             console.error("Error listening to messages:", error);
             messageList.innerHTML = `<p style="text-align: center; color: red;">Error loading messages: ${error.message}</p>`;
@@ -496,7 +513,7 @@ async function sendMessage() {
 
     const originalBtnText = sendMessageBtn.textContent;
     sendMessageBtn.textContent = 'Uploading...';
-    
+
     let imageUrls = [];
     let failedUploads = 0;
 
@@ -507,7 +524,7 @@ async function sendMessage() {
             failedUploads++;
             return null; // Return null for failed uploads
         }));
-        
+
         const results = await Promise.all(uploadPromises);
         imageUrls = results.filter(url => url !== null); // Filter out failed uploads
 
@@ -515,7 +532,7 @@ async function sendMessage() {
             // If the user only sent images and all of them failed
             throw new Error("All images failed to upload. Please check your network or Worker endpoint.");
         }
-        
+
         if (failedUploads > 0) {
             console.warn(`${failedUploads} image(s) failed to upload and were omitted from the message.`);
         }
@@ -532,19 +549,26 @@ async function sendMessage() {
             text: messageText,
             timestamp: timestamp,
             // Only include imageUrls if there are any successful uploads
-            ...(imageUrls.length > 0 && { imageUrls: imageUrls }) 
+            ...(imageUrls.length > 0 && { imageUrls: imageUrls })
         };
 
         // 1. Add the message to the chat's message collection
         await chatDocRef.collection('messages').add(message);
-        
+
         // 2. Update the parent chat document with the last message summary
         await chatDocRef.set({
             lastMessage: messageText,
             lastSent: timestamp,
+            lastSenderId: currentUserId,
             users: [currentUserId, currentChatUserId],
+            lastSeenBy: {
+                [currentUserId]: timestamp
+            },
+            unreadCount: {
+                [currentChatUserId]: firebase.firestore.FieldValue.increment(1)
+            },
             // Update last image data for contact list preview (optional, but good)
-            ...(imageUrls.length > 0 && { imageUrls: imageUrls }) 
+            ...(imageUrls.length > 0 && { imageUrls: imageUrls })
         }, { merge: true });
 
         // Clear input fields and reset state
@@ -561,7 +585,7 @@ async function sendMessage() {
         alertModal.style.cssText = 'position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 20px; background: white; border: 2px solid #f44336; z-index: 1000; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
         alertModal.innerHTML = `<p style="color: #f44336; font-weight: bold;">Error Sending Message</p><p>${errorMessage}</p><button onclick="this.parentNode.remove()" style="margin-top: 10px; padding: 5px 10px; background-color: #f44336; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>`;
         document.body.appendChild(alertModal);
-        
+
     } finally {
         sendMessageBtn.textContent = originalBtnText;
         messageInput.disabled = false;
@@ -612,6 +636,7 @@ auth.onAuthStateChanged(async (user) => {
         // User is logged out
         currentUserId = null;
         if (messageListener) messageListener();
+        if (contactsListener) contactsListener();
         currentChatUserId = null;
         headerTools.innerHTML = `<button id="loginBtn" class="login-btn">Login/Register</button>`;
         document.getElementById('loginBtn').onclick = () => window.location.href = '../login';
@@ -644,11 +669,11 @@ function setupHeaderLogoRedirect() {
     const logo = document.querySelector('.header-logo');
     if (!logo) return;
 
-    logo.style.cursor = 'pointer'; 
+    logo.style.cursor = 'pointer';
     logo.onclick = () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
-            alert("You must be logged in to view your profile."); 
+            alert("You must be logged in to view your profile.");
             return;
         }
         const userId = currentUser.uid;
@@ -693,7 +718,7 @@ function handleLayout() {
         sidebar.style.display = 'flex';
         userList.style.display = 'flex';
         chatArea.style.display = 'flex';
-        
+
         if (backBtn) backBtn.onclick = null;
     }
 }

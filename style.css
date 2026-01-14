@@ -5,23 +5,31 @@
     --header-bg: #111;
     --section-bg: #ffffff;
     --secondary-btn-hover: #e7e7e7;
-    --accent-color: #ff9100; /* Blue for 'Add Entry' button and active states */
-    --logout-color: #dc3545; /* Red for logout button */
+    --accent-color: #ff9100;
+    /* Blue for 'Add Entry' button and active states */
+    --logout-color: #dc3545;
+    /* Red for logout button */
     --login-color: #97cf57;
-    --delete-color: #ff4d4d; /* Bright Red for Delete */
+    --delete-color: #ff4d4d;
+    /* Bright Red for Delete */
     --border-color: #ff9100;
     --drop-shadow-clr: #ebebeb;
 
     /* Status Colors */
-    --status-owned-bg: #28a745; /* Green */
-    --status-wished-bg: #ffc107; /* Yellow */
-    --status-ordered-bg: #007bff; /* Blue */
-    --status-remove-bg: #6c757d; /* Gray */
+    --status-owned-bg: #28a745;
+    /* Green */
+    --status-wished-bg: #ffc107;
+    /* Yellow */
+    --status-ordered-bg: #007bff;
+    /* Blue */
+    --status-remove-bg: #6c757d;
+    /* Gray */
 
     --round-border-radius: 100px;
     --border-radius: 15px;
     --mbl-scrn: 768px;
 }
+
 .shop-timestamp {
     display: none;
 }
@@ -36,7 +44,7 @@ h1 {
 
 /* --- Base Styles --- */
 body {
-    font-family: "Funnel Sans",Monospace, Arial, sans-serif;
+    font-family: "Funnel Sans", Monospace, Arial, sans-serif;
     background-color: var(--bg-color);
     color: var(--text-color);
     margin: 0;
@@ -84,7 +92,7 @@ body {
     text-decoration: none;
 }
 
-.header-logo img{
+.header-logo img {
     height: clamp(15px, 4vw, 30px);
     margin-right: 20px;
 }
@@ -171,7 +179,8 @@ body {
 }
 
 
-.item-manufacturer, .item-price {
+.item-manufacturer,
+.item-price {
     font-size: 0.8em;
     color: var(--text-color);
     margin: 0;
@@ -252,12 +261,14 @@ body {
 }
 
 .success-message {
-    background-color: #28a745; /* Green */
+    background-color: #28a745;
+    /* Green */
     color: white;
 }
 
 .error-message {
-    background-color: var(--logout-color); /* Red */
+    background-color: var(--logout-color);
+    /* Red */
     color: white;
 }
 
@@ -270,7 +281,7 @@ body {
 }
 
 /* Ensure children fill the grid area */
-.form-group-row > div {
+.form-group-row>div {
     display: block;
 }
 
@@ -313,9 +324,11 @@ body {
     /* Changed to auto-fit and minmax(150px, 1fr). 
        This ensures the cards never shrink below 150px and automatically wrap (stack down). */
     grid-template-columns: repeat(auto-fit, 95px);
-    gap: 5px; /* Increased gap for better spacing */
+    gap: 5px;
+    /* Increased gap for better spacing */
     padding: 10px 0;
-    justify-content: center; /* Center the grid items if the last row is incomplete */
+    justify-content: center;
+    /* Center the grid items if the last row is incomplete */
 }
 
 
@@ -323,11 +336,12 @@ body {
 .item-image-wrapper {
     width: 100%;
     /* 1:1 Aspect Ratio Trick */
-    padding-top: 100%; 
-    height: 0; 
+    padding-top: 100%;
+    height: 0;
     position: relative;
     overflow: hidden;
-    background-color: #1f1f1f; /* Dark background for the wrapper */
+    background-color: #1f1f1f;
+    /* Dark background for the wrapper */
     color: var(--text-color-reverse);
     font-size: 8pt;
 }
@@ -340,9 +354,9 @@ body {
     position: absolute;
     top: 0;
     left: 0;
-    
+
     /* Ensure the image covers the entire square area without distortion */
-    object-fit: cover; 
+    object-fit: cover;
     display: block;
 }
 
@@ -353,7 +367,8 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    object-fit: cover; /* cover square without distortion */
+    object-fit: cover;
+    /* cover square without distortion */
     border-radius: 4px;
 }
 
@@ -364,12 +379,13 @@ body {
     align-items: center;
     width: 100%;
     /* 1:1 Aspect Ratio Trick */
-    padding-top: 100%; 
-    height: 0; 
+    padding-top: 100%;
+    height: 0;
     position: relative;
-    
+
     /* Ensure dark gray background */
-    background-color: var(--section-bg); /* This is defined as #333 */
+    background-color: var(--section-bg);
+    /* This is defined as #333 */
     color: #bbb;
     font-style: italic;
     text-align: center;
@@ -391,7 +407,8 @@ body {
 
 .item-info {
     padding: 15px;
-    flex-grow: 1; /* Allows the info section to expand */
+    flex-grow: 1;
+    /* Allows the info section to expand */
 }
 
 .item-info h3 {
@@ -547,13 +564,16 @@ body {
 }
 
 /* --- Action Button --- */
-.action-btn, .secondary-btn, .sort-ddown {
+.action-btn,
+.secondary-btn,
+.sort-ddown {
     padding: 10px 15px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
     font-size: clamp(9px, 2vw, 14px);
-    text-decoration: none; /* Make sure it styles anchor tags too */
+    text-decoration: none;
+    /* Make sure it styles anchor tags too */
     display: inline-block;
     transition: background-color 0.3s;
     text-align: center;
@@ -658,7 +678,8 @@ body {
 /* --- Alignment Controls --- */
 
 .alignment-selector {
-    display: flex; /* Arranges buttons horizontally */
+    display: flex;
+    /* Arranges buttons horizontally */
     gap: 10px;
     margin-bottom: 20px;
 }
@@ -679,19 +700,22 @@ body {
     border-radius: 4px;
     background-color: var(--section-bg);
     transition: background-color 0.2s, border-color 0.2s;
-    flex-grow: 1; /* Makes all options the same width */
+    flex-grow: 1;
+    /* Makes all options the same width */
     text-align: center;
 }
 
 /* Hover state */
 .alignment-selector label:hover {
-    background-color: #444; /* Darken on hover */
+    background-color: #444;
+    /* Darken on hover */
     border-color: var(--accent-color);
 }
 
 /* Checked state (The selected button) */
-.alignment-selector input[type="radio"]:checked + label {
-    background-color: var(--accent-color); /* Highlight color */
+.alignment-selector input[type="radio"]:checked+label {
+    background-color: var(--accent-color);
+    /* Highlight color */
     border-color: var(--accent-color);
     color: var(--text-color);
 }
@@ -710,14 +734,29 @@ body {
     color: var(--header-bg);
 }
 
-.status-owned { background-color: var(--status-owned-bg); color: white; }
-.status-wished { background-color: var(--status-wished-bg); }
-.status-ordered { background-color: var(--status-ordered-bg); color: white; }
-.status-n\/a { background-color: var(--status-remove-bg); color: white; }
+.status-owned {
+    background-color: var(--status-owned-bg);
+    color: white;
+}
+
+.status-wished {
+    background-color: var(--status-wished-bg);
+}
+
+.status-ordered {
+    background-color: var(--status-ordered-bg);
+    color: white;
+}
+
+.status-n\/a {
+    background-color: var(--status-remove-bg);
+    color: white;
+}
 
 
 .status-radio-btn {
-    display: none; /* Hide the actual radio button */
+    display: none;
+    /* Hide the actual radio button */
 }
 
 
@@ -726,17 +765,19 @@ body {
     background-color: var(--status-owned-bg);
     color: white;
 }
+
 .status-wished-color {
     background-color: var(--status-wished-bg);
     color: var(--header-bg);
 }
+
 .status-ordered-color {
     background-color: var(--status-ordered-bg);
     color: white;
 }
 
 /* State when radio is CHECKED */
-.status-radio-btn:checked + .status-label {
+.status-radio-btn:checked+.status-label {
     /* Use a bright box shadow to indicate selection */
     box-shadow: 0 0 0 4px var(--drop-shadow-clr), 0 0 0 6px white;
     transform: translateY(-1px);
@@ -759,6 +800,7 @@ body {
     background-color: var(--section-bg);
     border: 1px solid var(--border-color);
 }
+
 .remove-status-btn:hover {
     background-color: var(--secondary-btn-hover);
 }
@@ -804,17 +846,22 @@ body {
 
 .alignment-group {
     display: flex;
-    gap: 20px; /* Space between the two groups */
-    margin-bottom: 15px; /* Add some margin below the group */
+    gap: 20px;
+    /* Space between the two groups */
+    margin-bottom: 15px;
+    /* Add some margin below the group */
     /* Ensure they stay side-by-side even on small screens */
-    flex-wrap: nowrap; 
+    flex-wrap: nowrap;
 }
 
-.alignment-group > div {
-    flex: 1 1 50%; /* Make both sides take up equal width */
-    display: flex; /* Make label and select inside flexible for vertical alignment */
-    flex-direction: column; 
+.alignment-group>div {
+    flex: 1 1 50%;
+    /* Make both sides take up equal width */
+    display: flex;
+    /* Make label and select inside flexible for vertical alignment */
+    flex-direction: column;
 }
+
 /* --- END NEW ALIGNMENT GROUP STYLING --- */
 
 /* ... other styles ... */
@@ -835,24 +882,42 @@ body {
     border-radius: 6px 6px 0 0;
 }
 
-.img-align-hor-left { --hor-align: left; }
-.img-align-hor-center { --hor-align: center; }
-.img-align-hor-right { --hor-align: right; }
+.img-align-hor-left {
+    --hor-align: left;
+}
 
-.img-align-ver-top { --ver-align: top; }
-.img-align-ver-center { --ver-align: center; }
-.img-align-ver-bottom { --ver-align: bottom; }
+.img-align-hor-center {
+    --hor-align: center;
+}
+
+.img-align-hor-right {
+    --hor-align: right;
+}
+
+.img-align-ver-top {
+    --ver-align: top;
+}
+
+.img-align-ver-center {
+    --ver-align: center;
+}
+
+.img-align-ver-bottom {
+    --ver-align: bottom;
+}
 
 /* --- New Controls Styling --- */
 
 .controls-bar {
     display: flex;
-    justify-content: flex-start; /* Align to the left/start */
+    justify-content: flex-start;
+    /* Align to the left/start */
     gap: 30px;
     padding: 10px 0;
     align-items: center;
     margin-bottom: 20px;
-    flex-wrap: wrap; /* Allow wrapping on small screens */
+    flex-wrap: wrap;
+    /* Allow wrapping on small screens */
 }
 
 .control-group {
@@ -884,9 +949,9 @@ body {
 }
 
 
-    .item-metadata {
-        width: 70%;
-    }
+.item-metadata {
+    width: 70%;
+}
 
 
 
@@ -959,7 +1024,7 @@ body {
     margin-top: 15px;
 }
 
-.form-field{
+.form-field {
     flex-direction: column;
     max-width: 25%;
 }
@@ -997,14 +1062,16 @@ body {
 .status-header-bar {
     /* The form element now acts as the sub-header bar */
     display: flex;
-    align-items: center; /* Align items vertically in the center */
+    align-items: center;
+    /* Align items vertically in the center */
     justify-content: center;
     gap: 20px;
     background-color: var(--section-bg);
     padding: 10px 20px;
     border-radius: 8px;
     box-shadow: 0 2px 5px var(--drop-shadow-clr);
-    flex-wrap: wrap; /* Allow wrapping on small screens */
+    flex-wrap: wrap;
+    /* Allow wrapping on small screens */
     border: none;
     width: 100%;
     justify-content: space-between;
@@ -1029,12 +1096,12 @@ body {
 .status-label {
     /* Square Button Styling */
     padding: 10px;
-    width: 40px; 
-    height: 40px; 
-    display: flex; 
+    width: 40px;
+    height: 40px;
+    display: flex;
     justify-content: center;
     align-items: center;
-    border-radius: 6px;  
+    border-radius: 6px;
     cursor: pointer;
     font-weight: bold;
     transition: background-color 0.2s, box-shadow 0.2s, color 0.2s;
@@ -1055,19 +1122,23 @@ body {
     background-color: var(--status-owned-bg);
     color: white;
 }
+
 .status-wished-color {
     background-color: var(--status-wished-bg);
-    color: var(--header-bg); /* Dark text on yellow */
+    color: var(--header-bg);
+    /* Dark text on yellow */
 }
+
 .status-ordered-color {
     background-color: var(--status-ordered-bg);
     color: white;
 }
 
 /* State when radio is CHECKED */
-.status-radio-btn:checked + .status-label {
+.status-radio-btn:checked+.status-label {
     box-shadow: 0 0 0 4px var(--section-bg), 0 0 0 6px var(--accent-color);
-    transform: translateY(-1px) scale(1.05); /* Slight pop effect */
+    transform: translateY(-1px) scale(1.05);
+    /* Slight pop effect */
 }
 
 
@@ -1079,101 +1150,119 @@ body {
 }
 
 #authMessage {
-    display: none !important; /* Use !important to ensure it overrides any existing display rules */
+    display: none !important;
+    /* Use !important to ensure it overrides any existing display rules */
 }
- 
 
-        .login-container {
-            max-width: 400px;
-            margin: 80px auto;
-            padding: 30px;
-            background-color: var(--section-bg);
-            border-radius: 12px;
-            box-shadow: 0 4px 15px var(--drop-shadow-clr);
-            text-align: center;
-        }
-        .login-container h1 {
-            color: var(--primary-color);
-            margin-bottom: 25px;
-            font-size: 1.8em;
-        }
-        .login-form input {
-            width: 100%;
-            padding: 12px;
-            margin-bottom: 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            background-color: #2a2a2a;
-            color: var(--text-color);
-            font-size: 1em;
-        }
-        .login-form input:focus {
-            outline: 2px solid var(--primary-color);
-            border-color: var(--primary-color);
-        }
-        .login-form button {
-            width: 100%;
-            padding: 12px;
-            border: none;
-            border-radius: 6px;
-            background-color: var(--primary-color);
-            color: #fff;
-            font-size: 1.1em;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            margin-bottom: 10px;
-        }
-        .login-form button:hover {
-            background-color: var(--primary-hover);
-        }
-        .form-message {
-            margin: 0px;
-            padding: 10px;
-            border-radius: 6px;
-            text-align: center;
-            font-weight: bold;
-        }
-        .error-message {
-            background-color: #610000;
-            color: #ffcccc;
-        }
-        .success-message {
-            background-color: #004d00;
-            color: #ccffcc;
-        }
-        .toggle-mode-btn {
-            background: none !important;
-            color: var(--primary-color) !important;
-            text-decoration: underline;
-            font-size: 0.8em !important;
-            margin: 10px 50px;
-            padding: 5px 0 !important;
-            border: none;
-        }
-        .toggle-mode-btn:hover {
-             color: var(--primary-hover) !important;
-        }
+
+.login-container {
+    max-width: 400px;
+    margin: 80px auto;
+    padding: 30px;
+    background-color: var(--section-bg);
+    border-radius: 12px;
+    box-shadow: 0 4px 15px var(--drop-shadow-clr);
+    text-align: center;
+}
+
+.login-container h1 {
+    color: var(--primary-color);
+    margin-bottom: 25px;
+    font-size: 1.8em;
+}
+
+.login-form input {
+    width: 100%;
+    padding: 12px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: #2a2a2a;
+    color: var(--text-color);
+    font-size: 1em;
+}
+
+.login-form input:focus {
+    outline: 2px solid var(--primary-color);
+    border-color: var(--primary-color);
+}
+
+.login-form button {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 6px;
+    background-color: var(--primary-color);
+    color: #fff;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-bottom: 10px;
+}
+
+.login-form button:hover {
+    background-color: var(--primary-hover);
+}
+
+.form-message {
+    margin: 0px;
+    padding: 10px;
+    border-radius: 6px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.error-message {
+    background-color: #610000;
+    color: #ffcccc;
+}
+
+.success-message {
+    background-color: #004d00;
+    color: #ccffcc;
+}
+
+.toggle-mode-btn {
+    background: none !important;
+    color: var(--primary-color) !important;
+    text-decoration: underline;
+    font-size: 0.8em !important;
+    margin: 10px 50px;
+    padding: 5px 0 !important;
+    border: none;
+}
+
+.toggle-mode-btn:hover {
+    color: var(--primary-hover) !important;
+}
 
 .four-column-row {
-    display: grid; /* 1. Enables grid layout */
+    display: grid;
+    /* 1. Enables grid layout */
     /* 2. Creates four equal-width columns */
-    grid-template-columns: repeat(4, 1fr); 
-    gap: 20px; /* 3. Adds spacing between the columns */
-    margin-bottom: 20px; /* Optional: Adds space below the row */
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+    /* 3. Adds spacing between the columns */
+    margin-bottom: 20px;
+    /* Optional: Adds space below the row */
 }
 
 @media (max-width: 600px) {
     .four-column-row {
-        grid-template-columns: repeat(2, 1fr); /* Stacks to 2 columns on small screens */
+        grid-template-columns: repeat(2, 1fr);
+        /* Stacks to 2 columns on small screens */
     }
 }
 
 .two-column-row {
-    display: grid; /* 1. Enables grid layout */
+    display: grid;
+    /* 1. Enables grid layout */
     /* 2. Creates four equal-width columns */
-    grid-template-columns: repeat(2, 1fr); 
-    gap: 20px; /* 3. Adds spacing between the columns */
-    margin-bottom: 20px; /* Optional: Adds space below the row */
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    /* 3. Adds spacing between the columns */
+    margin-bottom: 20px;
+    /* Optional: Adds space below the row */
 }
 
 /* Ensure the label and input/select are stacked vertically within their grid cell */
@@ -1197,8 +1286,8 @@ body {
 .exist-images-preview {
     max-height: 100px;
     max-width: 100px;
-    display: grid; 
-    gap: 10px; 
+    display: grid;
+    gap: 10px;
     overflow-x: auto;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 15px;
@@ -1209,12 +1298,13 @@ body {
 
 .comment-form-container textarea {
     /* Set a specific, fixed width. I recommend a percentage or something larger than 50px */
-    width: 100%; 
-    max-width: 100%; /* Or whatever width you prefer for the comment section */
-    
+    width: 100%;
+    max-width: 100%;
+    /* Or whatever width you prefer for the comment section */
+
     /* This is the key property to prevent resizing */
-    resize: none; 
-    
+    resize: none;
+
     /* Optional: Add some padding/margin if needed */
     padding: 10px;
     margin-bottom: 10px;
@@ -1253,8 +1343,10 @@ body {
 
 .comment-text {
     margin-top: 2px;
-    word-wrap: break-word;      /* For older browsers */
-    overflow-wrap: break-word;  /* Standard way to wrap long words */
+    word-wrap: break-word;
+    /* For older browsers */
+    overflow-wrap: break-word;
+    /* Standard way to wrap long words */
     word-break: break-word;
 }
 
@@ -1267,6 +1359,7 @@ body {
     border-radius: 4px;
     cursor: pointer;
 }
+
 .settings-btn:hover {
     background-color: var(--primary-color-dark);
 }
@@ -1292,13 +1385,13 @@ body {
 }
 
 
-.settings-container { 
-    max-width: 500px; 
-    margin: 20px auto; 
-    background: #fff; 
-    padding: 20px; 
-    border-radius: 8px; 
-    box-shadow: 0 0 10px rgba(0,0,0,0.1); 
+.settings-container {
+    max-width: 500px;
+    margin: 20px auto;
+    background: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 .edit-form-framing {
@@ -1306,7 +1399,7 @@ body {
     height: auto;
     padding: 20px;
     border: 1px solid #888;
-    width: 100%; 
+    width: 100%;
     max-width: 1200px;
     border-radius: 8px;
     text-align: center;
@@ -1314,40 +1407,43 @@ body {
 
 /* Example CSS (you should style this to match your site) */
 .edit-form-modal {
-    display: none; /* Hidden by default */
+    display: none;
+    /* Hidden by default */
     position: fixed;
     align-items: flex-start;
     justify-content: center;
-    z-index: 1000; 
+    z-index: 1000;
     left: 0;
     top: 0;
     width: 100vw;
     height: 100vh;
-    overflow: auto; 
-    background-color: rgba(0,0,0,0.4); 
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
 }
 
 
 /* Example CSS (you should style this to match your site) */
 .modal {
-    display: none; /* Hidden by default */
+    display: none;
+    /* Hidden by default */
     justify-content: center;
-    position: fixed; 
-    z-index: 1000; 
+    position: fixed;
+    z-index: 1000;
     left: 0;
     top: 0;
     width: 100%;
     height: 100dvh;
-    overflow: auto; 
-    background-color: rgba(0,0,0,0.4); 
+    overflow: auto;
+    background-color: rgba(0, 0, 0, 0.4);
 }
+
 .modal-content {
     background-color: #fefefe;
     /*margin: 15% auto;  15% from the top and centered */
     height: fit-content;
     padding: 20px;
     border: 1px solid #888;
-    width: 80%; 
+    width: 80%;
     max-width: 600px;
     border-radius: 8px;
     text-align: center;
@@ -1359,101 +1455,111 @@ body {
     padding: 10px 20px;
 }
 
-        .user-search-container {
-            max-width: 900px;
-            margin: 40px auto;
-            padding: 20px;
-            background-color: #ffffff;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-        }
-        .user-card {
-            display: flex;
-            align-items: center;
-            padding: 15px;
-            margin-bottom: 12px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-            cursor: pointer;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
-        }
-        .user-card:hover {
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-            transform: translateY(-2px);
-            border-color: var(--primary-color);
-        }
-        .user-icon {
-            font-size: 2.5rem;
-            color: var(--primary-color);
-            margin-right: 20px;
-        }
-        .user-info {
-            flex-grow: 1;
-        }
-        .user-name {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #333;
-            margin: 0;
-        }
-        .user-id {
-            font-size: 0.85rem;
-            color: #777;
-            margin: 2px 0 0 0;
-            word-break: break-all;
-        }
-        .search-results-list {
-            margin-top: 20px;
-        }
-        .modern_search_bar {
-            padding: 12px 18px;
-            border: 2px solid var(--border-color);
-            border-radius: 10px;
-            width: 100%;
-            font-size: 1rem;
-            transition: border-color 0.3s, box-shadow 0.3s;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        }
-        .modern_search_bar:focus {
-            border-color: var(--primary-color);
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2);
-        }
+.user-search-container {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.user-card {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+    margin-bottom: 12px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.03);
+}
+
+.user-card:hover {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    transform: translateY(-2px);
+    border-color: var(--primary-color);
+}
+
+.user-icon {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-right: 20px;
+}
+
+.user-info {
+    flex-grow: 1;
+}
+
+.user-name {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+}
+
+.user-id {
+    font-size: 0.85rem;
+    color: #777;
+    margin: 2px 0 0 0;
+    word-break: break-all;
+}
+
+.search-results-list {
+    margin-top: 20px;
+}
+
+.modern_search_bar {
+    padding: 12px 18px;
+    border: 2px solid var(--border-color);
+    border-radius: 10px;
+    width: 100%;
+    font-size: 1rem;
+    transition: border-color 0.3s, box-shadow 0.3s;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.modern_search_bar:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.2);
+}
 
 
-        /* Add some minimal styling for the banner */
-        .profile-banner-container {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 5/1;
-            background-color: #333; /* Default dark background */
-            margin-bottom: 20px;
-            overflow: hidden;
-            border-radius: 8px;
-        }
+/* Add some minimal styling for the banner */
+.profile-banner-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 5/1;
+    background-color: #333;
+    /* Default dark background */
+    margin-bottom: 20px;
+    overflow: hidden;
+    border-radius: 8px;
+}
 
-        #profileBanner {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
+#profileBanner {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
 
-        .banner-edit-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(255, 255, 255, 0.288);
-            color: white;
-            border: none;
-            padding: 5px 7px;
-            cursor: pointer;
-            border-radius: 4px;
-            font-size: 0.8em;
-            z-index: 10;
-            
-        }
+.banner-edit-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(255, 255, 255, 0.288);
+    color: white;
+    border: none;
+    padding: 5px 7px;
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 0.8em;
+    z-index: 10;
+
+}
 
 .profile-loader {
     position: fixed;
@@ -1462,7 +1568,7 @@ body {
     width: 100%;
     height: 100%;
     background: rgb(243, 243, 243);
-    display: flex;
+    display: none;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -1482,7 +1588,9 @@ body {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Hide loader when not needed */
@@ -1496,14 +1604,15 @@ body {
 
 .item-main-image-area {
     margin: 20px 0;
-    max-width: 600px; /* Constrain image area width */
+    max-width: 600px;
+    /* Constrain image area width */
 }
 
 .gallery-container {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    
+
 }
 
 .detail-image-wrapper {
@@ -1517,9 +1626,11 @@ body {
 .detail-image {
     display: block;
     width: 100%;
-    max-height: 500px; /* Max height for the main image */
+    max-height: 500px;
+    /* Max height for the main image */
     height: auto;
-    object-fit: contain; /* Default object-fit for the new gallery */
+    object-fit: contain;
+    /* Default object-fit for the new gallery */
     transition: object-position 0.3s;
     box-shadow: var(--drop-shadow-clr);
 }
@@ -1559,7 +1670,8 @@ body {
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    padding-bottom: 5px; /* space for scrollbar */
+    padding-bottom: 5px;
+    /* space for scrollbar */
     justify-content: flex-start;
     align-items: center;
 }
@@ -1592,20 +1704,47 @@ body {
 /* --- Image Alignment Classes (for the .detail-image) --- */
 
 /* Vertical Alignment */
-.img-align-ver-top { object-position: center top; }
-.img-align-ver-center { object-position: center center; }
-.img-align-ver-bottom { object-position: center bottom; }
+.img-align-ver-top {
+    object-position: center top;
+}
+
+.img-align-ver-center {
+    object-position: center center;
+}
+
+.img-align-ver-bottom {
+    object-position: center bottom;
+}
 
 /* Horizontal Alignment */
-.img-align-hor-left { object-position: left center; }
-.img-align-hor-center { object-position: center center; }
-.img-align-hor-right { object-position: right center; }
+.img-align-hor-left {
+    object-position: left center;
+}
+
+.img-align-hor-center {
+    object-position: center center;
+}
+
+.img-align-hor-right {
+    object-position: right center;
+}
 
 /* Combined Alignment */
-.img-align-ver-top.img-align-hor-left { object-position: left top; }
-.img-align-ver-top.img-align-hor-right { object-position: right top; }
-.img-align-ver-bottom.img-align-hor-left { object-position: left bottom; }
-.img-align-ver-bottom.img-align-hor-right { object-position: right bottom; }
+.img-align-ver-top.img-align-hor-left {
+    object-position: left top;
+}
+
+.img-align-ver-top.img-align-hor-right {
+    object-position: right top;
+}
+
+.img-align-ver-bottom.img-align-hor-left {
+    object-position: left bottom;
+}
+
+.img-align-ver-bottom.img-align-hor-right {
+    object-position: right bottom;
+}
 
 .images-preview-gallery {
     display: flex;
@@ -1656,7 +1795,8 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    width: 40%; /* Adjust as necessary */
+    width: 40%;
+    /* Adjust as necessary */
     margin: 20px;
 }
 
@@ -1673,18 +1813,23 @@ body {
 .thumbnail-gallery-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px; /* Gap between thumbnails */
+    gap: 8px;
+    /* Gap between thumbnails */
     align-content: center;
     justify-content: center;
     margin-top: 10px;
-    width: 90%; /* Ensure it respects container width */
-    max-width: 400px; /* Match the large image max width */
+    width: 90%;
+    /* Ensure it respects container width */
+    max-width: 400px;
+    /* Match the large image max width */
 }
 
 .item-thumbnail {
     /* Calculates a width so exactly 4 items fit, accounting for 3 gaps (8px * 3 = 24px) */
-    width: 50px; /* 25% of the container width minus a proportional part of the gap (24px / 4 items = 6px) */
-    height: 50px; /* Fixed height for uniformity */
+    width: 50px;
+    /* 25% of the container width minus a proportional part of the gap (24px / 4 items = 6px) */
+    height: 50px;
+    /* Fixed height for uniformity */
     object-fit: cover;
     cursor: pointer;
     border: 2px solid transparent;
@@ -1692,7 +1837,8 @@ body {
     border-radius: calc(var(--border-radius) / 2);
 }
 
-.item-thumbnail:hover, .item-thumbnail.selected-thumbnail {
+.item-thumbnail:hover,
+.item-thumbnail.selected-thumbnail {
     border-color: var(--primary-color);
 }
 
@@ -1776,8 +1922,13 @@ body {
 }
 
 .small-user-avatar {
-width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px solid #ddd;
+    width: 40px;
+    height: 40px;
+    border-radius: 10%;
+    object-fit: cover;
+    border: 1px solid #ddd;
 }
+
 .user-card-body {
     flex-grow: 1;
 }
@@ -1793,7 +1944,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(0,0,0,0.9);
+    background: rgba(0, 0, 0, 0.9);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -1834,8 +1985,13 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     border-radius: 0 3px 3px 0;
 }
 
-.lightbox-prev { left: 0; }
-.lightbox-next { right: 0; }
+.lightbox-prev {
+    left: 0;
+}
+
+.lightbox-next {
+    right: 0;
+}
 
 .lightbox-prev:hover,
 .lightbox-next:hover,
@@ -1906,7 +2062,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 /* Primary Tag */
-.primary-tag, .new-tag {
+.primary-tag,
+.new-tag {
     position: absolute;
     top: 0;
     left: 0;
@@ -1921,7 +2078,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 
 /* Remove button for images */
-.remove-image-btn, .remove-new-file-btn {
+.remove-image-btn,
+.remove-new-file-btn {
     position: absolute;
     top: 5px;
     right: 5px;
@@ -1942,7 +2100,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     justify-content: center;
 }
 
-.remove-image-btn:hover, .remove-new-file-btn:hover {
+.remove-image-btn:hover,
+.remove-new-file-btn:hover {
     opacity: 1;
     background: #c82333;
 }
@@ -1959,7 +2118,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     border: none;
     cursor: pointer;
     font-size: 0.8em;
-    opacity: 0; /* Hidden by default */
+    opacity: 0;
+    /* Hidden by default */
     transition: opacity 0.2s;
     z-index: 9;
 }
@@ -1972,7 +2132,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 
 .image-preview-item:hover .set-primary-btn {
-    opacity: 1; /* Show on hover */
+    opacity: 1;
+    /* Show on hover */
     color: black;
 }
 
@@ -1991,20 +2152,22 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 /* Custom CSS for a better layout and image grid */
 
-.upload-container { 
-    margin-bottom: 20px; 
+.upload-container {
+    margin-bottom: 20px;
     padding: 16px;
     border: 1px solid #e0e0e0;
     border-radius: 8px;
     background-color: white;
 }
-.upload-container input { 
-    margin-right: 10px; 
+
+.upload-container input {
+    margin-right: 10px;
 }
 
 #gallery {
     display: grid;
-    grid-template-columns: repeat(5, 1fr); /* Responsive grid */
+    grid-template-columns: repeat(5, 1fr);
+    /* Responsive grid */
     gap: 10px;
 }
 
@@ -2012,17 +2175,18 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 #gallery img {
     width: 100%;
-    aspect-ratio: 1 / 1;  /* Make images square */
+    aspect-ratio: 1 / 1;
+    /* Make images square */
     object-fit: cover;
     border-radius: 6px;
     cursor: pointer;
     transition: transform 0.2s, box-shadow 0.2s;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 #gallery img:hover {
     transform: scale(1.03);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
 }
 
 /* Lightbox overlay */
@@ -2030,8 +2194,11 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     display: none;
     position: fixed;
     z-index: 999;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(0,0,0,0.9);
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.9);
     backdrop-filter: blur(5px);
     justify-content: center;
     align-items: center;
@@ -2041,7 +2208,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     max-width: 90%;
     max-height: 90%;
     border-radius: 8px;
-    box-shadow: 0 0 20px rgba(0,0,0,0.5);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
 }
 
 /* Status messages */
@@ -2050,70 +2217,71 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 
-        .user-gallery-preview {
-            padding: 20px;
-            background-color: var(--section-bg);
-            border-radius: 8px;
-            box-shadow: 0 4px 8px var(--drop-shadow-clr);
-        }
+.user-gallery-preview {
+    padding: 20px;
+    background-color: var(--section-bg);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px var(--drop-shadow-clr);
+}
 
-        .user-gallery-preview h2 {
-            margin-top: 0;
-            color: #333;
-            border-bottom: 2px solid #ddd;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-        }
+.user-gallery-preview h2 {
+    margin-top: 0;
+    color: #333;
+    border-bottom: 2px solid #ddd;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
 
-        /* Grid for the 4 thumbnails */
-        .preview-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
-        }
+/* Grid for the 4 thumbnails */
+.preview-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-bottom: 15px;
+}
 
 
 
-        /* Link container for the thumbnail, ensures it's square */
-        .gallery-thumbnail-link {
-            display: block;
-            width: 100%;
-            /* This creates a square aspect ratio */
-            padding-top: 100%; 
-            position: relative;
-            overflow: hidden;
-            border-radius: 6px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
+/* Link container for the thumbnail, ensures it's square */
+.gallery-thumbnail-link {
+    display: block;
+    width: 100%;
+    /* This creates a square aspect ratio */
+    padding-top: 100%;
+    position: relative;
+    overflow: hidden;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
 
-        /* The actual image inside the square container */
-        .gallery-thumbnail {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover; /* Ensures the image covers the square area without stretching */
-            transition: transform 0.3s ease-in-out;
-        }
+/* The actual image inside the square container */
+.gallery-thumbnail {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    /* Ensures the image covers the square area without stretching */
+    transition: transform 0.3s ease-in-out;
+}
 
-        .gallery-thumbnail:hover {
-            transform: scale(1.05);
-        }
+.gallery-thumbnail:hover {
+    transform: scale(1.05);
+}
 
-        .user-gallery-preview .action-btn {
-            width: 100%;
-            padding: 10px;
-            font-size: 1em;
-        }
+.user-gallery-preview .action-btn {
+    width: 100%;
+    padding: 10px;
+    font-size: 1em;
+}
 
 
 
 
 /*my own*/
 
-.detail-page-wrapper{
+.detail-page-wrapper {
     display: flex;
     overflow: hidden;
     clear: both;
@@ -2145,7 +2313,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     gap: 20px;
 }
 
-.item-header{
+.item-header {
     display: flex;
     flex-flow: row wrap;
     justify-content: space-between;
@@ -2165,8 +2333,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     text-overflow: ellipsis;
 }
 
-.item-header-bg{
-    width:100vw;
+.item-header-bg {
+    width: 100vw;
     background-color: var(--section-bg);
     box-shadow: 0 0 10px var(--drop-shadow-clr);
 }
@@ -2186,7 +2354,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     color: var(--text-color);
 }
 
-.side-block{
+.side-block {
     background-color: var(--section-bg);
     box-shadow: 0 0 10px var(--drop-shadow-clr);
     padding: 20px;
@@ -2252,7 +2420,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 #login-form {
-    display:flex;
+    display: flex;
     flex-direction: column;
     gap: 5px;
 }
@@ -2270,7 +2438,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     justify-content: center;
 }
 
-.footer-nav a{
+.footer-nav a {
     color: var(--text-color-reverse);
     text-decoration: none;
 }
@@ -2282,7 +2450,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     gap: 10px;
 }
 
-.footer-btn-cont :hover{
+.footer-btn-cont :hover {
     color: var(--accent-color);
 }
 
@@ -2294,7 +2462,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
         text-decoration: none;
         padding: 5px 0;
         transition: color 0.2s;
-        font-size:0px;
+        font-size: 0px;
     }
 
     .header-nav a i {
@@ -2303,44 +2471,45 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     }
 
     .side-column {
-    max-width: 100%;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    overflow-x: auto;
+        max-width: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        overflow-x: auto;
     }
 }
 
 @media (max-width: 1174px) {
     .item-detail-container {
-    max-width: 100%;
-    width: 100%;
-    display: flex;
-    gap: 10px;
-    align-items: flex-start;
-    flex-direction: column;
+        max-width: 100%;
+        width: 100%;
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        flex-direction: column;
     }
 }
 
 @media (max-width: 768px) {
     .main-column {
-    width: 100%;
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 10px;
-    align-items: flex-start;
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        align-items: flex-start;
     }
 }
 
-@media (max-width: 500px){
+@media (max-width: 500px) {
     .item-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, 23%);
-    gap: 5px;
-    padding: 10px 0;
-    justify-content: center; 
-}}
+        display: grid;
+        grid-template-columns: repeat(auto-fit, 23%);
+        gap: 5px;
+        padding: 10px 0;
+        justify-content: center;
+    }
+}
 
 /* Responsive adjustments for controls bar */
 @media (max-width: 600px) {
@@ -2348,8 +2517,10 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
         justify-content: space-between;
         gap: 15px;
     }
+
     .control-group {
-        width: 100%; /* Make each group take full width */
+        width: 100%;
+        /* Make each group take full width */
         justify-content: space-between;
     }
 }
@@ -2362,17 +2533,19 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
         max-height: none;
         margin-right: 0px;
         margin-bottom: 0px;
-        
+
 
     }
+
     .item-metadata {
         width: 60px;
     }
+
     .item-info-grid {
         grid-template-columns: repeat(2, 1fr);
     }
 
-    
+
 }
 
 @media (max-width: 437px) {
@@ -2398,6 +2571,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     }
 
 }
+
 /* END Status Header Bar Styling */
 
 @media (max-width: 800px) {
@@ -2407,19 +2581,20 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 @media (max-width: 600px) {
-.user-card .user-uid {
-    display: none;
-}
+    .user-card .user-uid {
+        display: none;
+    }
 }
 
 @media (max-width: 600px) {
     #gallery {
-        grid-template-columns: repeat(3, 1fr); /* Adjust for smaller screens */
+        grid-template-columns: repeat(3, 1fr);
+        /* Adjust for smaller screens */
         justify-content: center;
     }
 }
 
-@media screen and (max-width: 768px) {           
+@media screen and (max-width: 768px) {
     .preview-grid {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
@@ -2433,7 +2608,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 /* Blurs the image inside the wrapper */
 .item-image-wrapper.nsfw-blur img {
     filter: blur(20px) brightness(0.7);
-    pointer-events: none; /* Prevents interaction with the blurred image */
+    pointer-events: none;
+    /* Prevents interaction with the blurred image */
 }
 
 /* Optional styling for the "18+" text overlay */
@@ -2460,7 +2636,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     width: 100%;
 }
 
-#searchBtn, #profileSearchBtn {
+#searchBtn,
+#profileSearchBtn {
     position: absolute;
     right: 0;
     height: 100%;
@@ -2472,7 +2649,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     background: white;
     max-height: 380px;
     overflow-y: auto;
-    width: 100%; /* match your search input */
+    width: 100%;
+    /* match your search input */
     z-index: 1000;
 }
 
@@ -2502,11 +2680,11 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 
 .list-grid {
-    
+
     grid-template-columns: repeat(auto-fit, 95px);
-    gap: 5px; 
+    gap: 5px;
     padding: 10px 0;
-    justify-content: center; 
+    justify-content: center;
 }
 
 .list-card {
@@ -2572,7 +2750,7 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     height: 100%;
     position: relative;
     overflow: hidden;
-    background-color: #1f1f1f00; 
+    background-color: #1f1f1f00;
     color: var(--text-color);
     font-size: 8pt;
 }
@@ -2583,7 +2761,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     bottom: 0px;
     left: 0px;
     z-index: 10;
-    background-color: var(--accent-color); /* Transparent red */
+    background-color: var(--accent-color);
+    /* Transparent red */
     color: white;
     border: none;
     border-radius: 0% 50% 0% 0%;
@@ -2595,11 +2774,12 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     cursor: pointer;
     font-size: clamp(0.8rem, 2vw, 1.2rem);
     transition: transform 0.2s, background-color 0.2s;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 .remove-btn:hover {
-    background-color: #dc3545; /* Solid red */
+    background-color: #dc3545;
+    /* Solid red */
     transform: scale(1.1);
 }
 
@@ -2635,7 +2815,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     left: 0;
     top: 10px;
     height: 140px;
-    transition: transform 10s cubic-bezier(0.15, 0, 0.15, 1); /* Slow stopping effect */
+    transition: transform 10s cubic-bezier(0.15, 0, 0.15, 1);
+    /* Slow stopping effect */
     will-change: transform;
 }
 
@@ -2718,16 +2899,18 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 }
 
 .item-grid.list-view .item-card {
-    display: flex; /* Side by side */
+    display: flex;
+    /* Side by side */
     flex-direction: row;
-    height: 80px; /* Slimmer height */
+    height: 80px;
+    /* Slimmer height */
     align-items: center;
     padding: 5px 15px;
     gap: 20px;
 }
 
 .item-grid.list-view .item-image-wrapper {
-    padding-top: 0% !important; 
+    padding-top: 0% !important;
     width: 60px;
     height: 60px;
     flex-shrink: 0;
@@ -2753,7 +2936,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 .item-image-wrapper {
     position: relative;
     width: 100%;
-    padding-top: 100%; /* This creates the square shape in grid mode */
+    padding-top: 100%;
+    /* This creates the square shape in grid mode */
     overflow: hidden;
     background-color: #f0f0f0;
     border-radius: 8px;
@@ -2762,7 +2946,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 /* 3. Adjust the Card for List View */
 .item-grid.list-view .item-card {
-    display: flex; /* Stack image and text horizontally */
+    display: flex;
+    /* Stack image and text horizontally */
     flex-direction: row;
     align-items: center;
     padding: 10px;
@@ -2772,7 +2957,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 /* Ensure the image inside stays centered even when padding changes */
 .item-grid.list-view .item-image {
-    position: relative; /* Remove the absolute positioning used for the square trick */
+    position: relative;
+    /* Remove the absolute positioning used for the square trick */
     width: 100%;
     height: 100%;
     object-fit: cover;
@@ -2803,7 +2989,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 .price-group .sub-val {
     font-size: clamp(0.5rem, 4vw, 0.75rem);
-    color: #888; /* Slightly gray */
+    color: #888;
+    /* Slightly gray */
     margin-top: -2px;
 }
 
@@ -2816,7 +3003,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 /* Ensure the title doesn't take up too much room in list view */
 .list-view .item-info h3 {
-    max-width: 100%; /* Adjust based on your preference */
+    max-width: 100%;
+    /* Adjust based on your preference */
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 1;
@@ -2893,11 +3081,12 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     height: 24px;
     font-size: 14px;
     cursor: pointer;
-    display: none; /* Only shown in edit mode */
+    display: none;
+    /* Only shown in edit mode */
     align-items: center;
     justify-content: center;
     z-index: 10;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 
 .remove-related-btn:hover {
@@ -2945,7 +3134,8 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     display: inline-block;
     width: 46px;
     height: 26px;
-    background-color: #e9e9ea; /* Off state color */
+    background-color: #e9e9ea;
+    /* Off state color */
     border-radius: 50px;
     cursor: pointer;
     transition: background-color 0.3s;
@@ -2962,16 +3152,17 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
     top: 2px;
     left: 2px;
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* On State - Track */
-.ios-switch-input:checked + .ios-switch-label {
-    background-color: #34c759; /* Apple Green */
+.ios-switch-input:checked+.ios-switch-label {
+    background-color: #34c759;
+    /* Apple Green */
 }
 
 /* On State - Knob movement */
-.ios-switch-input:checked + .ios-switch-label::after {
+.ios-switch-input:checked+.ios-switch-label::after {
     transform: translateX(20px);
 }
 
@@ -2999,18 +3190,18 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 .main_page_list_grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap:10px;
+    gap: 10px;
 }
 
 @media (max-width: 940px) {
     .main_page_list_grid {
-    grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 
 @media (max-width: 600px) {
     .main_page_list_grid {
-    grid-template-columns: repeat(1, 1fr);
+        grid-template-columns: repeat(1, 1fr);
     }
 }
 
@@ -3033,4 +3224,126 @@ width: 40px; height: 40px; border-radius: 10%; object-fit: cover; border: 1px so
 
 .star-rating i.active {
     color: #ffc107;
+}
+
+/* --- Skeleton Loading Animation --- */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton {
+    background: #3a3a3a;
+    background-image: linear-gradient(to right, #3a3a3a 0%, #444 20%, #3a3a3a 40%, #3a3a3a 100%);
+    background-repeat: no-repeat;
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite linear;
+    border-radius: 4px;
+}
+
+.skeleton-card {
+    background-color: var(--section-bg);
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 4px 8px var(--drop-shadow-clr);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.skeleton-img {
+    width: 100%;
+    padding-top: 100%;
+    /* 1:1 Aspect Ratio */
+    background-color: #333;
+}
+
+.skeleton-text {
+    height: 16px;
+    margin: 10px;
+    width: 70%;
+}
+
+.skeleton-text.short {
+    width: 40%;
+}
+
+/* --- Drag and Drop Image Reordering Styles --- */
+.draggable-image {
+    cursor: grab;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.draggable-image:active {
+    cursor: grabbing;
+}
+
+.draggable-image.drag-over {
+    border: 2px dashed var(--accent-color);
+    transform: scale(1.05);
+}
+
+.locked-thumbnail {
+    opacity: 0.9;
+    position: relative;
+}
+
+.locked-thumbnail::after {
+    content: '🔒';
+    position: absolute;
+    bottom: 5px;
+    right: 5px;
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 2px 5px;
+    border-radius: 3px;
+}
+
+/* --- Header Chat Notification --- */
+#headerChatIcon.new-message {
+    color: #ff4444 !important;
+    animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+        text-shadow: 0 0 10px rgba(255, 68, 68, 0.5);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* --- Unread Message Badge --- */
+.unread-badge {
+    background-color: #ff4444;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: bold;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.chat-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
 }

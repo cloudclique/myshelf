@@ -1,5 +1,5 @@
 import { auth, db, collectionName } from '../firebase-config.js';
-import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64,} from '../utils.js';
+import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64, } from '../utils.js';
 
 // --- 1. Constants & DOM ---
 const itemsCollectionName = collectionName;
@@ -173,7 +173,7 @@ async function convertFileToWebp(file) {
 
 // --- 4. Multi-Image Upload & Preview Logic ---
 // CHANGED: Use the Cloudflare Worker proxy URL instead of the direct imgBB API with the exposed key.
-const IMGBB_UPLOAD_URL = 'https://imgbbapi.stanislav-zhukov.workers.dev/'; 
+const IMGBB_UPLOAD_URL = 'https://imgbbapi.stanislav-zhukov.workers.dev/';
 
 /**
  * @param {File} file The file object to upload.
@@ -224,7 +224,7 @@ if (thumbnailInput) {
     thumbnailInput.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-        
+
         const reader = new FileReader();
         reader.onload = (evt) => {
             cropperImg = new Image();
@@ -276,18 +276,47 @@ function openCropperModal() {
 
 
 
+function clampImagePosition() {
+    const containerSize = 300;
+    const cropSize = 95;
+
+    const cropLeft = (containerSize - cropSize) / 2;
+    const cropTop = cropLeft;
+    const cropRight = cropLeft + cropSize;
+    const cropBottom = cropTop + cropSize;
+
+    const imgW = cropperImg.width * currentScale;
+    const imgH = cropperImg.height * currentScale;
+
+    // Clamp X
+    if (currentPos.x > cropLeft) {
+        currentPos.x = cropLeft;
+    }
+    if (currentPos.x + imgW < cropRight) {
+        currentPos.x = cropRight - imgW;
+    }
+
+    // Clamp Y
+    if (currentPos.y > cropTop) {
+        currentPos.y = cropTop;
+    }
+    if (currentPos.y + imgH < cropBottom) {
+        currentPos.y = cropBottom - imgH;
+    }
+}
+
 function drawCropper() {
     const ctx = cropCanvas.getContext('2d');
     // Set canvas to container size
     cropCanvas.width = 300;
     cropCanvas.height = 300;
-    
+
     ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
     ctx.drawImage(
-        cropperImg, 
-        currentPos.x, 
-        currentPos.y, 
-        cropperImg.width * currentScale, 
+        cropperImg,
+        currentPos.x,
+        currentPos.y,
+        cropperImg.width * currentScale,
         cropperImg.height * currentScale
     );
     clampImagePosition();
@@ -324,7 +353,7 @@ if (cropContainer) {
     cropContainer.addEventListener('touchstart', (e) => {
         if (e.touches.length === 1) {
             // Prevent scrolling while dragging inside the cropper
-            e.preventDefault(); 
+            e.preventDefault();
             startDragging(e.touches[0].clientX, e.touches[0].clientY);
         }
     }, { passive: false });
@@ -344,16 +373,16 @@ if (zoomSlider) {
     zoomSlider.oninput = (e) => {
         const oldScale = currentScale;
         currentScale = parseFloat(e.target.value);
-        
+
         // Zoom towards center
         const containerSize = 300;
         const centerX = containerSize / 2;
         const centerY = containerSize / 2;
-        
+
         // Math to keep image centered while zooming
         currentPos.x = centerX - (centerX - currentPos.x) * (currentScale / oldScale);
         currentPos.y = centerY - (centerY - currentPos.y) * (currentScale / oldScale);
-        
+
         drawCropper();
     };
 }
@@ -370,11 +399,11 @@ if (saveCropBtn) {
         // Logic to extract exactly what is inside the 95x95 center box
         // The container is 300x300. The box is centered (102.5, 102.5 to 197.5, 197.5)
         // However, we can simply map the canvas coordinates relative to the center.
-        
+
         const containerSize = 300;
         const boxSize = 95;
         const boxOffset = (containerSize - boxSize) / 2; // 102.5
-        
+
         // We draw the image onto the small canvas, offset by the box position
         outCtx.drawImage(
             cropperImg,
@@ -386,23 +415,23 @@ if (saveCropBtn) {
 
         outputCanvas.toBlob((blob) => {
             if (!blob) return;
-            
+
             // Create a File object
             const thumbFile = new File([blob], "thumbnail_95x95.webp", { type: "image/webp" });
-            
+
             // Mark it specifically so we know it's the thumbnail
             thumbFile.isThumbnail = true;
 
             // Remove existing thumbnail if present (check index 0)
             if (selectedImageFiles.length > 0 && selectedImageFiles[0].isThumbnail) {
-                selectedImageFiles.shift(); 
+                selectedImageFiles.shift();
             }
 
             // Insert at Index 0
             selectedImageFiles.unshift(thumbFile);
-            
+
             updateImagePreviews(selectedImageFiles);
-            
+
             // Update UI trigger to show success
             thumbnailTrigger.innerHTML = `
                 <img src="${URL.createObjectURL(thumbFile)}" style="width:95px; height:95px; border-radius:4px;">
@@ -429,10 +458,10 @@ if (cancelCropBtn) {
  */
 function handleImageFileChange(e) {
     const newFiles = Array.from(e.target.files);
-    
+
     // Check if we have an existing thumbnail
-    const existingThumbnail = (selectedImageFiles.length > 0 && selectedImageFiles[0].isThumbnail) 
-        ? selectedImageFiles[0] 
+    const existingThumbnail = (selectedImageFiles.length > 0 && selectedImageFiles[0].isThumbnail)
+        ? selectedImageFiles[0]
         : null;
 
     // Reset array but keep thumbnail if it exists
@@ -448,8 +477,8 @@ function handleImageFileChange(e) {
     if (newFiles.length > availableSlots) {
         uploadStatus.textContent = `Error: Limit reached. You can only add ${availableSlots} more image(s).`;
         uploadStatus.className = 'form-message error-message';
-        e.target.value = ''; 
-        updateImagePreviews(selectedImageFiles); 
+        e.target.value = '';
+        updateImagePreviews(selectedImageFiles);
         return;
     }
 
@@ -457,7 +486,7 @@ function handleImageFileChange(e) {
         if (file.size > MAX_FILE_SIZE) {
             uploadStatus.textContent = `Error: Image file too large (max 5MB each).`;
             uploadStatus.className = 'form-message error-message';
-            e.target.value = ''; 
+            e.target.value = '';
             // Reset to just thumbnail
             selectedImageFiles = existingThumbnail ? [existingThumbnail] : [];
             updateImagePreviews(selectedImageFiles);
@@ -465,7 +494,7 @@ function handleImageFileChange(e) {
         }
         selectedImageFiles.push(file);
     }
-    
+
     updateImagePreviews(selectedImageFiles);
 
     uploadStatus.textContent = `Selected ${selectedImageFiles.length} image(s) total.`;
@@ -480,64 +509,115 @@ function updateImagePreviews(files) {
     if (!imagePreviewsContainer) return;
 
     imagePreviewsContainer.innerHTML = '';
-    
+
     files.forEach((file, index) => {
         const div = document.createElement('div');
         // Determine if this is the primary image (slot 0)
         const isPrimary = index === 0;
 
+        // Only images after index 0 are draggable
+        if (!isPrimary) {
+            div.draggable = true;
+            div.dataset.index = index;
+            div.classList.add('draggable-image');
+        } else {
+            div.classList.add('locked-thumbnail');
+        }
+
         // Use the same classes as item-details.js for consistency and assumed shared CSS
-        div.className = `image-preview-item new-image ${isPrimary ? 'primary-image-preview' : ''}`;
-        
+        div.className += ` image-preview-item new-image ${isPrimary ? 'primary-image-preview' : ''}`;
+
         div.innerHTML = `
             <img src="${URL.createObjectURL(file)}" alt="New Image ${index + 1}" class="image-preview">
             <span class="new-tag">NEW</span>
             <button type="button" class="remove-new-file-btn" data-index="${index}" title="Remove New File">&times;</button>
-            ${isPrimary 
-                ? '<span class="primary-tag">Primary</span>'
-                : `<button type="button" class="set-primary-btn action-btn secondary-btn" data-index="${index}">Set as Primary</button>`
-            }
+            ${isPrimary ? '<span class="primary-tag">Thumbnail</span>' : ''}
         `;
         imagePreviewsContainer.appendChild(div);
     });
 
     // NEW: Add listeners for removing NEW files
     document.querySelectorAll('.remove-new-file-btn').forEach(button => {
-        button.addEventListener('click', function() {
+        button.addEventListener('click', function () {
             const indexToRemove = parseInt(this.dataset.index, 10);
-            
+
             // Remove the file from the selected files array
             selectedImageFiles.splice(indexToRemove, 1);
-            
+
             updateImagePreviews(selectedImageFiles);
             uploadStatus.textContent = `Image removed. Total selected: ${selectedImageFiles.length}.`;
             uploadStatus.className = 'form-message info-message';
         });
     });
 
-    // NEW: Add listeners for setting images as primary
-    document.querySelectorAll('.set-primary-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const indexToMove = parseInt(this.dataset.index, 10);
-            
-            // Get the file object
-            const fileObject = selectedImageFiles[indexToMove];
-            
-            // Remove it from its current position
-            selectedImageFiles.splice(indexToMove, 1);
-            
-            // Insert it at the start of the array
-            selectedImageFiles.unshift(fileObject);
-            
-            // Re-render the previews to update UI and buttons
-            updateImagePreviews(selectedImageFiles);
-            uploadStatus.textContent = 'Primary image set. Click "Add Item" to upload.';
-            uploadStatus.className = 'form-message info-message';
-        });
-    });
+    // NEW: Add drag-and-drop listeners for reordering
+    setupDragAndDrop();
 
     // Ensure itemImageFile.required is set correctly based on current selection
     itemImageFile.required = files.length === 0;
+}
+
+// NEW: Drag-and-drop functionality for reordering images in add-item
+function setupDragAndDrop() {
+    const draggableItems = document.querySelectorAll('.draggable-image');
+    let draggedElement = null;
+    let draggedIndex = null;
+
+    draggableItems.forEach(item => {
+        item.addEventListener('dragstart', function (e) {
+            draggedElement = this;
+            draggedIndex = parseInt(this.dataset.index, 10);
+            this.style.opacity = '0.5';
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        item.addEventListener('dragend', function () {
+            this.style.opacity = '1';
+            draggedElement = null;
+        });
+
+        item.addEventListener('dragover', function (e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            return false;
+        });
+
+        item.addEventListener('dragenter', function (e) {
+            if (draggedElement && this !== draggedElement) {
+                this.classList.add('drag-over');
+            }
+        });
+
+        item.addEventListener('dragleave', function () {
+            this.classList.remove('drag-over');
+        });
+
+        item.addEventListener('drop', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            this.classList.remove('drag-over');
+
+            if (draggedElement && this !== draggedElement) {
+                const dropIndex = parseInt(this.dataset.index, 10);
+
+                // Don't allow dropping into index 0 (thumbnail position)
+                if (dropIndex === 0 || draggedIndex === 0) return;
+
+                // Reorder the array
+                const draggedItem = selectedImageFiles[draggedIndex];
+                selectedImageFiles.splice(draggedIndex, 1);
+                selectedImageFiles.splice(dropIndex, 0, draggedItem);
+
+                // Re-render
+                updateImagePreviews(selectedImageFiles);
+                uploadStatus.textContent = 'Image order changed. Click "Add Item" to upload.';
+                uploadStatus.className = 'form-message info-message';
+            }
+
+            return false;
+        });
+    });
 }
 
 // Attach the new handler
@@ -562,7 +642,7 @@ addItemForm.onsubmit = async (e) => {
         uploadStatus.className = 'form-message error-message';
         return;
     }
-    
+
     uploadButton.disabled = true;
     uploadStatus.textContent = "Starting upload...";
     uploadStatus.className = 'form-message';
@@ -581,18 +661,18 @@ addItemForm.onsubmit = async (e) => {
         // *** MODIFIED LINE END ***
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
-    
+
     // MODIFIED: uploadedImageObjects now stores the full image objects
     let uploadedImageObjects = [];
 
     try {
         // Multi-image upload logic
         uploadStatus.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
-        
+
         // The array is already correctly ordered by the user interaction
         const uploadPromises = selectedImageFiles.map(file => uploadImageToImgbb(file));
         uploadedImageObjects = await Promise.all(uploadPromises);
-        
+
         // Store the array of image objects
         itemData.itemImageUrls = uploadedImageObjects;
 
@@ -600,7 +680,7 @@ addItemForm.onsubmit = async (e) => {
 
         uploadStatus.textContent = "Item uploaded successfully!";
         uploadStatus.className = 'form-message success-message';
-        
+
         // Navigate to the new item's page
         setTimeout(() => {
             window.location.href = `../items/?id=${docRef.id}`;
@@ -626,16 +706,16 @@ function parseMfcCsv(csvText) {
     const lines = csvText.trim().split(/\r?\n/).filter(l => l.trim());
     if (lines.length) lines.shift(); // remove header
     const COL_TITLE = 1, COL_ROOT = 2, COL_CATEGORY = 3, COL_RELEASE_DATE = 4,
-          COL_PRICE = 5, COL_SCALE = 6, COL_BARCODE = 7, COL_STATUS = 8, COL_COUNT = 9;
+        COL_PRICE = 5, COL_SCALE = 6, COL_BARCODE = 7, COL_STATUS = 8, COL_COUNT = 9;
 
     return lines.map(line => {
         const values = line.substring(1, line.length - 1).split('","');
         if (values.length < COL_COUNT + 1) return null;
 
         const barcode = values[COL_BARCODE].trim();
-        const docId = (barcode && barcode !== '0') 
+        const docId = (barcode && barcode !== '0')
             ? `IMP-${barcode}`
-            : `IMPC-${values[COL_TITLE].trim().replace(/[^a-zA-Z0-9]/g,'').substring(0,15)}-${Math.random().toString(36).substring(2,8)}`;
+            : `IMPC-${values[COL_TITLE].trim().replace(/[^a-zA-Z0-9]/g, '').substring(0, 15)}-${Math.random().toString(36).substring(2, 8)}`;
 
         return {
             id: docId,
@@ -658,14 +738,14 @@ function parseMfcCsv(csvText) {
 
 async function batchUploadItems(items, itemsCollectionName, importStatusElement) {
     const BATCH_SIZE = 490;
-    const VALID_STATUSES = ['Owned','Wished','Ordered'];
+    const VALID_STATUSES = ['Owned', 'Wished', 'Ordered'];
     const batchPromises = [];
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const userCollectionRef = db.collection('artifacts')
-                                .doc(appId)
-                                .collection('user_profiles')
-                                .doc(currentUserId)
-                                .collection('items');
+        .doc(appId)
+        .collection('user_profiles')
+        .doc(currentUserId)
+        .collection('items');
 
     for (let i = 0; i < items.length; i += BATCH_SIZE) {
         const batchItems = items.slice(i, i + BATCH_SIZE);
@@ -684,10 +764,10 @@ async function batchUploadItems(items, itemsCollectionName, importStatusElement)
 
                 if (item.data.itemStatus && VALID_STATUSES.includes(item.data.itemStatus)) {
                     const linkDocRef = userCollectionRef.doc(item.id);
-                    batch.set(linkDocRef, { 
-                        itemId: item.id, 
-                        status: item.data.itemStatus, 
-                        linkedAt: firebase.firestore.FieldValue.serverTimestamp() 
+                    batch.set(linkDocRef, {
+                        itemId: item.id,
+                        status: item.data.itemStatus,
+                        linkedAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 }
             } catch (err) {
@@ -732,7 +812,7 @@ if (importMfcBtn) {
                     mfcImportFile.value = '';
                     return;
                 }
-                
+
                 showConfirmationModal(
                     `Found ${items.length} valid items to import. Are you sure you want to perform this batch upload to the database?`,
                     async () => {
@@ -750,7 +830,7 @@ if (importMfcBtn) {
                             mfcImportFile.value = '';
                         }
                     },
-                    `Import ${items.length} Items` 
+                    `Import ${items.length} Items`
                 );
 
             } catch (err) {
@@ -780,7 +860,7 @@ function setupHeaderLogoRedirect() {
     logo.onclick = () => {
         const currentUser = auth.currentUser;
         if (!currentUser) {
-            alert("You must be logged in to view your profile."); 
+            alert("You must be logged in to view your profile.");
             return;
         }
         const userId = currentUser.uid;
@@ -1017,7 +1097,7 @@ addItemForm.onsubmit = async (e) => {
             </div>
             <p>Do you still want to proceed with uploading this as a new entry?</p>
         `;
-        
+
         // Temporarily change modal behavior to handle HTML
         const originalMessage = modalMessage.textContent;
         modalMessage.innerHTML = fullMessageHtml;
@@ -1066,13 +1146,13 @@ async function proceedWithUpload() {
         uploadStatus.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
         const uploadPromises = selectedImageFiles.map(file => uploadImageToImgbb(file));
         const uploadedImageObjects = await Promise.all(uploadPromises);
-        
+
         itemData.itemImageUrls = uploadedImageObjects;
         const docRef = await db.collection(itemsCollectionName).add(itemData);
 
         uploadStatus.textContent = "Item uploaded successfully!";
         uploadStatus.className = 'form-message success-message';
-        
+
         setTimeout(() => {
             window.location.href = `../items/?id=${docRef.id}`;
         }, 1000);

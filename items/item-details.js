@@ -228,8 +228,8 @@ function resetCropper() {
     const fitScale = Math.min(containerSize / cropperImg.width, containerSize / cropperImg.height);
     
     currentScale = fitScale;
-    // Allow zooming out to 80% of the "fit" size so you can see the edges clearly
-    const minZoomLimit = fitScale * 0.8; 
+    // Allow zooming out to 99% of the "fit" size so you can see the edges clearly
+    const minZoomLimit = fitScale * 0.99; 
     
     zoomSlider.min = minZoomLimit;
     zoomSlider.max = fitScale * 5; // Allow zooming in up to 5x from fit

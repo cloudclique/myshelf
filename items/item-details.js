@@ -673,13 +673,14 @@ function renderItemDetails(item, userStatus, privateData = {}, canEdit = false) 
     // Extract only URLs for display
     const imageUrls = currentItemImageUrls.map(img => img.url);
     const fallbackImage = 'https://placehold.co/400x400/333333/eeeeee?text=No+Image';
-    const primaryImage = imageUrls[0] || fallbackImage;
+    const primaryImage = imageUrls[1] || fallbackImage;
 
     // Build the gallery HTML
-    let galleryHtml = `<img src="${primaryImage}" class="item-image-large" id="mainGalleryImage" data-index="0">`;
+    let galleryHtml = `<img src="${primaryImage}" class="item-image-large" id="mainGalleryImage" data-index="1">`;
     if (imageUrls.length > 1) {
         galleryHtml += `<div class="thumbnail-gallery-row">`;
         imageUrls.forEach((url, index) => {
+            if (index === 0) return;
             galleryHtml += `<img src="${url}" class="item-thumbnail ${index === 0 ? 'selected-thumbnail' : ''}" data-index="${index}" onclick="changeMainImage(this)">`;
         });
         galleryHtml += `</div>`;

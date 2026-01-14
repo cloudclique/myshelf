@@ -7,7 +7,7 @@ let currentUserId = null;
 let currentUserName = null;
 
 // NEW: Constants for multi-image upload
-const MAX_IMAGE_COUNT = 6;
+const MAX_IMAGE_COUNT = 9;
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
 
 

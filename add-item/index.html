@@ -11,13 +11,33 @@
     <link href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap" rel="stylesheet">
     <link rel="icon" type="image/x-icon" href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
     <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet">
+    <style>
+        /* Essential Cropper Styles */
+        .thumbnail-upload-box {
+            width: 150px; height: 150px; border: 2px dashed #6c757d; border-radius: 8px;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            cursor: pointer; margin-bottom: 15px; background: rgba(255,255,255,0.05); transition: 0.2s;
+        }
+        .thumbnail-upload-box:hover { border-color: #0d6efd; background: rgba(255,255,255,0.1); }
+        .crop-modal-content { 
+            background: #222; margin: 5% auto; padding: 20px; border: 1px solid #444; 
+            width: 350px; border-radius: 12px; text-align: center; color: #fff; 
+        }
+        .crop-container { 
+            position: relative; width: 300px; height: 300px; margin: 15px auto; 
+            background: #000; overflow: hidden; border: 1px solid #555; cursor: grab;
+        }
+        .crop-frame { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 95px; height: 95px; border: 2px solid #0d6efd; pointer-events: none; 
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6); z-index: 5;
+        }
+        .zoom-controls { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 15px 0; }
+    </style>
 </head>
 <body>
 
-<div style="position: relative;">
-    <div id="header"></div>
-    <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
-</div>
+<div id="header"></div>
 <script>fetch('../header.html').then(res => res.text()).then(html => {document.getElementById('header').innerHTML = html;});</script>
 
 <div id="confirmationModal" class="modal">
@@ -30,73 +50,79 @@
     </div>
 </div>
 
-
-    <div class="content-wrapper main-layout">
-
-        <main class="main-content">
-            <h1 class="page-title">Add New Collection Entry</h1>
-            
-            <section class="item-section form-section">
-                <h2>Manual Entry</h2>
-                <form id="addItemForm" class="modern-form">
-                    
-                    <label for="itemName">Title:</label>
-                    <input type="text" id="itemName" class="modern_text_field" required>
-
-                    <div class="four-column-row">
-                        <div>
-                            <label for="itemCategory">Category:</label>
-                            <select id="itemCategory" class="modern_dropdown" required></select>
-                        </div>
-                        <div>
-                            <label for="itemAgeRating">Age Rating:</label>
-                            <select id="itemAgeRating" class="modern_dropdown"></select>
-                        </div>
-                        <div>
-                            <label for="itemScale">Scale:</label>
-                            <select id="itemScale" class="modern_dropdown"></select>
-                        </div>
-                        <div>
-                            <label for="itemReleaseDate">Release Date:</label>
-                            <input type="date" id="itemReleaseDate" class="modern_dropdown">
-                        </div>
-                    </div>
-                    
-                    <label for="tags">Tags (comma-separated, optional):</label>
-                    <input type="text" id="tags" class="modern_text_field">
-
-                    <label for="itemImageFile">Images (Max 6, 5MB each, required):</label>
-                    <input type="file" id="itemImageFile" accept="image/*" multiple required>
-                    
-                    <div id="imagePreviewsContainer" class="image-previews-container"></div>
-                    
-                    <p class="image-note" id="editImageNote">Click an image to set it as the primary cover, or click the 'X' to remove it.</p>
-                    
-                    <p id="uploadStatus" class="form-message"></p>
-                    <button type="submit" id="uploadButton" class="action-btn">Add Item to Database</button>
-                </form>
-            </section>
-
-            <hr style="margin: 30px 0; display: none;"">
-
-            <section class="item-section form-section" style="display: none;">
-                <h2>Import Data (MyFigureCollection CSV)</h2>
-                <div class="form-group-row">
-                    <input type="file" id="mfcImportFile" accept=".csv" style="display: none;">
-                    <button id="importMfcBtn" type="button" class="secondary-btn">Import MFC CSV File</button>
-                </div>
-                <p class="search-note">This feature allows batch uploading data from a MyFigureCollection export. Image data must be added manually later.</p>
-                <p id="importStatus" class="form-message"></p>
-            </section>
-
-        </main>
+<div id="cropperModal" class="modal" style="display: none;">
+    <div class="crop-modal-content">
+        <h3>Crop Thumbnail</h3>
+        <div class="crop-container" id="cropContainer">
+            <canvas id="cropCanvas"></canvas>
+            <div class="crop-frame"></div>
+        </div>
+        <div class="zoom-controls">
+            <i class="bi bi-dash"></i>
+            <input type="range" id="zoomSlider" min="0.1" max="3" step="0.01" value="1">
+            <i class="bi bi-plus"></i>
+        </div>
+        <div class="modal-actions">
+            <button type="button" id="saveCropBtn" class="action-btn">Set Thumbnail</button>
+            <button type="button" id="cancelCropBtn" class="action-btn cancel-btn">Cancel</button>
+        </div>
     </div>
-    
-<div style="position: relative;">
-    <div id="footer"></div>
 </div>
-<script>fetch('../footer.html').then(res => res.text()).then(html => {document.getElementById('footer').innerHTML = html;});</script>
 
+<div class="content-wrapper main-layout">
+    <main class="main-content">
+        <h1 class="page-title">Add New Collection Entry</h1>
+        
+        <section class="item-section form-section">
+            <h2>Manual Entry</h2>
+            <form id="addItemForm" class="modern-form">
+                
+                <label for="itemName">Title:</label>
+                <input type="text" id="itemName" class="modern_text_field" required>
+
+                <div class="form-group" style="margin-top: 15px;">
+                    <label>Main Thumbnail (95x95px Crop):</label>
+                    <input type="file" id="thumbnailInput" accept="image/*" style="display: none;">
+                    <div id="thumbnailTrigger" class="thumbnail-upload-box">
+                        <i class="bi bi-camera" style="font-size: 2rem;"></i>
+                        <span style="font-size: 0.8rem; margin-top: 5px;">Click to Upload</span>
+                    </div>
+                </div>
+
+                <div class="four-column-row">
+                    <div>
+                        <label for="itemCategory">Category:</label>
+                        <select id="itemCategory" class="modern_dropdown" required></select>
+                    </div>
+                    <div>
+                        <label for="itemAgeRating">Age Rating:</label>
+                        <select id="itemAgeRating" class="modern_dropdown"></select>
+                    </div>
+                    <div>
+                        <label for="itemScale">Scale:</label>
+                        <select id="itemScale" class="modern_dropdown"></select>
+                    </div>
+                    <div>
+                        <label for="itemReleaseDate">Release Date:</label>
+                        <input type="date" id="itemReleaseDate" class="modern_dropdown">
+                    </div>
+                </div>
+                
+                <label for="tags">Tags (comma-separated):</label>
+                <input type="text" id="tags" class="modern_text_field">
+
+                <label for="itemImageFile">Additional Images (Max 5 more):</label>
+                <input type="file" id="itemImageFile" accept="image/*" multiple>
+                
+                <div id="imagePreviewsContainer" class="image-previews-container"></div>
+                <p class="image-note" id="editImageNote">The thumbnail will always be the first image in the collection.</p>
+                
+                <p id="uploadStatus" class="form-message"></p>
+                <button type="submit" id="uploadButton" class="action-btn">Add Item to Database</button>
+            </form>
+        </section>
+    </main>
+</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>

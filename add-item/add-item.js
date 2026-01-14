@@ -39,6 +39,22 @@ const modalMessage = document.getElementById('modalMessage');
 const modalYesBtn = document.getElementById('modalYesBtn');
 const modalNoBtn = document.getElementById('modalNoBtn');
 
+const thumbnailInput = document.getElementById('thumbnailInput');
+const thumbnailTrigger = document.getElementById('thumbnailTrigger');
+const cropperModal = document.getElementById('cropperModal');
+const cropCanvas = document.getElementById('cropCanvas');
+const cropContainer = document.getElementById('cropContainer');
+const zoomSlider = document.getElementById('zoomSlider');
+const saveCropBtn = document.getElementById('saveCropBtn');
+const cancelCropBtn = document.getElementById('cancelCropBtn');
+
+// State for Cropper
+let cropperImg = new Image();
+let currentScale = 1;
+let currentPos = { x: 0, y: 0 };
+let isDragging = false;
+let startDragPos = { x: 0, y: 0 };
+
 // --- NEW: Modal Handlers ---
 
 function showConfirmationModal(message, onYes, yesText = 'Yes') {
@@ -196,43 +212,223 @@ async function uploadImageToImgbb(file) {
     };
 }
 
+// --- NEW: Thumbnail & Cropper Logic ---
 
+// 1. Trigger Hidden Input
+if (thumbnailTrigger) {
+    thumbnailTrigger.onclick = () => thumbnailInput.click();
+}
+
+// 2. Handle File Selection for Thumbnail
+if (thumbnailInput) {
+    thumbnailInput.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            cropperImg = new Image();
+            cropperImg.onload = () => {
+                openCropperModal();
+            };
+            cropperImg.src = evt.target.result;
+        };
+        reader.readAsDataURL(file);
+        // Reset input so same file can be selected again if needed
+        e.target.value = '';
+    };
+}
+
+function openCropperModal() {
+    cropperModal.style.display = 'block';
+    // Reset state
+    currentScale = 1;
+    zoomSlider.value = 1;
+    
+    // Center image initially
+    const containerSize = 300; // Match CSS width/height
+    
+    // Calculate initial fit
+    const ratio = Math.min(containerSize / cropperImg.width, containerSize / cropperImg.height);
+    currentScale = ratio;
+    zoomSlider.value = ratio; // Update slider to match fit
+    // Adjust slider min/max based on image size
+    zoomSlider.min = ratio * 0.5;
+    zoomSlider.max = ratio * 3;
+
+    currentPos = {
+        x: (containerSize - cropperImg.width * currentScale) / 2,
+        y: (containerSize - cropperImg.height * currentScale) / 2
+    };
+    
+    drawCropper();
+}
+
+function drawCropper() {
+    const ctx = cropCanvas.getContext('2d');
+    // Set canvas to container size
+    cropCanvas.width = 300;
+    cropCanvas.height = 300;
+    
+    ctx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+    ctx.drawImage(
+        cropperImg, 
+        currentPos.x, 
+        currentPos.y, 
+        cropperImg.width * currentScale, 
+        cropperImg.height * currentScale
+    );
+}
+
+// 3. Dragging Logic
+if (cropContainer) {
+    cropContainer.onmousedown = (e) => {
+        isDragging = true;
+        startDragPos = { x: e.clientX - currentPos.x, y: e.clientY - currentPos.y };
+    };
+    
+    window.onmousemove = (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        currentPos.x = e.clientX - startDragPos.x;
+        currentPos.y = e.clientY - startDragPos.y;
+        drawCropper();
+    };
+
+    window.onmouseup = () => {
+        isDragging = false;
+    };
+}
+
+// 4. Zoom Logic
+if (zoomSlider) {
+    zoomSlider.oninput = (e) => {
+        const oldScale = currentScale;
+        currentScale = parseFloat(e.target.value);
+        
+        // Zoom towards center
+        const containerSize = 300;
+        const centerX = containerSize / 2;
+        const centerY = containerSize / 2;
+        
+        // Math to keep image centered while zooming
+        currentPos.x = centerX - (centerX - currentPos.x) * (currentScale / oldScale);
+        currentPos.y = centerY - (centerY - currentPos.y) * (currentScale / oldScale);
+        
+        drawCropper();
+    };
+}
+
+// 5. Save & Cut Logic (The 95x95 Requirement)
+if (saveCropBtn) {
+    saveCropBtn.onclick = () => {
+        const outputCanvas = document.createElement('canvas');
+        outputCanvas.width = 95;
+        outputCanvas.height = 95;
+        const outCtx = outputCanvas.getContext('2d');
+
+        // Logic to extract exactly what is inside the 95x95 center box
+        // The container is 300x300. The box is centered (102.5, 102.5 to 197.5, 197.5)
+        // However, we can simply map the canvas coordinates relative to the center.
+        
+        const containerSize = 300;
+        const boxSize = 95;
+        const boxOffset = (containerSize - boxSize) / 2; // 102.5
+        
+        // We draw the image onto the small canvas, offset by the box position
+        outCtx.drawImage(
+            cropperImg,
+            currentPos.x - boxOffset, // Shift image left by box margin
+            currentPos.y - boxOffset, // Shift image up by box margin
+            cropperImg.width * currentScale,
+            cropperImg.height * currentScale
+        );
+
+        outputCanvas.toBlob((blob) => {
+            if (!blob) return;
+            
+            // Create a File object
+            const thumbFile = new File([blob], "thumbnail_95x95.webp", { type: "image/webp" });
+            
+            // Mark it specifically so we know it's the thumbnail
+            thumbFile.isThumbnail = true;
+
+            // Remove existing thumbnail if present (check index 0)
+            if (selectedImageFiles.length > 0 && selectedImageFiles[0].isThumbnail) {
+                selectedImageFiles.shift(); 
+            }
+
+            // Insert at Index 0
+            selectedImageFiles.unshift(thumbFile);
+            
+            updateImagePreviews(selectedImageFiles);
+            
+            // Update UI trigger to show success
+            thumbnailTrigger.innerHTML = `
+                <img src="${URL.createObjectURL(thumbFile)}" style="width:95px; height:95px; border-radius:4px;">
+                <span class="thumb-label" style="color: #4caf50;">Thumbnail Set</span>
+            `;
+
+            cropperModal.style.display = 'none';
+        }, 'image/webp', 1.0);
+    };
+}
+
+if (cancelCropBtn) {
+    cancelCropBtn.onclick = () => {
+        cropperModal.style.display = 'none';
+        thumbnailInput.value = '';
+    };
+}
 /**
  * Handles the selection of multiple image files, performing validation.
  */
+/**
+ * Handles the selection of standard image files.
+ * Preserves the thumbnail at index 0 if it exists.
+ */
 function handleImageFileChange(e) {
-    const files = Array.from(e.target.files);
-    selectedImageFiles = []; // Reset selected files
+    const newFiles = Array.from(e.target.files);
+    
+    // Check if we have an existing thumbnail
+    const existingThumbnail = (selectedImageFiles.length > 0 && selectedImageFiles[0].isThumbnail) 
+        ? selectedImageFiles[0] 
+        : null;
 
-    if (files.length === 0) {
+    // Reset array but keep thumbnail if it exists
+    selectedImageFiles = existingThumbnail ? [existingThumbnail] : [];
+
+    if (newFiles.length === 0) {
         updateImagePreviews(selectedImageFiles);
         return;
     }
 
-    if (files.length > MAX_IMAGE_COUNT) {
-        uploadStatus.textContent = `Error: Cannot upload more than ${MAX_IMAGE_COUNT} images.`;
+    const availableSlots = MAX_IMAGE_COUNT - selectedImageFiles.length;
+
+    if (newFiles.length > availableSlots) {
+        uploadStatus.textContent = `Error: Limit reached. You can only add ${availableSlots} more image(s).`;
         uploadStatus.className = 'form-message error-message';
-        e.target.value = ''; // Clear file input
-        updateImagePreviews(selectedImageFiles); // Call to reset
+        e.target.value = ''; 
+        updateImagePreviews(selectedImageFiles); 
         return;
     }
 
-    for (const file of files) {
+    for (const file of newFiles) {
         if (file.size > MAX_FILE_SIZE) {
             uploadStatus.textContent = `Error: Image file too large (max 5MB each).`;
             uploadStatus.className = 'form-message error-message';
-            e.target.value = ''; // Clear file input
-            selectedImageFiles = [];
-            updateImagePreviews(selectedImageFiles); // Call to reset
+            e.target.value = ''; 
+            // Reset to just thumbnail
+            selectedImageFiles = existingThumbnail ? [existingThumbnail] : [];
+            updateImagePreviews(selectedImageFiles);
             return;
         }
         selectedImageFiles.push(file);
     }
     
-    // This is the successful path
     updateImagePreviews(selectedImageFiles);
 
-    uploadStatus.textContent = `Selected ${selectedImageFiles.length} image(s). Click an image to set its order.`;
+    uploadStatus.textContent = `Selected ${selectedImageFiles.length} image(s) total.`;
     uploadStatus.className = 'form-message info-message';
 }
 

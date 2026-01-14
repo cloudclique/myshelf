@@ -298,6 +298,7 @@ function drawCropper() {
 const startDragging = (clientX, clientY) => {
     isDragging = true;
     startDragPos = { x: clientX - currentPos.x, y: clientY - currentPos.y };
+    clampImagePosition();
 };
 
 const moveDragging = (clientX, clientY) => {

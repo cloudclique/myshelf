@@ -326,6 +326,7 @@ const startInteraction = (clientX, clientY) => {
     isDragging = true;
     startDrag = { x: clientX - currentPos.x, y: clientY - currentPos.y };
     cropCanvas.style.cursor = 'grabbing';
+    clampImagePosition();
 };
 
 const moveInteraction = (clientX, clientY) => {

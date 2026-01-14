@@ -14,6 +14,8 @@ let allPublicListsForThisItem = [];
 let listsCurrentPage = 1;
 let currentPrivateData = {};
 
+
+
 // New Cropper DOM
 const thumbnailInput = document.getElementById('editThumbnailInput');
 const thumbnailTrigger = document.getElementById('editThumbnailTrigger');
@@ -22,14 +24,6 @@ const cropCanvas = document.getElementById('cropCanvas');
 const zoomSlider = document.getElementById('zoomSlider');
 const saveCropBtn = document.getElementById('saveCropBtn');
 const cancelCropBtn = document.getElementById('cancelCropBtn');
-
-// New State
-let selectedThumbnailFile = null; // Holds the 95x95 Blob
-let cropperImg = new Image();
-let currentScale = 1;
-let currentPos = { x: 0, y: 0 };
-let isDragging = false;
-let startDrag = { x: 0, y: 0 };
 
 // --- DOM Elements ---
 const listModal = document.getElementById('listModal');
@@ -96,6 +90,14 @@ const confirmationModal = document.getElementById('confirmationModal');
 const modalMessage = document.getElementById('modalMessage');
 const modalYesBtn = document.getElementById('modalYesBtn');
 const modalNoBtn = document.getElementById('modalNoBtn');
+
+// New State
+let selectedThumbnailFile = null; // Holds the 95x95 Blob
+let cropperImg = new Image();
+let currentScale = 1;
+let currentPos = { x: 0, y: 0 };
+let isDragging = false;
+let startDrag = { x: 0, y: 0 };
 
 let itemId = null;
 // MODIFIED: Store an array of File objects for new uploads

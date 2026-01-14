@@ -271,6 +271,7 @@ function openCropperModal() {
         y: (containerSize - imgH * currentScale) / 2
     };
 
+    clampImagePosition();
     drawCropper();
 }
 
@@ -309,6 +310,8 @@ const moveDragging = (clientX, clientY) => {
 
 const stopDragging = () => {
     isDragging = false;
+    clampImagePosition();
+    
 };
 
 if (cropContainer) {

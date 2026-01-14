@@ -315,6 +315,7 @@ function resetCropper() {
         y: (containerSize - imgH * currentScale) / 2
     };
 
+    clampImagePosition();
     drawCropper();
 }
 
@@ -342,6 +343,7 @@ const moveInteraction = (clientX, clientY) => {
 const stopInteraction = () => {
     isDragging = false;
     cropCanvas.style.cursor = 'grab';
+    clampImagePosition();
 };
 
 // Mouse Listeners

@@ -255,6 +255,36 @@ async function convertFileToWebp(file) {
     });
 }
 
+function clampImagePosition() {
+    const containerSize = 300;
+    const cropSize = 95;
+
+    const cropLeft = (containerSize - cropSize) / 2;
+    const cropTop  = cropLeft;
+    const cropRight = cropLeft + cropSize;
+    const cropBottom = cropTop + cropSize;
+
+    const imgW = cropperImg.width * currentScale;
+    const imgH = cropperImg.height * currentScale;
+
+    // Clamp X
+    if (currentPos.x > cropLeft) {
+        currentPos.x = cropLeft;
+    }
+    if (currentPos.x + imgW < cropRight) {
+        currentPos.x = cropRight - imgW;
+    }
+
+    // Clamp Y
+    if (currentPos.y > cropTop) {
+        currentPos.y = cropTop;
+    }
+    if (currentPos.y + imgH < cropBottom) {
+        currentPos.y = cropBottom - imgH;
+    }
+}
+
+
 function resetCropper() {
     const containerSize = 300;
     const cropSize = 95;
@@ -300,10 +330,14 @@ const startInteraction = (clientX, clientY) => {
 
 const moveInteraction = (clientX, clientY) => {
     if (!isDragging) return;
+
     currentPos.x = clientX - startDrag.x;
     currentPos.y = clientY - startDrag.y;
+
+    clampImagePosition();
     drawCropper();
 };
+
 
 const stopInteraction = () => {
     isDragging = false;
@@ -343,18 +377,18 @@ window.onmousemove = (e) => { if (!isDragging) return; currentPos.x = e.clientX 
 window.onmouseup = () => isDragging = false;
 zoomSlider.oninput = (e) => {
     const oldScale = currentScale;
-    currentScale = parseFloat(e.target.value);
-    
-    // Calculate the center of the canvas
+    currentScale = Math.max(parseFloat(e.target.value), zoomSlider.min);
+
     const centerX = 150;
     const centerY = 150;
 
-    // Adjust the position (X and Y) so the zoom stays centered on the preview frame
     currentPos.x = centerX - (centerX - currentPos.x) * (currentScale / oldScale);
     currentPos.y = centerY - (centerY - currentPos.y) * (currentScale / oldScale);
-    
+
+    clampImagePosition();
     drawCropper();
 };
+
 
 // Save the 95x95 cut
 saveCropBtn.onclick = () => {

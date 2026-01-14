@@ -303,6 +303,7 @@ const moveDragging = (clientX, clientY) => {
     if (!isDragging) return;
     currentPos.x = clientX - startDragPos.x;
     currentPos.y = clientY - startDragPos.y;
+    clampImagePosition();
     drawCropper();
 };
 
@@ -350,6 +351,7 @@ if (zoomSlider) {
         currentPos.x = centerX - (centerX - currentPos.x) * (currentScale / oldScale);
         currentPos.y = centerY - (centerY - currentPos.y) * (currentScale / oldScale);
         
+        clampImagePosition();
         drawCropper();
     };
 }

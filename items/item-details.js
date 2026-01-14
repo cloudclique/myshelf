@@ -222,27 +222,96 @@ thumbnailInput.onchange = (e) => {
     reader.readAsDataURL(file);
 };
 
+/**
+ * Converts any image File into a WebP Blob via canvas.
+ * Same as implemented in add-item.js
+ */
+async function convertFileToWebp(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    reject(new Error("WebP conversion failed."));
+                    return;
+                }
+                const webpFile = new File(
+                    [blob],
+                    file.name.replace(/\.[^.]+$/, "") + ".webp",
+                    { type: "image/webp" }
+                );
+                resolve(webpFile);
+            }, "image/webp", 0.9);
+        };
+        img.onerror = () => reject(new Error("Failed to read image data."));
+        img.src = URL.createObjectURL(file);
+    });
+}
+
 function resetCropper() {
     const containerSize = 300;
-    // Calculate the scale that fits the entire image inside the 300x300 box
+    // Fit scale logic used in add-item.js
     const fitScale = Math.min(containerSize / cropperImg.width, containerSize / cropperImg.height);
     
     currentScale = fitScale;
-    // Allow zooming out to 28% of the "fit" size so you can see the edges clearly
-    const minZoomLimit = fitScale * 0.28; 
-    
-    zoomSlider.min = minZoomLimit;
-    zoomSlider.max = fitScale * 5; // Allow zooming in up to 5x from fit
-    zoomSlider.step = 0.001;       // High precision for smooth movement
+    zoomSlider.min = fitScale * 0.5;
+    zoomSlider.max = fitScale * 5;
+    zoomSlider.step = 0.001;
     zoomSlider.value = fitScale;
 
-    // Center the image initially within the 300x300 container
     currentPos = {
         x: (containerSize - cropperImg.width * fitScale) / 2,
         y: (containerSize - cropperImg.height * fitScale) / 2
     };
     drawCropper();
 }
+
+// --- Interaction Logic (Mouse + Touch) ---
+
+const startInteraction = (clientX, clientY) => {
+    isDragging = true;
+    startDrag = { x: clientX - currentPos.x, y: clientY - currentPos.y };
+    cropCanvas.style.cursor = 'grabbing';
+};
+
+const moveInteraction = (clientX, clientY) => {
+    if (!isDragging) return;
+    currentPos.x = clientX - startDrag.x;
+    currentPos.y = clientY - startDrag.y;
+    drawCropper();
+};
+
+const stopInteraction = () => {
+    isDragging = false;
+    cropCanvas.style.cursor = 'grab';
+};
+
+// Mouse Listeners
+cropCanvas.onmousedown = (e) => startInteraction(e.clientX, e.clientY);
+window.onmousemove = (e) => moveInteraction(e.clientX, e.clientY);
+window.onmouseup = stopInteraction;
+
+// Touch Listeners
+cropCanvas.addEventListener('touchstart', (e) => {
+    const touch = e.touches[0];
+    startInteraction(touch.clientX, touch.clientY);
+    e.preventDefault(); // Prevent scrolling while cropping
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+    if (!isDragging) return;
+    const touch = e.touches[0];
+    moveInteraction(touch.clientX, touch.clientY);
+}, { passive: false });
+
+window.addEventListener('touchend', stopInteraction);
 
 function drawCropper() {
     const ctx = cropCanvas.getContext('2d');
@@ -441,44 +510,30 @@ async function convertImageToWebP(file) {
  * @param {File} imageFile The image file to upload.
  * @returns {Promise<{url: string, deleteUrl: string}>}
  */
-async function uploadImageToImgBB(imageFile) {
-    try {
-        // 🔄 Convert to WebP
-        const webpBlob = await convertImageToWebP(imageFile);
+async function uploadImageToImgBB(file) {
+    if (!file) return null;
+    if (file.size > MAX_FILE_SIZE) throw new Error("Image file too large (max 5MB).");
 
-        const formData = new FormData();
-        // The Cloudflare worker expects the file under the 'image' key
-        formData.append("image", webpBlob, "converted.webp");
+    // 🔥 Convert to WebP before uploading (Matching add-item.js)
+    const webpFile = await convertFileToWebp(file);
 
-        const response = await fetch(IMGBB_UPLOAD_URL, {
-            method: "POST",
-            body: formData
-            // The ImgBB API Key is handled by the Cloudflare Worker, so we don't need to append it here.
-        });
+    const formData = new FormData();
+    formData.append('image', webpFile);
 
-        if (!response.ok) {
-            let errorMessage = `HTTP error! status: ${response.status}`;
-            try {
-                const errorData = await response.json();
-                if (errorData.error?.message) {
-                    errorMessage = errorData.error.message;
-                }
-            } catch { }
-            throw new Error(errorMessage);
-        }
+    const response = await fetch(IMGBB_UPLOAD_URL, {
+        method: 'POST',
+        body: formData
+    });
 
-        const data = await response.json();
-
-        // The Cloudflare Worker should return the ImgBB response structure
-        return {
-            url: data.data.url,
-            deleteUrl: data.data.delete_url
-        };
-
-    } catch (error) {
-        console.error("Error uploading:", error);
-        throw new Error("Failed to upload image to hosting service: " + error.message);
+    const result = await response.json();
+    if (!result.success) {
+        throw new Error(result.error?.message || "Upload failed");
     }
+
+    return {
+        url: result.data.url,
+        deleteUrl: result.data.delete_url
+    };
 }
 
 

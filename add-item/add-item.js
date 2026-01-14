@@ -243,27 +243,29 @@ function openCropperModal() {
     cropperModal.style.display = 'block';
 
     const containerSize = 300;
+    const cropSize = 95;
+
     const imgW = cropperImg.width;
     const imgH = cropperImg.height;
 
     let fitScale;
 
-    // Portrait → fit width, Landscape/Square → fit height
+    // Portrait → fit crop WIDTH
+    // Landscape / square → fit crop HEIGHT
     if (imgH > imgW) {
-        fitScale = containerSize / imgW;
+        fitScale = cropSize / imgW;
     } else {
-        fitScale = containerSize / imgH;
+        fitScale = cropSize / imgH;
     }
 
     currentScale = fitScale;
-    zoomSlider.value = fitScale;
 
-    // IMPORTANT: do NOT allow zooming smaller than fit
-    zoomSlider.min = fitScale;
+    zoomSlider.min = fitScale;        // never allow smaller than crop
     zoomSlider.max = fitScale * 3;
     zoomSlider.step = 0.001;
+    zoomSlider.value = fitScale;
 
-    // Center image
+    // Center image inside 300x300 canvas
     currentPos = {
         x: (containerSize - imgW * currentScale) / 2,
         y: (containerSize - imgH * currentScale) / 2
@@ -271,6 +273,7 @@ function openCropperModal() {
 
     drawCropper();
 }
+
 
 
 function drawCropper() {

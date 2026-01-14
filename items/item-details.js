@@ -257,19 +257,19 @@ async function convertFileToWebp(file) {
 
 function resetCropper() {
     const containerSize = 300;
+    const cropSize = 95;
 
     const imgW = cropperImg.width;
     const imgH = cropperImg.height;
 
     let fitScale;
 
-    // Portrait → fit width, Landscape → fit height
+    // Portrait → fit crop WIDTH
+    // Landscape / square → fit crop HEIGHT
     if (imgH > imgW) {
-        // Portrait
-        fitScale = containerSize / imgW;
+        fitScale = cropSize / imgW;
     } else {
-        // Landscape or square
-        fitScale = containerSize / imgH;
+        fitScale = cropSize / imgH;
     }
 
     currentScale = fitScale;
@@ -279,14 +279,15 @@ function resetCropper() {
     zoomSlider.step = 0.001;
     zoomSlider.value = fitScale;
 
-    // Center image
+    // Center image inside the 300x300 canvas
     currentPos = {
-        x: (containerSize - imgW * fitScale) / 2,
-        y: (containerSize - imgH * fitScale) / 2
+        x: (containerSize - imgW * currentScale) / 2,
+        y: (containerSize - imgH * currentScale) / 2
     };
 
     drawCropper();
 }
+
 
 
 // --- Interaction Logic (Mouse + Touch) ---

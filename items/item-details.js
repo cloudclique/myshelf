@@ -315,7 +315,6 @@ function resetCropper() {
         y: (containerSize - imgH * currentScale) / 2
     };
 
-    clampImagePosition();
     drawCropper();
 }
 
@@ -335,7 +334,6 @@ const moveInteraction = (clientX, clientY) => {
     currentPos.x = clientX - startDrag.x;
     currentPos.y = clientY - startDrag.y;
 
-    clampImagePosition();
     drawCropper();
 };
 
@@ -343,7 +341,6 @@ const moveInteraction = (clientX, clientY) => {
 const stopInteraction = () => {
     isDragging = false;
     cropCanvas.style.cursor = 'grab';
-    clampImagePosition();
 };
 
 // Mouse Listeners
@@ -371,11 +368,12 @@ function drawCropper() {
     cropCanvas.width = 300; cropCanvas.height = 300;
     ctx.clearRect(0, 0, 300, 300);
     ctx.drawImage(cropperImg, currentPos.x, currentPos.y, cropperImg.width * currentScale, cropperImg.height * currentScale);
+    clampImagePosition();
 }
 
 // Drag & Zoom Listeners
 cropCanvas.onmousedown = (e) => { isDragging = true; startDrag = { x: e.clientX - currentPos.x, y: e.clientY - currentPos.y }; };
-window.onmousemove = (e) => { if (!isDragging) return; currentPos.x = e.clientX - startDrag.x; currentPos.y = e.clientY - startDrag.y; drawCropper(); };
+window.onmousemove = (e) => { if (!isDragging) return; currentPos.x = e.clientX - startDrag.x; currentPos.y = e.clientY - startDrag.y;drawCropper(); };
 window.onmouseup = () => isDragging = false;
 zoomSlider.oninput = (e) => {
     const oldScale = currentScale;
@@ -387,7 +385,6 @@ zoomSlider.oninput = (e) => {
     currentPos.x = centerX - (centerX - currentPos.x) * (currentScale / oldScale);
     currentPos.y = centerY - (centerY - currentPos.y) * (currentScale / oldScale);
 
-    clampImagePosition();
     drawCropper();
 };
 

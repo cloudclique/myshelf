@@ -271,7 +271,6 @@ function openCropperModal() {
         y: (containerSize - imgH * currentScale) / 2
     };
 
-    clampImagePosition();
     drawCropper();
 }
 
@@ -291,6 +290,7 @@ function drawCropper() {
         cropperImg.width * currentScale, 
         cropperImg.height * currentScale
     );
+    clampImagePosition();
 }
 
 // --- 3. Dragging Logic (Mouse & Touch) ---
@@ -304,14 +304,12 @@ const moveDragging = (clientX, clientY) => {
     if (!isDragging) return;
     currentPos.x = clientX - startDragPos.x;
     currentPos.y = clientY - startDragPos.y;
-    clampImagePosition();
+
     drawCropper();
 };
 
 const stopDragging = () => {
     isDragging = false;
-    clampImagePosition();
-    
 };
 
 if (cropContainer) {
@@ -354,7 +352,6 @@ if (zoomSlider) {
         currentPos.x = centerX - (centerX - currentPos.x) * (currentScale / oldScale);
         currentPos.y = centerY - (centerY - currentPos.y) * (currentScale / oldScale);
         
-        clampImagePosition();
         drawCropper();
     };
 }

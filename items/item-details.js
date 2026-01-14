@@ -82,15 +82,6 @@ const modalMessage = document.getElementById('modalMessage');
 const modalYesBtn = document.getElementById('modalYesBtn');
 const modalNoBtn = document.getElementById('modalNoBtn');
 
-const thumbnailInput = document.getElementById('thumbnailInput');
-const thumbnailPreviewDisplay = document.getElementById('thumbnailPreviewDisplay');
-const cropModal = document.getElementById('cropModal');
-const imageToCrop = document.getElementById('imageToCrop');
-const saveCropBtn = document.getElementById('saveCropBtn');
-const cancelCropBtn = document.getElementById('cancelCropBtn');
-
-let cropper = null;
-let currentThumbnailBlob = null; // Stores the 95x95 cropped image
 
 let itemId = null;
 // MODIFIED: Store an array of File objects for new uploads
@@ -103,6 +94,76 @@ const usernameCache = {};
 const COMMENTS_PER_PAGE = 8;
 let commentsCurrentPage = 1;
 const pageCursors = [null];
+
+// --- Thumbnail & Cropping State ---
+let cropper = null;
+let currentThumbnailBlob = null;
+
+// Handle Thumbnail Selection
+const thumbnailInput = document.getElementById('thumbnailInput');
+const thumbnailPreview = document.getElementById('thumbnailPreview');
+const cropModal = document.getElementById('cropModal');
+const imageToCrop = document.getElementById('imageToCrop');
+
+if (thumbnailInput) {
+    thumbnailInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            imageToCrop.src = event.target.result;
+            cropModal.style.display = 'flex';
+            
+            if (cropper) cropper.destroy();
+            cropper = new Cropper(imageToCrop, {
+                aspectRatio: 1,
+                viewMode: 1,
+                dragMode: 'move',
+                autoCropArea: 1,
+                restore: false,
+                guides: true,
+                center: true,
+                highlight: false,
+                cropBoxMovable: true,
+                cropBoxResizable: true,
+                toggleDragModeOnDblclick: false,
+            });
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+// Handle Crop Save
+document.getElementById('saveCropBtn').addEventListener('click', () => {
+    if (!cropper) return;
+
+    // Force 95x95 output
+    const canvas = cropper.getCroppedCanvas({
+        width: 95,
+        height: 95,
+    });
+
+    canvas.toBlob((blob) => {
+        currentThumbnailBlob = blob;
+        thumbnailPreview.src = URL.createObjectURL(blob);
+        thumbnailPreview.style.display = 'block';
+        document.querySelector('.upload-placeholder').style.display = 'none';
+        cropModal.style.display = 'none';
+        cropper.destroy();
+        cropper = null;
+    }, 'image/webp', 0.9);
+});
+
+// Handle Crop Cancel
+document.getElementById('cancelCropBtn').addEventListener('click', () => {
+    cropModal.style.display = 'none';
+    if (cropper) {
+        cropper.destroy();
+        cropper = null;
+    }
+    thumbnailInput.value = '';
+});
 
 // --- Modal Handlers (Confirmation Modal logic omitted for brevity) ---
 function showConfirmationModal(message, onYes, yesText = 'Yes') {
@@ -166,48 +227,6 @@ function closeTagEditModal() {
         tagEditModal.style.display = 'none';
     }
 }
-
-// Open cropper when a file is selected
-thumbnailInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        imageToCrop.src = event.target.result;
-        cropModal.style.display = 'flex';
-        
-        if (cropper) cropper.destroy();
-        
-        cropper = new Cropper(imageToCrop, {
-            aspectRatio: 1, // Square for 95x95
-            viewMode: 1,
-            autoCropArea: 1,
-        });
-    };
-    reader.readAsDataURL(file);
-});
-
-// Save cropped image
-saveCropBtn.addEventListener('click', () => {
-    const canvas = cropper.getCroppedCanvas({
-        width: 95,
-        height: 95,
-    });
-
-    canvas.toBlob((blob) => {
-        currentThumbnailBlob = blob;
-        thumbnailPreviewDisplay.src = URL.createObjectURL(blob);
-        cropModal.style.display = 'none';
-        cropper.destroy();
-    }, 'image/webp', 0.9);
-});
-
-cancelCropBtn.addEventListener('click', () => {
-    cropModal.style.display = 'none';
-    if (cropper) cropper.destroy();
-    thumbnailInput.value = '';
-});
 
 async function saveTags() {
     if (!itemId) return;
@@ -916,91 +935,73 @@ editItemForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!auth.currentUser || !itemId) return;
 
-    editMessage.textContent = 'Saving...';
+    editMessage.textContent = 'Saving changes...';
     editMessage.className = 'form-message';
 
-    const userId = auth.currentUser.uid;
-    const itemDoc = await db.collection('items').doc(itemId).get();
-    const itemData = itemDoc.data();
-
-    // Permissions check
-    const userRole = await checkUserPermissions(userId);
-    const isUploader = userId === itemData.uploaderId;
-    const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
-    if (!(isUploader || isAdminOrMod)) {
-        editMessage.textContent = "Permission denied.";
-        editMessage.className = 'form-message error-message';
-        return;
-    }
-
-    const updatedData = {
-        itemName: editTitleInput.value,
-        itemCategory: editCategorySelect.value,
-        itemAgeRating: editAgeRatingSelect.value,
-        itemScale: editScaleSelect.value,
-        itemReleaseDate: editReleaseDateInput.value,
-        'img-align-ver': editImageAlignVerSelect.value,
-        'img-align-hor': editImageAlignHorSelect.value,
-        lastEdited: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    // Start with the existing/retained images from the preview list
-    let finalImageArray = [...currentItemImageUrls];
-
     try {
-        // 1. Handle the 95x95 Thumbnail (Must be new index 0)
+        const userId = auth.currentUser.uid;
+        const userRole = await checkUserPermissions(userId);
+        
+        // currentItemImageUrls contains images NOT deleted during the edit session
+        let finalImageArray = [...currentItemImageUrls];
+
+        // 1. UPLOAD NEW THUMBNAIL (If changed)
+        // This goes to index 0
         if (currentThumbnailBlob) {
             editMessage.textContent = "Uploading new thumbnail...";
-            // Convert blob to File object for the upload function
-            const thumbFile = new File([currentThumbnailBlob], "thumbnail_95x95.webp", { type: "image/webp" });
+            const thumbFile = new File([currentThumbnailBlob], "thumb_95.webp", { type: "image/webp" });
             const thumbResult = await uploadImageToImgBB(thumbFile);
             
-            // unshift() places this at index 0 and moves others down
+            // unshift puts it at the very beginning of the array
             finalImageArray.unshift(thumbResult);
         }
 
-        // 2. Handle other multiple image uploads
+        // 2. UPLOAD ADDITIONAL IMAGES (If any)
         if (selectedImageFiles.length > 0) {
             editMessage.textContent = `Uploading ${selectedImageFiles.length} additional images...`;
             const uploadPromises = selectedImageFiles.map(file => uploadImageToImgBB(file));
-            const uploadedImageObjects = await Promise.all(uploadPromises);
+            const newUploadedImages = await Promise.all(uploadPromises);
             
-            // Append newly uploaded images after the thumbnail/existing images
-            finalImageArray = [...finalImageArray, ...uploadedImageObjects];
+            // push adds them to the end
+            finalImageArray = [...finalImageArray, ...newUploadedImages];
         }
 
-        // Final safeguard: Ensure total count doesn't exceed MAX_IMAGE_COUNT (6)
+        // 3. CAP AT MAX (6)
         if (finalImageArray.length > MAX_IMAGE_COUNT) {
             finalImageArray = finalImageArray.slice(0, MAX_IMAGE_COUNT);
         }
 
-        updatedData.itemImageUrls = finalImageArray;
+        // 4. PREPARE FIRESTORE DATA
+        const updatedData = {
+            itemName: editTitleInput.value,
+            itemCategory: editCategorySelect.value,
+            itemAgeRating: editAgeRatingSelect.value,
+            itemScale: editScaleSelect.value,
+            itemReleaseDate: editReleaseDateInput.value,
+            'img-align-ver': editImageAlignVerSelect.value,
+            'img-align-hor': editImageAlignHorSelect.value,
+            itemImageUrls: finalImageArray, // The re-ordered array
+            lastEdited: firebase.firestore.FieldValue.serverTimestamp()
+        };
 
-        // Explicitly clean up legacy single-image fields
-        if (itemData.itemImageUrl) updatedData.itemImageUrl = firebase.firestore.FieldValue.delete();
-        if (itemData.itemImageBase64) updatedData.itemImageBase64 = firebase.firestore.FieldValue.delete();
-        if (itemData.itemImage) updatedData.itemImage = firebase.firestore.FieldValue.delete();
-
-        // Save to Firestore
+        // 5. UPDATE FIRESTORE
         await db.collection('items').doc(itemId).set(updatedData, { merge: true });
-        
-        editMessage.textContent = "Details updated successfully!";
+
+        editMessage.textContent = "Item updated successfully!";
         editMessage.className = 'form-message success-message';
-        
-        // Reset local states
+
+        // Reset states
         currentThumbnailBlob = null;
         selectedImageFiles = [];
-        if (editImageInput) editImageInput.value = '';
-        if (thumbnailInput) thumbnailInput.value = '';
 
         setTimeout(() => {
             closeEditModal();
-            fetchItemDetails(itemId); // Refresh UI with new data
+            fetchItemDetails(itemId); // Refresh page content
         }, 1000);
 
     } catch (error) {
         console.error("Save error:", error);
-        editMessage.textContent = `Error saving edits: ${error.message}`;
+        editMessage.textContent = `Error: ${error.message}`;
         editMessage.className = 'form-message error-message';
     }
 });

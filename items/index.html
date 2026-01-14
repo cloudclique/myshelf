@@ -117,27 +117,29 @@
                 </div>
 
 <div class="image-upload-group">
-    <label>Thumbnail (95x95):</label>
-    <div id="thumbnailPreviewContainer" class="thumbnail-selector" onclick="document.getElementById('thumbnailInput').click()">
-        <img id="thumbnailPreviewDisplay" src="https://placehold.co/95x95?text=Click+to+Upload" alt="Thumbnail Preview">
-        <input type="file" id="thumbnailInput" accept="image/*" style="display: none;">
+    <label>Thumbnail (95x95 Required):</label>
+    <div class="thumbnail-upload-box" onclick="document.getElementById('thumbnailInput').click()">
+        <img id="thumbnailPreview" src="" style="display:none; width:100%; height:100%; object-fit:cover;">
+        <div class="upload-placeholder">
+            <i class="bi bi-camera"></i>
+            <span>Set Thumbnail</span>
+        </div>
+        <input type="file" id="thumbnailInput" accept="image/*" hidden>
     </div>
-    <p class="image-note">This image will be cropped to 95x95 and set as the primary image.</p>
 </div>
 
-<div id="cropModal" class="modal" style="display:none; z-index: 2000;">
-    <div class="modal-content" style="max-width: 500px;">
-        <h3>Crop Thumbnail</h3>
-        <div style="max-height: 400px; width: 100%; overflow: hidden; background: #000;">
+<div id="cropModal" class="modal" style="display:none; z-index:9999;">
+    <div class="modal-content">
+        <h3>Adjust Thumbnail</h3>
+        <div class="crop-container" style="max-height: 400px; overflow: hidden;">
             <img id="imageToCrop" style="max-width: 100%;">
         </div>
-        <div class="modal-actions" style="margin-top: 15px;">
-            <button id="saveCropBtn" class="action-btn">Crop & Save</button>
+        <div class="modal-actions" style="margin-top: 20px;">
+            <button id="saveCropBtn" class="action-btn">Crop & Use</button>
             <button id="cancelCropBtn" class="action-btn cancel-btn">Cancel</button>
         </div>
     </div>
 </div>
-
                 <div class="image-upload-group">
                     <label for="editImage">Update/Add Images (Max 6, 5MB each):</label>
                     <input type="file" id="editImage" accept="image/*" class="modern_file_field" multiple>

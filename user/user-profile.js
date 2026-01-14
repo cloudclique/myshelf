@@ -1142,15 +1142,37 @@ function updateHeaderAuthButton(user) {
 }
 
 auth.onAuthStateChanged(async (user) => {
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
     if (user) {
         try {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const profileDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(user.uid).get();
             isNsfwAllowed = profileDoc.data()?.allowNSFW === true;
-        } catch (err) { console.error("Error fetching NSFW preference:", err); isNsfwAllowed = false; }
-    } else { isNsfwAllowed = false; }
+        } catch (err) {
+            console.error("Error fetching NSFW preference:", err);
+            isNsfwAllowed = false;
+        }
+    } else {
+        isNsfwAllowed = false;
+    }
+
+    // Update Profile Owner status based on current auth user
+    isProfileOwner = user && targetUserId === user.uid;
+
     updateHeaderAuthButton(user);
     setupHeaderLogoRedirect();
+
+    // Re-check owner-specific features if we just logged in or auth finished
+    if (isProfileOwner) {
+        customizeHeaderForOwner();
+        renderCreateListButton();
+    }
+
+    // Refresh data if auth state changed (might reveal private lists)
+    if (targetUserId) {
+        fetchUserLists(targetUserId);
+    }
+
     if (lastFetchedItems.length > 0) applySortAndFilter();
 });
 
@@ -1169,16 +1191,23 @@ function customizeHeaderForOwner() {
 function enableBannerEditing() {
     if (!profileBanner || !isProfileOwner) return;
     const bannerContainer = document.querySelector('.profile-banner-container');
-    if (!bannerContainer || bannerContainer.querySelector('.banner-edit-overlay')) return;
+    if (!bannerContainer) return;
+
+    // Remove existing edit button/overlay if any
+    const existingOverlay = bannerContainer.querySelector('.banner-edit-overlay');
+    if (existingOverlay) existingOverlay.remove();
+    const existingBtn = bannerContainer.querySelector('.banner-edit-btn');
+    if (existingBtn) existingBtn.remove();
+
     const editOverlay = document.createElement('div');
     editOverlay.className = 'banner-edit-overlay';
-    editOverlay.innerHTML = 'Click to Change Banner';
-    editOverlay.style.cssText = `position: absolute; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); color: white; display: flex; align-items: center; justify-content: center; cursor: pointer; opacity: 0; transition: opacity 0.3s; font-size: 1.2em; font-weight: bold;`;
+    editOverlay.innerHTML = '<i class="bi bi-camera-fill"></i> Change Banner';
+
     bannerContainer.style.position = 'relative';
     bannerContainer.appendChild(editOverlay);
-    bannerContainer.onmouseover = () => editOverlay.style.opacity = '1';
-    bannerContainer.onmouseout = () => editOverlay.style.opacity = '0';
+
     editOverlay.onclick = handleBannerEdit;
+    profileBanner.onclick = handleBannerEdit;
 }
 
 async function handleBannerEdit() {

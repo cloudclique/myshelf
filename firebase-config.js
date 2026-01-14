@@ -80,7 +80,14 @@ auth.onAuthStateChanged(user => {
 
                     // Notification Logic
                     const prevCount = lastUnreadCounts.has(chatId) ? lastUnreadCounts.get(chatId) : null;
-                    if (!isInitialSnapshot && prevCount !== null && count > prevCount && data.lastSenderId !== user.uid) {
+
+                    // NEVER notify if I am the sender
+                    if (data.lastSenderId === user.uid) {
+                        lastUnreadCounts.set(chatId, count);
+                        return;
+                    }
+
+                    if (!isInitialSnapshot && prevCount !== null && count > prevCount) {
                         // Check if we are currently looking at this chat on the messenger page
                         const isMessengerPage = window.location.pathname.includes('/chat/');
                         const params = new URLSearchParams(window.location.search);

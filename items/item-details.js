@@ -2461,44 +2461,7 @@ function renderPrivateFields(status, existingData = {}) {
     }
 }
 
-function setupStarRating() {
-    const container = document.getElementById('priorityStarRating');
-    const input = document.getElementById('privPriority');
-    if (!container || !input) return;
 
-    const stars = container.querySelectorAll('i');
-    let currentValue = parseInt(input.value) || 0;
-
-    // Initial render
-    updateStars(currentValue);
-
-    stars.forEach(star => {
-        star.addEventListener('mouseover', () => {
-            const hoverValue = parseInt(star.dataset.value);
-            updateStars(hoverValue, true);
-        });
-
-        star.addEventListener('mouseout', () => {
-            updateStars(currentValue);
-        });
-
-        star.addEventListener('click', () => {
-            currentValue = parseInt(star.dataset.value);
-            input.value = currentValue;
-            updateStars(currentValue);
-        });
-    });
-
-    function updateStars(value, isHover = false) {
-        stars.forEach(s => {
-            const starVal = parseInt(s.dataset.value);
-            s.classList.remove('active', 'hover');
-            if (starVal <= value) {
-                s.classList.add(isHover ? 'hover' : 'active');
-            }
-        });
-    }
-}
 
 
 // --- DOM Elements ---
@@ -2652,5 +2615,45 @@ async function renderRelatedItems(urls) {
         } catch (err) {
             console.error('Render error:', err);
         }
+    }
+}
+
+
+function setupStarRating() {
+    const container = document.getElementById('priorityStarRating');
+    const input = document.getElementById('privPriority');
+    if (!container || !input) return;
+
+    const stars = container.querySelectorAll('i');
+    let currentValue = parseInt(input.value) || 0;
+
+    // Initial render
+    updateStars(currentValue);
+
+    stars.forEach(star => {
+        star.addEventListener('mouseover', () => {
+            const hoverValue = parseInt(star.dataset.value);
+            updateStars(hoverValue, true);
+        });
+
+        star.addEventListener('mouseout', () => {
+            updateStars(currentValue);
+        });
+
+        star.addEventListener('click', () => {
+            currentValue = parseInt(star.dataset.value);
+            input.value = currentValue;
+            updateStars(currentValue);
+        });
+    });
+
+    function updateStars(value, isHover = false) {
+        stars.forEach(s => {
+            const starVal = parseInt(s.dataset.value);
+            s.classList.remove('active', 'hover');
+            if (starVal <= value) {
+                s.classList.add(isHover ? 'hover' : 'active');
+            }
+        });
     }
 }

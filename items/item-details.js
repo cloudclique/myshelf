@@ -2461,43 +2461,70 @@ function renderPrivateFields(status, existingData = {}) {
     }
 }
 
-function setupStarRating() {
-    const container = document.getElementById('priorityStarRating');
-    const input = document.getElementById('privPriority');
+/**
+ * Sets up a star rating system that is responsive to both Mouse and Touch events.
+ * @param {string} containerId - The ID of the container holding the star elements.
+ * @param {string} inputId - The ID of the hidden input field to store the value.
+ */
+function setupStarRating(containerId, inputId) {
+    const container = document.getElementById(containerId);
+    const input = document.getElementById(inputId);
     if (!container || !input) return;
 
-    const stars = container.querySelectorAll('i');
-    let currentValue = parseInt(input.value) || 0;
+    const stars = container.querySelectorAll('.star');
 
-    // Initial render
-    updateStars(currentValue);
+    const updateStars = (rating) => {
+        stars.forEach(s => {
+            s.classList.toggle('active', parseInt(s.dataset.value) <= rating);
+        });
+    };
 
+    const handleRatingSelection = (rating) => {
+        input.value = rating;
+        updateStars(rating);
+    };
+
+    // --- Mouse Events ---
     stars.forEach(star => {
-        star.addEventListener('mouseover', () => {
-            const hoverValue = parseInt(star.dataset.value);
-            updateStars(hoverValue, true);
-        });
-
-        star.addEventListener('mouseout', () => {
-            updateStars(currentValue);
-        });
-
-        star.addEventListener('touchstart', () => {
-            currentValue = parseInt(star.dataset.value);
-            input.value = currentValue;
-            updateStars(currentValue);
-        });
+        star.addEventListener('mouseover', () => updateStars(parseInt(star.dataset.value)));
+        star.addEventListener('click', () => handleRatingSelection(parseInt(star.dataset.value)));
     });
 
-    function updateStars(value, isHover = false) {
-        stars.forEach(s => {
-            const starVal = parseInt(s.dataset.value);
-            s.classList.remove('active', 'hover');
-            if (starVal <= value) {
-                s.classList.add(isHover ? 'hover' : 'active');
-            }
-        });
-    }
+    container.addEventListener('mouseleave', () => updateStars(parseInt(input.value || 0)));
+
+    // --- Touch Events (Mobile Friendly) ---
+    container.addEventListener('touchstart', (e) => {
+        // Prevent scrolling while interacting with the rating
+        if (e.cancelable) e.preventDefault();
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        if (target && target.classList.contains('star')) {
+            updateStars(parseInt(target.dataset.value));
+        }
+    }, { passive: false });
+
+    container.addEventListener('touchmove', (e) => {
+        const touch = e.touches[0];
+        // Identify the star under the current touch position
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        if (target && target.classList.contains('star') && target.parentElement === container) {
+            const rating = parseInt(target.dataset.value);
+            updateStars(rating);
+        }
+    }, { passive: false });
+
+    container.addEventListener('touchend', (e) => {
+        const touch = e.changedTouches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        
+        if (target && target.classList.contains('star')) {
+            handleRatingSelection(parseInt(target.dataset.value));
+        } else {
+            // Reset to last saved value if they lift finger outside stars
+            updateStars(parseInt(input.value || 0));
+        }
+    });
 }
 
 

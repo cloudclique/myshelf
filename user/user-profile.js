@@ -1201,7 +1201,7 @@ function enableBannerEditing() {
 
     const editOverlay = document.createElement('div');
     editOverlay.className = 'banner-edit-overlay';
-    editOverlay.innerHTML = '<i class="bi bi-camera-fill"></i> Change Banner';
+    editOverlay.innerHTML = '<i class="bi bi-camera-fill"></i> <span class="banner-edit-text">Change Banner</span>';
 
     bannerContainer.style.position = 'relative';
     bannerContainer.appendChild(editOverlay);

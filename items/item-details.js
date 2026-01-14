@@ -82,7 +82,6 @@ const modalMessage = document.getElementById('modalMessage');
 const modalYesBtn = document.getElementById('modalYesBtn');
 const modalNoBtn = document.getElementById('modalNoBtn');
 
-
 let itemId = null;
 // MODIFIED: Store an array of File objects for new uploads
 let selectedImageFiles = [];
@@ -94,76 +93,6 @@ const usernameCache = {};
 const COMMENTS_PER_PAGE = 8;
 let commentsCurrentPage = 1;
 const pageCursors = [null];
-
-// --- Thumbnail & Cropping State ---
-let cropper = null;
-let currentThumbnailBlob = null;
-
-// Handle Thumbnail Selection
-const thumbnailInput = document.getElementById('thumbnailInput');
-const thumbnailPreview = document.getElementById('thumbnailPreview');
-const cropModal = document.getElementById('cropModal');
-const imageToCrop = document.getElementById('imageToCrop');
-
-if (thumbnailInput) {
-    thumbnailInput.addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-            imageToCrop.src = event.target.result;
-            cropModal.style.display = 'flex';
-            
-            if (cropper) cropper.destroy();
-            cropper = new Cropper(imageToCrop, {
-                aspectRatio: 1,
-                viewMode: 1,
-                dragMode: 'move',
-                autoCropArea: 1,
-                restore: false,
-                guides: true,
-                center: true,
-                highlight: false,
-                cropBoxMovable: true,
-                cropBoxResizable: true,
-                toggleDragModeOnDblclick: false,
-            });
-        };
-        reader.readAsDataURL(file);
-    });
-}
-
-// Handle Crop Save
-document.getElementById('saveCropBtn').addEventListener('click', () => {
-    if (!cropper) return;
-
-    // Force 95x95 output
-    const canvas = cropper.getCroppedCanvas({
-        width: 95,
-        height: 95,
-    });
-
-    canvas.toBlob((blob) => {
-        currentThumbnailBlob = blob;
-        thumbnailPreview.src = URL.createObjectURL(blob);
-        thumbnailPreview.style.display = 'block';
-        document.querySelector('.upload-placeholder').style.display = 'none';
-        cropModal.style.display = 'none';
-        cropper.destroy();
-        cropper = null;
-    }, 'image/webp', 0.9);
-});
-
-// Handle Crop Cancel
-document.getElementById('cancelCropBtn').addEventListener('click', () => {
-    cropModal.style.display = 'none';
-    if (cropper) {
-        cropper.destroy();
-        cropper = null;
-    }
-    thumbnailInput.value = '';
-});
 
 // --- Modal Handlers (Confirmation Modal logic omitted for brevity) ---
 function showConfirmationModal(message, onYes, yesText = 'Yes') {
@@ -935,73 +864,94 @@ editItemForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!auth.currentUser || !itemId) return;
 
-    editMessage.textContent = 'Saving changes...';
+    editMessage.textContent = 'Saving...';
     editMessage.className = 'form-message';
 
-    try {
-        const userId = auth.currentUser.uid;
-        const userRole = await checkUserPermissions(userId);
-        
-        // currentItemImageUrls contains images NOT deleted during the edit session
-        let finalImageArray = [...currentItemImageUrls];
+    const userId = auth.currentUser.uid;
+    const itemDoc = await db.collection('items').doc(itemId).get();
+    const itemData = itemDoc.data();
+    const userRole = await checkUserPermissions(userId);
+    const isUploader = userId === itemData.uploaderId;
+    const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
 
-        // 1. UPLOAD NEW THUMBNAIL (If changed)
-        // This goes to index 0
-        if (currentThumbnailBlob) {
-            editMessage.textContent = "Uploading new thumbnail...";
-            const thumbFile = new File([currentThumbnailBlob], "thumb_95.webp", { type: "image/webp" });
-            const thumbResult = await uploadImageToImgBB(thumbFile);
-            
-            // unshift puts it at the very beginning of the array
-            finalImageArray.unshift(thumbResult);
-        }
+    if (!(isUploader || isAdminOrMod)) {
+        editMessage.textContent = "Permission denied.";
+        editMessage.className = 'form-message error-message';
+        return;
+    }
 
-        // 2. UPLOAD ADDITIONAL IMAGES (If any)
-        if (selectedImageFiles.length > 0) {
-            editMessage.textContent = `Uploading ${selectedImageFiles.length} additional images...`;
+    const updatedData = {
+        itemName: editTitleInput.value,
+        itemCategory: editCategorySelect.value,
+        itemAgeRating: editAgeRatingSelect.value,
+        itemScale: editScaleSelect.value,
+        itemReleaseDate: editReleaseDateInput.value,
+        'img-align-ver': editImageAlignVerSelect.value,
+        'img-align-hor': editImageAlignHorSelect.value,
+        lastEdited: firebase.firestore.FieldValue.serverTimestamp()
+    };
+
+    // --- NEW: Multi-Image Upload Logic ---
+    // currentItemImageUrls already contains the non-removed image objects and is correctly ordered.
+    let retainedImageObjects = currentItemImageUrls;
+
+    if (selectedImageFiles.length > 0) {
+        editMessage.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
+        editMessage.className = 'form-message';
+
+        try {
+            // uploadPromises now return image objects {url, deleteUrl}
             const uploadPromises = selectedImageFiles.map(file => uploadImageToImgBB(file));
-            const newUploadedImages = await Promise.all(uploadPromises);
-            
-            // push adds them to the end
-            finalImageArray = [...finalImageArray, ...newUploadedImages];
+            const uploadedImageObjects = await Promise.all(uploadPromises);
+
+            // Append newly uploaded objects to the existing/retained objects
+            retainedImageObjects = [...retainedImageObjects, ...uploadedImageObjects];
+
+            // Clear the file input and temporary file object array after successful upload
+            editImageInput.value = '';
+            selectedImageFiles = [];
+        } catch (error) {
+            editMessage.textContent = `Image upload failed: ${error.message}`;
+            editMessage.className = 'form-message error-message';
+            return; // Stop the save process
         }
+    }
 
-        // 3. CAP AT MAX (6)
-        if (finalImageArray.length > MAX_IMAGE_COUNT) {
-            finalImageArray = finalImageArray.slice(0, MAX_IMAGE_COUNT);
-        }
+    // Check total count before saving (This check is redundant if done in handleImageFileChange, but kept as a final safeguard)
+    if (retainedImageObjects.length > MAX_IMAGE_COUNT) {
+        editMessage.textContent = `Error: Total images (existing + new) exceeds maximum of ${MAX_IMAGE_COUNT}. Please remove some.`;
+        editMessage.className = 'form-message error-message';
+        return;
+    }
 
-        // 4. PREPARE FIRESTORE DATA
-        const updatedData = {
-            itemName: editTitleInput.value,
-            itemCategory: editCategorySelect.value,
-            itemAgeRating: editAgeRatingSelect.value,
-            itemScale: editScaleSelect.value,
-            itemReleaseDate: editReleaseDateInput.value,
-            'img-align-ver': editImageAlignVerSelect.value,
-            'img-align-hor': editImageAlignHorSelect.value,
-            itemImageUrls: finalImageArray, // The re-ordered array
-            lastEdited: firebase.firestore.FieldValue.serverTimestamp()
-        };
+    // Save the new array of image objects. 
+    updatedData.itemImageUrls = retainedImageObjects;
 
-        // 5. UPDATE FIRESTORE
+    // Explicitly clean up legacy single-image fields
+    if (itemData.itemImageUrl) updatedData.itemImageUrl = firebase.firestore.FieldValue.delete();
+    if (itemData.itemImageBase64) updatedData.itemImageBase64 = firebase.firestore.FieldValue.delete();
+    if (itemData.itemImage) updatedData.itemImage = firebase.firestore.FieldValue.delete();
+
+    // --- END NEW: Multi-Image Upload Logic ---
+
+    try {
         await db.collection('items').doc(itemId).set(updatedData, { merge: true });
 
-        editMessage.textContent = "Item updated successfully!";
+        editMessage.textContent = "Details updated successfully! Closing in 1 second...";
         editMessage.className = 'form-message success-message';
 
-        // Reset states
-        currentThumbnailBlob = null;
-        selectedImageFiles = [];
+        // Update the current state for subsequent display/edits
+        currentItemImageUrls = retainedImageObjects;
 
+        // NEW: Close the modal and refresh details
         setTimeout(() => {
             closeEditModal();
-            fetchItemDetails(itemId); // Refresh page content
-        }, 1000);
+            editToggleBtn.innerHTML = '<i class="bi bi-gear-wide-connected"></i>';
+            fetchItemDetails(itemId);
+        }, 100);
 
     } catch (error) {
-        console.error("Save error:", error);
-        editMessage.textContent = `Error: ${error.message}`;
+        editMessage.textContent = `Error saving edits: ${error.message}`;
         editMessage.className = 'form-message error-message';
     }
 });

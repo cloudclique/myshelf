@@ -224,12 +224,10 @@ async function fetchAndRenderBanner(userId) {
     }
 }
 
-// --- Initialize Profile ---
-// --- Updated initializeProfile with Silent Sync ---
 async function initializeProfile() {
     updateViewAppearance();
 
-    // 1. Immediate Skeleton Feedback
+    // 1. Immediate UI Feedback
     if (profileLoader) profileLoader.classList.add('hidden');
     renderSkeletonGrid(); 
 
@@ -237,7 +235,7 @@ async function initializeProfile() {
 
     if (!targetUserId) {
         profileTitle.textContent = 'Error: No User ID Provided';
-        loadingStatus.textContent = 'Please return to the Users search page.';
+        loadingStatus.textContent = 'Please return to the search page.';
         profileItemsGrid.innerHTML = ''; 
         return;
     }
@@ -251,19 +249,13 @@ async function initializeProfile() {
 
     if (openChatBtn) customizeHeaderForOwner();
 
-    if (currentUser && !isProfileOwner) {
-        setupRoleModal(currentUser.uid);
-    }
-
-    // Parse URL Hash for state early
+    // Parse URL Hash for state (Status, Page, Search)
     const { status: hashStatus, page: hashPage, search: hashSearch, sort: hashSort, order: hashOrder } = parseURLHash();
     currentStatusFilter = STATUS_OPTIONS.includes(hashStatus) ? hashStatus : 'Owned';
     currentPage = hashPage || 1;
     currentSortOrder = hashOrder || 'desc';
 
-    if (sortSelect && hashSort) {
-        sortSelect.value = hashSort;
-    }
+    if (sortSelect && hashSort) sortSelect.value = hashSort;
     if (sortOrderIcon) {
         sortOrderIcon.className = currentSortOrder === 'desc' ? 'bi bi-sort-down' : 'bi bi-sort-up';
     }
@@ -277,14 +269,14 @@ async function initializeProfile() {
     const commentsPromise = loadComments(targetUserId);
     const galleryPromise = fetchAndRenderGalleryPreview(targetUserId);
 
-    // 3. Await Critical UI Elements
+    // 3. Await Primary Content
     targetUsername = await usernamePromise;
     profileTitle.textContent = `${targetUsername}'s Collection`;
 
     await Promise.all([bannerPromise, statusCountsPromise]);
     await itemsPromise;
 
-    // Handle initial search/sort state
+    // Apply sorting/searching to the primary view
     if (hashSearch) {
         profileSearchInput.value = hashSearch;
         handleProfileSearch();
@@ -292,47 +284,15 @@ async function initializeProfile() {
         applySortAndFilter();
     }
 
-    // 4. Non-critical background fetches
+    // 4. Await Non-critical items
     await Promise.all([listsPromise, commentsPromise, galleryPromise]);
 
-    // --- NEW: SILENT BACKGROUND SYNC ---
-    // This checks if the user's cached data matches the main collection
-    if (isProfileOwner && lastFetchedItems.length > 0) {
-        const performSync = async (itemsToSync) => {
-            const mainCollectionRef = db.collection(collectionName);
-            const userRef = getUserCollectionRef(targetUserId);
-
-            for (const item of itemsToSync) {
-                try {
-                    const itemId = item.doc.id;
-                    const cachedData = item.doc.data();
-
-                    // Fetch the latest source of truth
-                    const mainDoc = await mainCollectionRef.doc(itemId).get();
-                    if (!mainDoc.exists) continue;
-
-                    const mainData = mainDoc.data();
-
-                    // Compare critical fields that cause the preview issues
-                    const mismatch = 
-                        cachedData.itemName !== mainData.itemName || 
-                        JSON.stringify(cachedData.itemImageUrls) !== JSON.stringify(mainData.itemImageUrls);
-
-                    if (mismatch) {
-                        console.log(`Syncing outdated item: ${itemId}`);
-                        await userRef.doc(itemId).update({
-                            itemName: mainData.itemName,
-                            itemImageUrls: mainData.itemImageUrls
-                        });
-                    }
-                } catch (e) {
-                    console.error("Background sync error for item:", e);
-                }
-            }
-        };
-
-        // Execute without 'await' so it doesn't block the user from interacting with the page
-        performSync(lastFetchedItems).then(() => console.log("Background sync finished."));
+    // --- TRIGGER GLOBAL SYNC ---
+    // Only the owner can/should update their own denormalized data
+    if (isProfileOwner) {
+        performGlobalSync(targetUserId).then(() => {
+            console.log("Global sync: All categories checked.");
+        });
     }
 }
 
@@ -1629,40 +1589,58 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
 };
 
 
-async function silentSync(itemsToSync) {
-    if (!itemsToSync || itemsToSync.length === 0) return;
-
+/**
+ * Synchronizes 'Owned', 'Wished', and 'Ordered' items with the main database.
+ * Resolves the issue of wrong preview images or names in the user profile.
+ */
+async function performGlobalSync(uid) {
+    const categories = ['Owned', 'Wished', 'Ordered'];
     const mainCollectionRef = db.collection(collectionName);
-    const userRef = getUserCollectionRef(targetUserId);
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-    // Limit sync to a batch or process sequentially to avoid performance hits
-    for (const item of itemsToSync) {
+    console.log("Starting background sync for Owned, Wished, and Ordered items...");
+
+    for (const category of categories) {
         try {
-            const itemId = item.doc.id;
-            const userCachedData = item.doc.data();
+            // Fetch all items with this status for the user
+            const userItemsSnapshot = await db.collection('artifacts')
+                .doc(appId)
+                .collection('user_profiles')
+                .doc(uid)
+                .collection('items')
+                .where('status', '==', category)
+                .get();
 
-            // Fetch the "source of truth" from the main collection
-            const mainDoc = await mainCollectionRef.doc(itemId).get();
-            if (!mainDoc.exists) continue;
+            if (userItemsSnapshot.empty) continue;
 
-            const mainData = mainDoc.data();
+            // Process updates in parallel for this category
+            const syncPromises = userItemsSnapshot.docs.map(async (userDoc) => {
+                const itemId = userDoc.id;
+                const cachedData = userDoc.data();
 
-            // Compare relevant fields (Name and Images)
-            const needsUpdate = 
-                userCachedData.itemName !== mainData.itemName || 
-                JSON.stringify(userCachedData.itemImageUrls) !== JSON.stringify(mainData.itemImageUrls);
+                // Fetch the source of truth from the main collection (as search.js does)
+                const mainDoc = await mainCollectionRef.doc(itemId).get();
+                if (!mainDoc.exists) return;
 
-            if (needsUpdate) {
-                console.log(`Silent Sync: Updating outdated data for item ${itemId}`);
-                
-                // Update the user-specific collection with fresh data
-                await userRef.doc(itemId).update({
-                    itemName: mainData.itemName,
-                    itemImageUrls: mainData.itemImageUrls
-                });
-            }
-        } catch (err) {
-            console.warn("Silent sync failed for an item:", err);
+                const mainData = mainDoc.data();
+
+                // Compare data
+                const needsUpdate = 
+                    cachedData.itemName !== mainData.itemName || 
+                    JSON.stringify(cachedData.itemImageUrls) !== JSON.stringify(mainData.itemImageUrls);
+
+                if (needsUpdate) {
+                    console.log(`[Sync] Updating stale data for: ${mainData.itemName} (${category})`);
+                    return userDoc.ref.update({
+                        itemName: mainData.itemName,
+                        itemImageUrls: mainData.itemImageUrls
+                    });
+                }
+            });
+
+            await Promise.all(syncPromises);
+        } catch (error) {
+            console.error(`Sync error in category ${category}:`, error);
         }
     }
 }

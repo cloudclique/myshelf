@@ -288,10 +288,13 @@ async function initializeProfile() {
     await Promise.all([listsPromise, commentsPromise, galleryPromise]);
 
     // --- TRIGGER GLOBAL SYNC ---
-    // Only the owner can/should update their own denormalized data
     if (isProfileOwner) {
+        const syncEl = document.getElementById('syncStatus');
+        if (syncEl) syncEl.style.display = 'block'; // Show "syncing..."
+
         performGlobalSync(targetUserId).then(() => {
             console.log("Global sync: All categories checked.");
+            if (syncEl) syncEl.style.display = 'none'; // Hide when done
         });
     }
 }

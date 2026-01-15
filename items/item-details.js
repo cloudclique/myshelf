@@ -2284,6 +2284,7 @@ createNewListBtn.onclick = async () => {
         await newListRef.set({
             name: name,
             privacy: privacy,
+            mode: 'static',
             items: [itemId],
             createdAt: firebase.firestore.FieldValue.serverTimestamp(),
             userId: userId

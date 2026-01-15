@@ -1350,6 +1350,45 @@ body {
     word-break: break-word;
 }
 
+.comment.pinned {
+    border: 2px solid gold;
+    background-color: var(--section-bg);
+    position: relative;
+    padding-top: 25px;
+}
+
+.comment.pinned::before {
+    content: '\f4e4  Pinned';
+    font-family: 'bootstrap-icons';
+    position: absolute;
+    top: 5px;
+    left: 10px;
+    font-size: 0.75em;
+    color: gold;
+    font-weight: bold;
+}
+
+.pin-comment-btn {
+    background: none;
+    border: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 1.1em;
+    padding: 2px 5px;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.pin-comment-btn:hover {
+    color: gold;
+}
+
+.pin-comment-btn.active {
+    color: gold;
+}
+
 .settings-btn {
     background-color: var(--primary-color);
     color: white;
@@ -3479,6 +3518,11 @@ body {
 }
 
 @keyframes rotation {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(359deg); }
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(359deg);
+    }
 }

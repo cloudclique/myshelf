@@ -9,6 +9,32 @@ let allUserLists = [];
 const STATUS_OPTIONS = ['Owned', 'Wished', 'Ordered'];
 const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
 const DEFAULT_BANNER_URL = 'https://placehold.co/1000x200/555/eee?text=User+Profile+Banner';
+const CACHE_TTL = 2 * 7 * 24 * 60 * 60 * 1000; // 2 weeks
+
+// --- Cache Helpers ---
+function getCachedData(key) {
+    try {
+        const cached = localStorage.getItem(key);
+        if (!cached) return null;
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp > CACHE_TTL) {
+            localStorage.removeItem(key);
+            return null;
+        }
+        return data;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setCachedData(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify({ data, timestamp: Date.now() }));
+    } catch (e) {
+        console.warn("Cache write failed:", e);
+    }
+}
+
 
 const ROLE_HIERARCHY = {
     'admin': { assigns: ['mod', "shop", "manufacturer", "og", 'user'] },
@@ -174,20 +200,31 @@ function getGalleryCollectionRef() {
 
 async function fetchUsername(userId) {
     if (!userId) return 'Unknown User';
+    const cacheKey = `profile_username_${userId}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
     try {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const profileDocRef = db.collection('artifacts').doc(appId).collection('user_profiles').doc(userId);
         const docSnap = await profileDocRef.get();
-        return docSnap.exists ? (docSnap.data().username || 'User Profile') : 'Unknown User';
+        const username = docSnap.exists ? (docSnap.data().username || 'User Profile') : 'Unknown User';
+        setCachedData(cacheKey, username);
+        return username;
     } catch (e) {
         console.error("Error fetching username:", e);
         return 'User Profile';
     }
 }
 
+
 async function fetchStatusCounts(userId) {
     const counts = { Owned: 0, Wished: 0, Ordered: 0 };
     if (!userId) return counts;
+    const cacheKey = `profile_status_counts_${userId}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) return cached;
+
     try {
         const userCollectionRef = getUserCollectionRef(userId);
         const snapshot = await userCollectionRef.get();
@@ -195,9 +232,11 @@ async function fetchStatusCounts(userId) {
             const status = doc.data().status;
             if (STATUS_OPTIONS.includes(status)) counts[status]++;
         });
+        setCachedData(cacheKey, counts);
     } catch (err) { console.error("Error fetching status counts:", err); }
     return counts;
 }
+
 
 let currentSortOrder = 'desc'; // Default to Descending
 const sortOrderBtn = document.getElementById('sortOrderBtn');
@@ -214,29 +253,38 @@ if (sortOrderBtn) {
 
 async function fetchAndRenderBanner(userId) {
     if (!userId || !profileBanner) return;
+    const cacheKey = `profile_banner_${userId}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+        profileBanner.src = cached;
+    }
+
     try {
         const userDoc = await getUserProfileDocRef(userId).get();
         const bannerBase64 = userDoc.data()?.bannerBase64;
-        profileBanner.src = bannerBase64 || DEFAULT_BANNER_URL;
+        const bannerUrl = bannerBase64 || DEFAULT_BANNER_URL;
+        profileBanner.src = bannerUrl;
+        setCachedData(cacheKey, bannerUrl);
     } catch (err) {
         console.error("Error fetching banner:", err);
-        profileBanner.src = DEFAULT_BANNER_URL;
+        if (!profileBanner.src) profileBanner.src = DEFAULT_BANNER_URL;
     }
 }
+
 
 async function initializeProfile() {
     updateViewAppearance();
 
     // 1. Immediate UI Feedback
     if (profileLoader) profileLoader.classList.add('hidden');
-    renderSkeletonGrid(); 
+    renderSkeletonGrid();
 
     targetUserId = getUserIdFromUrl();
 
     if (!targetUserId) {
         profileTitle.textContent = 'Error: No User ID Provided';
         loadingStatus.textContent = 'Please return to the search page.';
-        profileItemsGrid.innerHTML = ''; 
+        profileItemsGrid.innerHTML = '';
         return;
     }
 
@@ -263,8 +311,8 @@ async function initializeProfile() {
     // 2. Parallel Data Fetching
     const bannerPromise = fetchAndRenderBanner(targetUserId);
     const usernamePromise = fetchUsername(targetUserId);
-    const statusCountsPromise = renderStatusButtons(); 
-    const itemsPromise = fetchProfileItems(currentStatusFilter); 
+    const statusCountsPromise = renderStatusButtons();
+    const itemsPromise = fetchProfileItems(currentStatusFilter);
     const listsPromise = fetchUserLists(targetUserId);
     const commentsPromise = loadComments(targetUserId);
     const galleryPromise = fetchAndRenderGalleryPreview(targetUserId);
@@ -315,9 +363,19 @@ function renderSkeletonGrid() {
 
 async function fetchUserLists(userId) {
     const profileListsGrid = document.getElementById('profileListsGrid');
-    profileListsGrid.innerHTML = '<p>Loading lists...</p>';
+    const cacheKey = `profile_lists_${userId}`;
+    const cached = getCachedData(cacheKey);
+
+    if (cached) {
+        allUserLists = cached;
+        renderCreateListButton();
+        renderListsPage(1);
+    } else {
+        profileListsGrid.innerHTML = '<p>Loading lists...</p>';
+    }
 
     try {
+        // ... existing logic ...
         // 1. Load user profile (favorites live here)
         const userDoc = await db
             .collection('artifacts').doc('default-app-id')
@@ -326,7 +384,6 @@ async function fetchUserLists(userId) {
 
         const favoriteListIds = userDoc.data()?.favoriteLists || [];
 
-        allUserLists = [];
         const listMap = new Map(); // dedupe by ID
 
         // 2. Fetch FAVORITE public lists by ID
@@ -391,15 +448,20 @@ async function fetchUserLists(userId) {
             return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
         });
 
+        setCachedData(cacheKey, allUserLists);
+
         // 6. Render
         renderCreateListButton();
         renderListsPage(1);
 
     } catch (error) {
         console.error('Error fetching lists:', error);
-        profileListsGrid.innerHTML = '<p>Error loading lists.</p>';
+        if (!allUserLists.length) {
+            profileListsGrid.innerHTML = '<p>Error loading lists.</p>';
+        }
     }
 }
+
 
 
 function renderListsPage(page) {
@@ -562,7 +624,20 @@ async function fetchProfileItems(status) {
 
 async function fetchPage() {
     if (!targetUserId) return;
-    // Removed clearing grid here to keep skeletons until data is ready
+    const cacheKey = `profile_items_${targetUserId}_${currentStatusFilter}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+        lastFetchedItems = cached.map(item => ({
+            ...item,
+            doc: {
+                ...item.doc,
+                data: () => item.doc._data
+            }
+        }));
+        applySortAndFilter();
+    }
+
+
     try {
         const userCollectionRef = getUserCollectionRef(targetUserId);
         const snapshot = await userCollectionRef.where('status', '==', currentStatusFilter).get();
@@ -570,6 +645,7 @@ async function fetchPage() {
             lastFetchedItems = [];
             renderPageItems([]);
             loadingStatus.textContent = `${targetUsername} has no items in the "${currentStatusFilter}" collection.`;
+            setCachedData(cacheKey, []);
             return;
         }
         const mainCollectionRef = db.collection(collectionName);
@@ -577,14 +653,12 @@ async function fetchPage() {
             const userItemData = doc.data();
 
             // OPTIMIZATION: Check for denormalized data on the user item itself
-            // If the user_profiles/{uid}/items document has the item data, use it!
             if (userItemData.itemName && userItemData.itemImageUrls) {
-                // Construct a mock document object that mimics Firestore doc interface
                 return {
                     doc: {
                         id: userItemData.itemId,
                         exists: true,
-                        data: () => userItemData // The userItemData now acts as the item data
+                        data: () => userItemData
                     },
                     status: userItemData.status,
                     privateNotes: userItemData.privateNotes || {}
@@ -595,19 +669,44 @@ async function fetchPage() {
             const itemDoc = await mainCollectionRef.doc(userItemData.itemId).get();
             if (!itemDoc.exists) return null;
             return {
-                doc: itemDoc,
+                doc: {
+                    id: itemDoc.id,
+                    data: () => itemDoc.data()
+                },
                 status: userItemData.status,
                 privateNotes: userItemData.privateNotes || {}
             };
         }));
-        lastFetchedItems = detailedItems.filter(Boolean);
+        // Strip out complex doc objects for serialization
+        const itemsToCache = detailedItems.filter(Boolean).map(item => ({
+            doc: {
+                id: item.doc.id,
+                data: () => item.doc.data(),
+                _data: item.doc.data() // Store raw data for cache
+            },
+            status: item.status,
+            privateNotes: item.privateNotes
+        }));
+
+        lastFetchedItems = itemsToCache.map(item => ({
+            ...item,
+            doc: {
+                ...item.doc,
+                data: () => item.doc._data
+            }
+        }));
+
+        setCachedData(cacheKey, lastFetchedItems);
         applySortAndFilter();
     } catch (err) {
         console.error(err);
-        loadingStatus.textContent = `Error loading collection: ${err.message}`;
-        profileItemsGrid.innerHTML = ''; // Clear skeletons on error
+        if (!lastFetchedItems.length) {
+            loadingStatus.textContent = `Error loading collection: ${err.message}`;
+            profileItemsGrid.innerHTML = '';
+        }
     }
 }
+
 
 function renderPageItems(items) {
     profileItemsGrid.innerHTML = '';
@@ -778,23 +877,27 @@ function handleProfileClearSearch() {
 async function fetchAndRenderGalleryPreview(userId) {
     const previewGrid = document.getElementById('previewGrid');
     if (!previewGrid || !userId) return;
-    previewGrid.innerHTML = '<p style="grid-column: 1/span 4; text-align: center;">Loading images...</p>';
+
+    const cacheKey = `profile_gallery_${userId}`;
+    const cached = getCachedData(cacheKey);
+    if (cached) {
+        renderGalleryThumbnails(cached);
+    } else {
+        previewGrid.innerHTML = '<p style="grid-column: 1/span 4; text-align: center;">Loading images...</p>';
+    }
 
     try {
         const galleryRef = getGalleryCollectionRef();
-        // Fetch the user's gallery items to calculate likes client-side
         const gallerySnapshot = await galleryRef.where('uploaderId', '==', userId).get();
 
-        previewGrid.innerHTML = '';
         if (gallerySnapshot.empty) {
             previewGrid.innerHTML = '<p style="grid-column: 1/span 4; text-align: center; color: #888;">No uploaded gallery images found.</p>';
+            setCachedData(cacheKey, []);
             return;
         }
 
         const imagesWithLikes = gallerySnapshot.docs.map(doc => {
             const data = doc.data();
-
-            // Sum the lengths of all arrays where the key starts with "likes_"
             const totalLikes = Object.keys(data)
                 .filter(key => key.startsWith('likes_'))
                 .reduce((sum, key) => {
@@ -805,34 +908,43 @@ async function fetchAndRenderGalleryPreview(userId) {
             return {
                 url: data.url || DEFAULT_IMAGE_URL,
                 totalLikes: totalLikes,
-                createdAt: data.createdAt
+                createdAt: data.createdAt ? { seconds: data.createdAt.seconds } : null
             };
         });
 
-        // Sort: Most likes first, then newest first as a tie-breaker
         imagesWithLikes.sort((a, b) => {
-            if (b.totalLikes !== a.totalLikes) {
-                return b.totalLikes - a.totalLikes;
-            }
+            if (b.totalLikes !== a.totalLikes) return b.totalLikes - a.totalLikes;
             return (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0);
         });
 
-        // Display the top 4 most liked images
-        imagesWithLikes.slice(0, 4).forEach(image => {
-            const link = document.createElement('a');
-            link.className = 'gallery-thumbnail-link';
-            const img = document.createElement('img');
-            img.src = image.url;
-            img.className = 'gallery-thumbnail';
-            img.onerror = () => img.src = DEFAULT_IMAGE_URL;
-            link.appendChild(img);
-            previewGrid.appendChild(link);
-        });
+        const topImages = imagesWithLikes.slice(0, 4);
+        setCachedData(cacheKey, topImages);
+        renderGalleryThumbnails(topImages);
+
     } catch (err) {
         console.error("Error fetching gallery preview:", err);
-        previewGrid.innerHTML = '<p style="grid-column: 1/span 4; text-align: center; color: red;">Failed to load gallery preview.</p>';
+        if (!cached) {
+            previewGrid.innerHTML = '<p style="grid-column: 1/span 4; text-align: center; color: red;">Failed to load gallery preview.</p>';
+        }
     }
 }
+
+function renderGalleryThumbnails(images) {
+    const previewGrid = document.getElementById('previewGrid');
+    if (!previewGrid) return;
+    previewGrid.innerHTML = '';
+    images.forEach(image => {
+        const link = document.createElement('a');
+        link.className = 'gallery-thumbnail-link';
+        const img = document.createElement('img');
+        img.src = image.url;
+        img.className = 'gallery-thumbnail';
+        img.onerror = () => img.src = DEFAULT_IMAGE_URL;
+        link.appendChild(img);
+        previewGrid.appendChild(link);
+    });
+}
+
 
 function applySortAndFilter() {
     if (!lastFetchedItems || !lastFetchedItems.length) {
@@ -1014,13 +1126,34 @@ async function loadComments(profileUserId) {
             currentUserRole = roleDoc.data()?.role || null;
         } catch (err) { console.error("Error fetching user role:", err); }
     }
+
+    const commentsCollection = db.collection('artifacts').doc(appId).collection('user_profiles').doc(profileUserId).collection('comments');
+
+    // Fetch pinned comments only on the first page
+    let pinnedDocs = [];
+    if (commentsCurrentPage === 1) {
+        try {
+            const pinnedSnapshot = await commentsCollection.where('isPinned', '==', true).get();
+            pinnedDocs = pinnedSnapshot.docs;
+        } catch (err) { console.error("Error fetching pinned comments:", err); }
+    }
+
     const startDoc = pageCursors[commentsCurrentPage - 1] || null;
-    let query = db.collection('artifacts').doc(appId).collection('user_profiles').doc(profileUserId).collection('comments').orderBy('timestamp', 'desc').limit(COMMENTS_PER_PAGE);
+    let query = commentsCollection.orderBy('timestamp', 'desc').limit(COMMENTS_PER_PAGE);
     if (startDoc) query = query.startAfter(startDoc);
     const snapshot = await query.get();
-    if (snapshot.empty) { commentsList.innerHTML = '<p>No comments yet.</p>'; if (commentsCurrentPage > 1) commentsCurrentPage--; return; }
+
+    if (snapshot.empty && pinnedDocs.length === 0) {
+        commentsList.innerHTML = '<p>No comments yet.</p>';
+        if (commentsCurrentPage > 1) commentsCurrentPage--;
+        return;
+    }
+
     commentsList.innerHTML = '';
-    snapshot.forEach(doc => {
+
+    const pinnedIds = new Set(pinnedDocs.map(d => d.id));
+
+    const renderComment = (doc, isPinned = false) => {
         const c = doc.data();
         const commentId = doc.id;
         const time = c.timestamp?.toDate().toLocaleString() ?? 'Just now';
@@ -1028,12 +1161,15 @@ async function loadComments(profileUserId) {
         const isProfileOwner = currentUid === profileUserId;
         const isAdminOrMod = ['admin', 'mod'].includes(currentUserRole);
         const canDelete = isOwner || isProfileOwner || isAdminOrMod;
+        const canPin = isProfileOwner;
+
         const div = document.createElement('div');
-        div.className = 'comment';
+        div.className = `comment${isPinned ? ' pinned' : ''}`;
         div.innerHTML = `
       <div style="display:flex; align-items:center; justify-content:space-between;">
         <div style="display:flex; align-items:center; gap:5px;">
           ${canDelete ? `<button class="delete-comment-btn" data-id="${commentId}" title="Delete comment">&times;</button>` : ''}
+          ${canPin ? `<button class="pin-comment-btn${isPinned ? ' active' : ''}" data-id="${commentId}" title="${isPinned ? 'Unpin comment' : 'Pin comment'}"><i class="bi bi-pin-angle${isPinned ? '-fill' : ''}"></i></button>` : (isPinned ? `<span class="pin-icon" title="Pinned"><i class="bi bi-pin-angle-fill" style="color: gold;"></i></span>` : '')}
           <a href="../user/?uid=${c.userId}" class="comment-author" style="text-decoration: underline;">${linkify(c.displayName || 'User')}</a>
         </div>
         <div style="font-size:0.8em; color:#888;">${time}</div>
@@ -1041,17 +1177,38 @@ async function loadComments(profileUserId) {
       <div class="comment-text">${linkify(c.text)}</div>
     `;
         commentsList.appendChild(div);
+
         if (canDelete) {
             div.querySelector('.delete-comment-btn').onclick = () => {
                 showConfirmationModal("Are you sure you want to delete this comment?", async () => {
                     try {
-                        await db.collection('artifacts').doc(appId).collection('user_profiles').doc(profileUserId).collection('comments').doc(commentId).delete();
+                        await commentsCollection.doc(commentId).delete();
                         commentsCurrentPage = 1; pageCursors = [null]; loadComments(profileUserId);
                     } catch (err) { console.error("Failed to delete comment:", err); }
                 });
             };
         }
+
+        if (canPin) {
+            div.querySelector('.pin-comment-btn').onclick = async () => {
+                try {
+                    await commentsCollection.doc(commentId).update({ isPinned: !isPinned });
+                    loadComments(profileUserId);
+                } catch (err) { console.error("Failed to toggle pin:", err); }
+            };
+        }
+    };
+
+    // Render pinned comments first
+    pinnedDocs.forEach(doc => renderComment(doc, true));
+
+    // Render regular comments, excluding those that are pinned
+    snapshot.forEach(doc => {
+        if (!pinnedIds.has(doc.id)) {
+            renderComment(doc, false);
+        }
     });
+
     if (snapshot.docs.length === COMMENTS_PER_PAGE) {
         const lastDoc = snapshot.docs[snapshot.docs.length - 1];
         if (pageCursors.length === commentsCurrentPage) pageCursors.push(lastDoc);
@@ -1162,9 +1319,10 @@ auth.onAuthStateChanged(async (user) => {
         renderCreateListButton();
     }
 
-    // Refresh data if auth state changed (might reveal private lists)
+    // Refresh data if auth state changed (might reveal private lists or comment delete buttons)
     if (targetUserId) {
         fetchUserLists(targetUserId);
+        loadComments(targetUserId);
     }
 
     if (lastFetchedItems.length > 0) applySortAndFilter();
@@ -1569,7 +1727,8 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
         userId: user.uid,
         items: [],
         mode: listTypeSelect.value,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        privacy: listPrivacySelect.value
     };
 
     if (payload.mode === 'live') {
@@ -1628,8 +1787,8 @@ async function performGlobalSync(uid) {
                 const mainData = mainDoc.data();
 
                 // Compare data
-                const needsUpdate = 
-                    cachedData.itemName !== mainData.itemName || 
+                const needsUpdate =
+                    cachedData.itemName !== mainData.itemName ||
                     JSON.stringify(cachedData.itemImageUrls) !== JSON.stringify(mainData.itemImageUrls);
 
                 if (needsUpdate) {

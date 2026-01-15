@@ -364,8 +364,35 @@ function copyToClipboard(text) {
 // ------------------
 // COMMENTS
 // ------------------
-// 1. Create a cache outside the function to persist between re-renders
-const userProfileCache = {};
+// 1. Persistent Cache Helpers for User Profiles
+const PROFILE_CACHE_TTL = 2 * 7 * 24 * 60 * 60 * 1000; // 2 weeks
+
+function getCachedProfile(userId) {
+    try {
+        const cached = localStorage.getItem(`user_profile_${userId}`);
+        if (!cached) return null;
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp > PROFILE_CACHE_TTL) {
+            localStorage.removeItem(`user_profile_${userId}`);
+            return null;
+        }
+        return data;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setCachedProfile(userId, data) {
+    try {
+        localStorage.setItem(`user_profile_${userId}`, JSON.stringify({
+            data: data,
+            timestamp: Date.now()
+        }));
+    } catch (e) {
+        console.warn("Cache write failed:", e);
+    }
+}
+
 
 async function loadComments(imageId) {
     if (!commentsList.innerHTML || commentsList.innerHTML.includes('No comments yet.')) {
@@ -391,7 +418,8 @@ async function loadComments(imageId) {
                 const userId = c.userId;
 
                 // 2. Check cache first before calling Firestore
-                if (!userProfileCache[userId]) {
+                let cachedUser = getCachedProfile(userId);
+                if (!cachedUser) {
                     try {
                         const userDoc = await db.collection("artifacts")
                             .doc("default-app-id")
@@ -401,20 +429,20 @@ async function loadComments(imageId) {
 
                         if (userDoc.exists) {
                             const data = userDoc.data();
-                            userProfileCache[userId] = {
+                            cachedUser = {
                                 name: data.username || c.userName || "User",
                                 pic: data.profilePic || ""
                             };
+                            setCachedProfile(userId, cachedUser);
                         } else {
-                            userProfileCache[userId] = { name: c.userName || "User", pic: "" };
+                            cachedUser = { name: c.userName || "User", pic: "" };
                         }
                     } catch (e) {
                         console.error("Cache fetch error:", e);
-                        userProfileCache[userId] = { name: c.userName || "User", pic: "" };
+                        cachedUser = { name: c.userName || "User", pic: "" };
                     }
                 }
 
-                const cachedUser = userProfileCache[userId];
                 const cLikes = c.likes || [];
                 const isLiked = currentUser && cLikes.includes(currentUser.uid);
                 const isOwner = currentUser && currentUser.uid === userId;

@@ -12,6 +12,16 @@ const firebaseConfig = {
 
 const app = firebase.initializeApp(firebaseConfig);
 const db = app.firestore();
+
+// --- Firestore Persistence ---
+db.enablePersistence().catch((err) => {
+    if (err.code == 'failed-precondition') {
+        console.warn("Firestore persistence failed: Multiple tabs open.");
+    } else if (err.code == 'unimplemented') {
+        console.warn("Firestore persistence is not supported by this browser.");
+    }
+});
+
 const auth = app.auth();
 const collectionName = "items";
 
@@ -38,20 +48,33 @@ async function showBrowserNotification(title, body, clickUrl = null, icon = null
     }
 }
 
-// Helper to get profile info for notifications
-const notificationProfileCache = new Map();
+// Helper to get profile info for notifications (Cached for 2 weeks)
+const CACHE_TTL = 2 * 7 * 24 * 60 * 60 * 1000;
 async function getSenderName(uid) {
-    if (notificationProfileCache.has(uid)) return notificationProfileCache.get(uid);
+    const cacheKey = `notification_sender_${uid}`;
+    try {
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            const { name, timestamp } = JSON.parse(cached);
+            if (Date.now() - timestamp < CACHE_TTL) return name;
+        }
+    } catch (e) { }
+
     try {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const snap = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(uid).get();
         const name = snap.exists ? (snap.data().username || "Someone") : "Someone";
-        notificationProfileCache.set(uid, name);
+
+        try {
+            localStorage.setItem(cacheKey, JSON.stringify({ name, timestamp: Date.now() }));
+        } catch (e) { }
+
         return name;
     } catch (e) {
         return "Someone";
     }
 }
+
 
 // Export services and constants
 export { app, auth, db, collectionName };

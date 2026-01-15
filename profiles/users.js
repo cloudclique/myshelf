@@ -11,10 +11,35 @@ const headerTools = document.getElementById("headerTools");
 
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// --- Local Cache ---
-let cachedProfiles = null;
-let lastFetchTime = 0;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+// --- Local Cache Helpers ---
+const CACHE_DURATION = 2 * 7 * 24 * 60 * 60 * 1000; // 2 weeks cache
+
+function getCachedProfiles() {
+    try {
+        const cached = localStorage.getItem('user_profiles_search_cache');
+        if (!cached) return null;
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp > CACHE_DURATION) {
+            localStorage.removeItem('user_profiles_search_cache');
+            return null;
+        }
+        return data;
+    } catch (e) {
+        return null;
+    }
+}
+
+function setCachedProfiles(data) {
+    try {
+        localStorage.setItem('user_profiles_search_cache', JSON.stringify({
+            data: data,
+            timestamp: Date.now()
+        }));
+    } catch (e) {
+        console.warn("Cache write failed:", e);
+    }
+}
+
 
 /**
  * Render skeleton loaders for user cards
@@ -44,9 +69,8 @@ function renderSkeletonProfiles(container, count = 1) {
  */
 async function fetchAllUserProfiles() {
     // Return cache if valid
-    if (cachedProfiles && (Date.now() - lastFetchTime < CACHE_DURATION)) {
-        return cachedProfiles;
-    }
+    const cached = getCachedProfiles();
+    if (cached) return cached;
 
     try {
         const profilesRef = db.collection('artifacts')
@@ -54,14 +78,15 @@ async function fetchAllUserProfiles() {
             .collection('user_profiles');
 
         const snap = await profilesRef.get();
-        cachedProfiles = snap.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
-        lastFetchTime = Date.now();
-        return cachedProfiles;
+        const profiles = snap.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
+        setCachedProfiles(profiles);
+        return profiles;
     } catch (e) {
         console.error("Error fetching all user profiles:", e);
-        return cachedProfiles || []; // Return stale cache on error if available
+        return [];
     }
 }
+
 
 /**
  * Optimized fetch for top users (Firestore side)

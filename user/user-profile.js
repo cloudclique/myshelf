@@ -225,19 +225,20 @@ async function fetchAndRenderBanner(userId) {
 }
 
 // --- Initialize Profile ---
+// --- Updated initializeProfile with Silent Sync ---
 async function initializeProfile() {
     updateViewAppearance();
 
     // 1. Immediate Skeleton Feedback
-    if (profileLoader) profileLoader.classList.add('hidden'); // Hide the old spinner
-    renderSkeletonGrid(); // Show the new skeletons
+    if (profileLoader) profileLoader.classList.add('hidden');
+    renderSkeletonGrid(); 
 
     targetUserId = getUserIdFromUrl();
 
     if (!targetUserId) {
         profileTitle.textContent = 'Error: No User ID Provided';
         loadingStatus.textContent = 'Please return to the Users search page.';
-        profileItemsGrid.innerHTML = ''; // Clear skeletons
+        profileItemsGrid.innerHTML = ''; 
         return;
     }
 
@@ -260,49 +261,79 @@ async function initializeProfile() {
     currentPage = hashPage || 1;
     currentSortOrder = hashOrder || 'desc';
 
-    // Apply sort from URL
-    if (hashSort && sortSelect) {
+    if (sortSelect && hashSort) {
         sortSelect.value = hashSort;
     }
     if (sortOrderIcon) {
         sortOrderIcon.className = currentSortOrder === 'desc' ? 'bi bi-sort-down' : 'bi bi-sort-up';
     }
 
-
     // 2. Parallel Data Fetching
-    // Fire all requests at once!
     const bannerPromise = fetchAndRenderBanner(targetUserId);
     const usernamePromise = fetchUsername(targetUserId);
-    const statusCountsPromise = renderStatusButtons(); // This calls updateSortOptions
-    const itemsPromise = fetchProfileItems(currentStatusFilter); // Fetch items immediately
+    const statusCountsPromise = renderStatusButtons(); 
+    const itemsPromise = fetchProfileItems(currentStatusFilter); 
     const listsPromise = fetchUserLists(targetUserId);
     const commentsPromise = loadComments(targetUserId);
     const galleryPromise = fetchAndRenderGalleryPreview(targetUserId);
 
     // 3. Await Critical UI Elements
-    // We await username to set the title, but items might finish before or after
     targetUsername = await usernamePromise;
     profileTitle.textContent = `${targetUsername}'s Collection`;
 
-    // We don't strictly need to await these for functionality, but good to know they are done
     await Promise.all([bannerPromise, statusCountsPromise]);
-
-    // Items are handled by fetchProfileItems updating the DOM itself
     await itemsPromise;
 
-    // After items are potentially loaded, handle search logic
+    // Handle initial search/sort state
     if (hashSearch) {
         profileSearchInput.value = hashSearch;
-        // Search re-triggers a render, so we might want to check if search is different from default
         handleProfileSearch();
     } else {
-        // If items fetch completed, they are rendered. 
-        // If sorting/filtering needed adjustment beyond what fetch did:
         applySortAndFilter();
     }
 
-    // Non-critical background fetches
+    // 4. Non-critical background fetches
     await Promise.all([listsPromise, commentsPromise, galleryPromise]);
+
+    // --- NEW: SILENT BACKGROUND SYNC ---
+    // This checks if the user's cached data matches the main collection
+    if (isProfileOwner && lastFetchedItems.length > 0) {
+        const performSync = async (itemsToSync) => {
+            const mainCollectionRef = db.collection(collectionName);
+            const userRef = getUserCollectionRef(targetUserId);
+
+            for (const item of itemsToSync) {
+                try {
+                    const itemId = item.doc.id;
+                    const cachedData = item.doc.data();
+
+                    // Fetch the latest source of truth
+                    const mainDoc = await mainCollectionRef.doc(itemId).get();
+                    if (!mainDoc.exists) continue;
+
+                    const mainData = mainDoc.data();
+
+                    // Compare critical fields that cause the preview issues
+                    const mismatch = 
+                        cachedData.itemName !== mainData.itemName || 
+                        JSON.stringify(cachedData.itemImageUrls) !== JSON.stringify(mainData.itemImageUrls);
+
+                    if (mismatch) {
+                        console.log(`Syncing outdated item: ${itemId}`);
+                        await userRef.doc(itemId).update({
+                            itemName: mainData.itemName,
+                            itemImageUrls: mainData.itemImageUrls
+                        });
+                    }
+                } catch (e) {
+                    console.error("Background sync error for item:", e);
+                }
+            }
+        };
+
+        // Execute without 'await' so it doesn't block the user from interacting with the page
+        performSync(lastFetchedItems).then(() => console.log("Background sync finished."));
+    }
 }
 
 function renderSkeletonGrid() {
@@ -1596,3 +1627,42 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
         createListError.textContent = err.message;
     }
 };
+
+
+async function silentSync(itemsToSync) {
+    if (!itemsToSync || itemsToSync.length === 0) return;
+
+    const mainCollectionRef = db.collection(collectionName);
+    const userRef = getUserCollectionRef(targetUserId);
+
+    // Limit sync to a batch or process sequentially to avoid performance hits
+    for (const item of itemsToSync) {
+        try {
+            const itemId = item.doc.id;
+            const userCachedData = item.doc.data();
+
+            // Fetch the "source of truth" from the main collection
+            const mainDoc = await mainCollectionRef.doc(itemId).get();
+            if (!mainDoc.exists) continue;
+
+            const mainData = mainDoc.data();
+
+            // Compare relevant fields (Name and Images)
+            const needsUpdate = 
+                userCachedData.itemName !== mainData.itemName || 
+                JSON.stringify(userCachedData.itemImageUrls) !== JSON.stringify(mainData.itemImageUrls);
+
+            if (needsUpdate) {
+                console.log(`Silent Sync: Updating outdated data for item ${itemId}`);
+                
+                // Update the user-specific collection with fresh data
+                await userRef.doc(itemId).update({
+                    itemName: mainData.itemName,
+                    itemImageUrls: mainData.itemImageUrls
+                });
+            }
+        } catch (err) {
+            console.warn("Silent sync failed for an item:", err);
+        }
+    }
+}

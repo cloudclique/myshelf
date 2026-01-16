@@ -51,6 +51,7 @@ async function showBrowserNotification(title, body, clickUrl = null, icon = null
 // Helper to get profile info for notifications (Cached for 2 weeks)
 const CACHE_TTL = 2 * 7 * 24 * 60 * 60 * 1000;
 async function getSenderName(uid) {
+    if (uid === 'shelf_bug_bot') return "ShelfBug";
     const cacheKey = `notification_sender_${uid}`;
     try {
         const cached = localStorage.getItem(cacheKey);
@@ -171,5 +172,37 @@ auth.onAuthStateChanged(user => {
             });
     }
 });
+
+// --- Global Header Logic for Admin/Mod ---
+// This runs on every page that imports firebase-config.js
+auth.onAuthStateChanged((user) => {
+    if (!user) return;
+
+    const pollForHeader = async (attempts = 0) => {
+        const reviewLink = document.getElementById('headerReviewLink');
+        if (reviewLink) {
+            try {
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                const profileDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(user.uid).get();
+                const role = profileDoc.exists ? (profileDoc.data().role || 'user') : 'user';
+
+                if (['admin', 'mod'].includes(role)) {
+                    reviewLink.style.display = 'inline-block';
+                }
+            } catch (e) {
+                console.error("Error checking permissions for header:", e);
+            }
+            return;
+        }
+
+        // Retry every 500ms, up to 20 times (10 seconds)
+        if (attempts < 20) {
+            setTimeout(() => pollForHeader(attempts + 1), 500);
+        }
+    };
+
+    pollForHeader();
+});
+
 
 

@@ -90,26 +90,11 @@ function updateHeaderAuthButton(user) {
     headerTools.appendChild(btn);
 }
 
-function setupHeaderLogoRedirect() {
-    const logo = document.querySelector('.header-logo');
-    if (!logo) return;
-    logo.style.cursor = 'pointer';
-    logo.onclick = () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            alert("You must be logged in to view your profile.");
-            return;
-        }
-        window.location.href = `../?uid=${currentUser.uid}`;
-    };
-}
-
 // =====================================
 // AUTH & INITIALIZATION
 // =====================================
 auth.onAuthStateChanged(async (user) => {
     updateHeaderAuthButton(user);
-    setupHeaderLogoRedirect();
 
     if (user) {
         if (authCommentBox) authCommentBox.style.display = 'block';

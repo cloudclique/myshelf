@@ -108,7 +108,6 @@ auth.onAuthStateChanged((user) => {
     }
 
     loadGalleryCustom(getUserIdFromUrl());
-    setupHeaderLogoRedirect();
 });
 
 // ------------------
@@ -659,18 +658,6 @@ function updateUrl(uid) {
     window.history.pushState({}, '', url);
 }
 
-function setupHeaderLogoRedirect() {
-    const logo = document.querySelector('.header-logo');
-    if (!logo) return;
-    logo.style.cursor = 'pointer';
-    logo.onclick = () => {
-        if (!currentUser) {
-            alert("You must be logged in to view your profile.");
-            return;
-        }
-        window.location.href = `../?uid=${currentUser.uid}`;
-    };
-}
 
 // Hide sidebar when close button is clicked
 commentCloseBtn.onclick = () => {

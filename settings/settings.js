@@ -75,7 +75,6 @@ auth.onAuthStateChanged(async (user) => {
     currentUsernameSpan.textContent = 'Error loading';
     currentRoleSpan.textContent = 'Error loading';
   }
-  setupHeaderLogoRedirect();
 });
 
 // --- Update username ---
@@ -226,21 +225,3 @@ allowNsfwCheckbox.addEventListener('change', async () => {
 logoutBtn.addEventListener('click', () => {
   auth.signOut().then(() => window.location.href = '../');
 });
-
-
-// --- Redirect to the logged-in user's profile when clicking the header logo ---
-function setupHeaderLogoRedirect() {
-  const logo = document.querySelector('.header-logo');
-  if (!logo) return;
-
-  logo.style.cursor = 'pointer';
-  logo.onclick = () => {
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      alert("You must be logged in to view your profile.");
-      return;
-    }
-    const userId = currentUser.uid;
-    window.location.href = `../?uid=${userId}`;
-  };
-}

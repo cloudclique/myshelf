@@ -31,6 +31,34 @@ const MAX_IMAGES = 5; // User requested limit
 
 // --- Utility Functions ---
 
+function formatMessage(text) {
+    if (!text) return '';
+
+    // 1. Escape HTML to prevent XSS (basic)
+    let safeText = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    // 2. Parse Markdown-style links: [Label](Url)
+    // Matches [Label](Url)
+    safeText = safeText.replace(/\[([^\]]+)\]\(([^\)]+)\)/g, (match, label, url) => {
+        return `<a href="${url}" style="text-decoration: underline; color: #4a90e2;" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+
+    // 3. Auto-link raw URLs (http:// or https://)
+    // Negative lookbehind (?<!href="|">) ensures we don't double-replace links generated in step 2
+    // JS support for lookbehind is good in modern browsers.
+    safeText = safeText.replace(/(?<!href="|">)(https?:\/\/[^\s<]+)/g, (match) => {
+        return `<a href="${match}" style="text-decoration: underline; color: #4a90e2;" target="_blank" rel="noopener noreferrer">${match}</a>`;
+    });
+
+    // 4. Convert newlines to <br>
+    return safeText.split('\n').join('<br>');
+}
+
 function renderSkeletonContacts() {
     userList.innerHTML = '';
     for (let i = 0; i < 5; i++) {
@@ -201,7 +229,7 @@ function renderMessage(message, docId = null) {
     }
 
     if (message.text && message.text.trim().length > 0) {
-        const textContent = message.text.split('\n').join('<br>');
+        const textContent = formatMessage(message.text);
         if (message.imageUrls && message.imageUrls.length > 0) {
             contentHtml += `<p style="margin-top: 5px;">${textContent}</p>`;
         } else {
@@ -418,6 +446,17 @@ async function renderContacts(contactUids, chatData) {
                 // Check cache first
                 if (profileCache.has(uid)) {
                     return { ...profileCache.get(uid), ...chatData[uid] };
+                }
+
+                // Handle ShelfBug Bot
+                if (uid === 'shelf_bug_bot') {
+                    const botProfile = {
+                        uid: 'shelf_bug_bot',
+                        username: 'ShelfBug',
+                        profilePic: '../myshelf_logo_favicon_color.ico' // Use distinct logo
+                    };
+                    profileCache.set(uid, botProfile);
+                    return { ...botProfile, ...chatData[uid] };
                 }
 
                 const snap = await getProfilesRef().doc(uid).get();
@@ -728,7 +767,6 @@ auth.onAuthStateChanged(async (user) => {
         imageUpload.disabled = true;
         imagePreviewContainer.innerHTML = '';
     }
-    setupHeaderLogoRedirect();
 });
 
 function getChatTargetFromUrl() {
@@ -742,23 +780,6 @@ async function fetchUsername(uid) {
         .doc(uid)
         .get();
     return snap.exists ? (snap.data().username || "User") : "User";
-}
-
-// --- Redirect to the logged-in user's profile when clicking the header logo ---
-function setupHeaderLogoRedirect() {
-    const logo = document.querySelector('.header-logo');
-    if (!logo) return;
-
-    logo.style.cursor = 'pointer';
-    logo.onclick = () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            alert("You must be logged in to view your profile.");
-            return;
-        }
-        const userId = currentUser.uid;
-        window.location.href = `../?uid=${userId}`;
-    };
 }
 
 function handleLayout() {

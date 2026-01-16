@@ -154,3 +154,5 @@ export async function processImageForUpload(file, maxSize = 800) {
         img.src = URL.createObjectURL(file);
     });
 }
+
+// Header logic moved to firebase-config.js for global coverage

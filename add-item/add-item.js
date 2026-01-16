@@ -6,11 +6,8 @@ const itemsCollectionName = collectionName;
 let currentUserId = null;
 let currentUserName = null;
 
-// NEW: Constants for multi-image upload
 const MAX_IMAGE_COUNT = 9;
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
-
-
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
 const headerTools = document.getElementById('headerTools');
 const addItemForm = document.getElementById('addItemForm');
@@ -29,9 +26,8 @@ const importMfcBtn = document.getElementById('importMfcBtn');
 const mfcImportFile = document.getElementById('mfcImportFile');
 const importStatus = document.getElementById('importStatus');
 
-// NEW: Container for image previews
 const imagePreviewsContainer = document.getElementById('imagePreviewsContainer');
-// NEW: State to hold selected files for upload
+
 let selectedImageFiles = [];
 
 // Confirmation Modal Elements
@@ -134,10 +130,24 @@ auth.onAuthStateChanged(async (user) => {
     }
 
     [addItemForm, importMfcBtn].forEach(form => { if (form) form.disabled = !user; });
-    setupHeaderLogoRedirect();
 });
 
 // convertFileToWebp removed - using processImageForUpload from utils.js
+
+async function checkUserRole(userId) {
+    if (!userId) return 'user';
+    try {
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const profileRef = db.collection('artifacts').doc(appId).collection('user_profiles').doc(userId);
+        const snap = await profileRef.get();
+        if (snap.exists) return snap.data().role || 'user';
+        return 'user';
+    } catch (error) {
+        console.error("Error fetching user role:", error);
+        return 'user';
+    }
+}
+
 
 // --- 4. Multi-Image Upload & Preview Logic ---
 // CHANGED: Use the Cloudflare Worker proxy URL instead of the direct imgBB API with the exposed key.
@@ -593,254 +603,7 @@ if (itemImageFile) {
     itemImageFile.addEventListener('change', handleImageFileChange);
 }
 
-
-// --- 5. Manual Upload Form Submission ---
-addItemForm.onsubmit = async (e) => {
-    e.preventDefault();
-
-    if (!currentUserId) {
-        uploadStatus.textContent = "You must be logged in to add an item.";
-        uploadStatus.className = 'form-message error-message';
-        return;
-    }
-
-    // Check the actual state array, which is updated by the preview/remove functions
-    if (selectedImageFiles.length === 0) {
-        uploadStatus.textContent = "Please select at least one image.";
-        uploadStatus.className = 'form-message error-message';
-        return;
-    }
-
-    uploadButton.disabled = true;
-    uploadStatus.textContent = "Starting upload...";
-    uploadStatus.className = 'form-message';
-
-    const itemData = {
-        uploaderId: currentUserId,
-        uploaderName: currentUserName,
-        itemName: itemNameInput.value,
-        itemAgeRating: itemAgeRatingInput.value,
-        itemCategory: itemCategoryInput.value,
-        itemReleaseDate: itemReleaseDateInput.value,
-        itemScale: itemScaleInput.value,
-        // *** MODIFIED LINE START ***
-        // Replace '?' globally with ',' before splitting the tags
-        tags: itemTagsInput.value.replace(/\?/g, ',').split(',').map(tag => tag.trim()).filter(tag => tag),
-        // *** MODIFIED LINE END ***
-        isDraft: itemDraftInput ? itemDraftInput.checked : false,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    // MODIFIED: uploadedImageObjects now stores the full image objects
-    let uploadedImageObjects = [];
-
-    try {
-        // Multi-image upload logic
-        uploadStatus.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
-
-        // The array is already correctly ordered by the user interaction
-        const uploadPromises = selectedImageFiles.map(file => uploadImageToImgbb(file));
-        uploadedImageObjects = await Promise.all(uploadPromises);
-
-        // Store the array of image objects
-        itemData.itemImageUrls = uploadedImageObjects;
-
-        const docRef = await db.collection(itemsCollectionName).add(itemData);
-
-        uploadStatus.textContent = "Item uploaded successfully!";
-        uploadStatus.className = 'form-message success-message';
-
-        // Navigate to the new item's page
-        setTimeout(() => {
-            window.location.href = `../items/?id=${docRef.id}`;
-        }, 1000);
-
-        // Reset form state (only if not navigating)
-        // addItemForm.reset();
-        // selectedImageFiles = [];
-        // updateImagePreviews([]); // Clear previews
-
-    } catch (e) {
-        console.error(e);
-        uploadStatus.textContent = `Upload failed: ${e.message}`;
-        uploadStatus.className = 'form-message error-message';
-    } finally {
-        uploadButton.disabled = false;
-    }
-};
-
-
-// --- 6. CSV Import (Modified to use modal) ---
-function parseMfcCsv(csvText) {
-    const lines = csvText.trim().split(/\r?\n/).filter(l => l.trim());
-    if (lines.length) lines.shift(); // remove header
-    const COL_TITLE = 1, COL_ROOT = 2, COL_CATEGORY = 3, COL_RELEASE_DATE = 4,
-        COL_PRICE = 5, COL_SCALE = 6, COL_BARCODE = 7, COL_STATUS = 8, COL_COUNT = 9;
-
-    return lines.map(line => {
-        const values = line.substring(1, line.length - 1).split('","');
-        if (values.length < COL_COUNT + 1) return null;
-
-        const barcode = values[COL_BARCODE].trim();
-        const docId = (barcode && barcode !== '0')
-            ? `IMP-${barcode}`
-            : `IMPC-${values[COL_TITLE].trim().replace(/[^a-zA-Z0-9]/g, '').substring(0, 15)}-${Math.random().toString(36).substring(2, 8)}`;
-
-        return {
-            id: docId,
-            data: {
-                uploaderId: currentUserId,
-                uploaderName: currentUserName,
-                itemName: values[COL_TITLE].trim(),
-                itemRoot: values[COL_ROOT].trim(),
-                itemCategory: values[COL_CATEGORY].trim(),
-                itemReleaseDate: values[COL_RELEASE_DATE].trim(),
-                itemPrice: parseFloat(values[COL_PRICE].trim()) || 0,
-                itemScale: values[COL_SCALE].trim(),
-                itemStatus: values[COL_STATUS].trim(),
-                itemCount: parseInt(values[COL_COUNT].trim()) || 1,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            }
-        };
-    }).filter(Boolean);
-}
-
-async function batchUploadItems(items, itemsCollectionName, importStatusElement) {
-    const BATCH_SIZE = 490;
-    const VALID_STATUSES = ['Owned', 'Wished', 'Ordered'];
-    const batchPromises = [];
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const userCollectionRef = db.collection('artifacts')
-        .doc(appId)
-        .collection('user_profiles')
-        .doc(currentUserId)
-        .collection('items');
-
-    for (let i = 0; i < items.length; i += BATCH_SIZE) {
-        const batchItems = items.slice(i, i + BATCH_SIZE);
-        const batch = db.batch();
-
-        for (const item of batchItems) {
-            const publicDocRef = db.collection(itemsCollectionName).doc(item.id);
-
-            try {
-                const docSnap = await publicDocRef.get();
-                if (!docSnap.exists || docSnap.data().uploaderId === currentUserId) {
-                    batch.set(publicDocRef, item.data);
-                } else {
-                    console.warn(`Skipping ${item.id}: not uploader`);
-                }
-
-                if (item.data.itemStatus && VALID_STATUSES.includes(item.data.itemStatus)) {
-                    const linkDocRef = userCollectionRef.doc(item.id);
-                    batch.set(linkDocRef, {
-                        itemId: item.id,
-                        status: item.data.itemStatus,
-                        linkedAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                }
-            } catch (err) {
-                console.error(`Error processing item ${item.id}:`, err);
-            }
-        }
-
-        batchPromises.push(batch.commit());
-        importStatusElement.textContent = `Processing batch ${batchPromises.length}... Total items staged: ${Math.min(i + BATCH_SIZE, items.length)}`;
-    }
-
-    await Promise.all(batchPromises);
-    return items.length;
-}
-
-if (importMfcBtn) {
-    importMfcBtn.onclick = () => mfcImportFile.click();
-
-    mfcImportFile.onchange = async (e) => {
-        if (!auth.currentUser) {
-            importStatus.textContent = "Error: Login required.";
-            importStatus.className = 'form-message error-message';
-            return;
-        }
-
-        const file = e.target.files[0];
-        if (!file) return;
-
-        importStatus.textContent = `Processing ${file.name}...`;
-        importStatus.className = 'form-message';
-
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const csvText = event.target.result;
-                importStatus.textContent = "Parsing CSV...";
-                const items = parseMfcCsv(csvText);
-
-                if (items.length === 0) {
-                    importStatus.textContent = "No valid items found to import.";
-                    importStatus.className = 'form-message info-message';
-                    mfcImportFile.value = '';
-                    return;
-                }
-
-                showConfirmationModal(
-                    `Found ${items.length} valid items to import. Are you sure you want to perform this batch upload to the database?`,
-                    async () => {
-                        importStatus.textContent = `Uploading ${items.length} items...`;
-                        try {
-                            const count = await batchUploadItems(items, itemsCollectionName, importStatus);
-
-                            importStatus.textContent = `Success! Uploaded ${count} items.`;
-                            importStatus.className = 'form-message success-message';
-                        } catch (err) {
-                            console.error(err);
-                            importStatus.textContent = `Import failed: ${err.message}`;
-                            importStatus.className = 'form-message error-message';
-                        } finally {
-                            mfcImportFile.value = '';
-                        }
-                    },
-                    `Import ${items.length} Items`
-                );
-
-            } catch (err) {
-                console.error(err);
-                importStatus.textContent = `Import failed: ${err.message}`;
-                importStatus.className = 'form-message error-message';
-                mfcImportFile.value = '';
-            }
-        };
-
-        reader.onerror = (err) => {
-            console.error(err);
-            importStatus.textContent = "Error reading file.";
-            importStatus.className = 'form-message error-message';
-            mfcImportFile.value = '';
-        };
-
-        reader.readAsText(file);
-    };
-}
-// --- Redirect to the logged-in user's profile when clicking the header logo ---
-function setupHeaderLogoRedirect() {
-    const logo = document.querySelector('.header-logo');
-    if (!logo) return;
-
-    logo.style.cursor = 'pointer'; // optional: show pointer on hover
-    logo.onclick = () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            alert("You must be logged in to view your profile.");
-            return;
-        }
-        const userId = currentUser.uid;
-        window.location.href = `../?uid=${userId}`;
-    };
-}
-
-// --- New Helper: Check for similar items ---
 // --- New Helper: Check for similar items (Jaccard Similarity) ---
-
-// Simple tokenizer: lowercase, remove special chars, split by space, remove common stops
 function tokenize(text) {
     if (!text) return new Set();
     const stopWords = new Set(["the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "with", "by", "ver", "version", "edition"]);
@@ -990,6 +753,48 @@ addItemForm.onsubmit = async (e) => {
 };
 
 // 2. Extracted Upload Logic
+// --- 3. ShelfBug Notification Helper ---
+async function sendShelfBugNotification(userId, itemTitle, itemId) {
+    const botId = 'shelf_bug_bot';
+    const chatId = [userId, botId].sort().join('_');
+    const chatRef = db.collection('artifacts').doc(typeof __app_id !== 'undefined' ? __app_id : 'default-app-id').collection('chats').doc(chatId);
+
+    // Construct the custom review link
+    // We use a relative path assuming the user is in /add-item/ or similar depth, 
+    // but chat usually opens in /chat/ or overlay. 
+    // The message is stored in DB, so let's use a path that works generally or absolute path if possible.
+    // ..items/ matches the user request pattern.
+    const reviewLink = `../items/?id=${itemId}&collection=item-review`;
+    const messageText = `Your item "${itemTitle}" has been submitted for review!\n\nYou can view its status here:\n[View Pending Item](${reviewLink})`;
+
+    const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+
+    try {
+        // 1. Add message
+        await chatRef.collection('messages').add({
+            senderId: botId,
+            text: messageText,
+            timestamp: timestamp,
+            imageUrls: []
+        });
+
+        // 2. Update chat metadata
+        await chatRef.set({
+            lastMessage: `Item "${itemTitle}" submitted for review.`,
+            lastSent: timestamp,
+            lastSenderId: botId,
+            users: [userId, botId],
+            unreadCount: {
+                [userId]: firebase.firestore.FieldValue.increment(1)
+            }
+        }, { merge: true });
+
+        console.log("ShelfBug notification sent.");
+    } catch (e) {
+        console.error("Failed to send ShelfBug notification:", e);
+    }
+}
+
 async function proceedWithUpload() {
     uploadButton.disabled = true;
     uploadStatus.textContent = "Starting upload...";
@@ -1004,23 +809,43 @@ async function proceedWithUpload() {
         itemReleaseDate: itemReleaseDateInput.value,
         itemScale: itemScaleInput.value,
         tags: itemTagsInput.value.replace(/\?/g, ',').split(',').map(tag => tag.trim()).filter(tag => tag),
+        isDraft: itemDraftInput ? itemDraftInput.checked : false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
     try {
+        const userRole = await checkUserRole(currentUserId);
+        const isStaff = ['admin', 'mod'].includes(userRole);
+        const targetCollection = isStaff ? itemsCollectionName : 'item-review';
+
         uploadStatus.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
         const uploadPromises = selectedImageFiles.map(file => uploadImageToImgbb(file));
         const uploadedImageObjects = await Promise.all(uploadPromises);
 
         itemData.itemImageUrls = uploadedImageObjects;
-        const docRef = await db.collection(itemsCollectionName).add(itemData);
 
-        uploadStatus.textContent = "Item uploaded successfully!";
-        uploadStatus.className = 'form-message success-message';
+        // If it's a review, we might want to flag it or just know it's in a different collection
+        const docRef = await db.collection(targetCollection).add(itemData);
 
-        setTimeout(() => {
-            window.location.href = `../items/?id=${docRef.id}`;
-        }, 1000);
+        if (isStaff) {
+            uploadStatus.textContent = "Item uploaded successfully!";
+            uploadStatus.className = 'form-message success-message';
+            setTimeout(() => {
+                window.location.href = `../items/?id=${docRef.id}`;
+            }, 1000);
+        } else {
+            // Trigger ShelfBug Notification
+            sendShelfBugNotification(currentUserId, itemData.itemName, docRef.id);
+
+            uploadStatus.textContent = "Item submitted for review! Check your messages.";
+            uploadStatus.className = 'form-message success-message';
+            setTimeout(() => {
+                // Redirect user to their chat or home? User asked for message "with the link". 
+                // Redirecting to home seems safer as they can check chat there.
+                window.location.href = `../index.html`;
+            }, 2000);
+        }
+
     } catch (e) {
         console.error(e);
         uploadStatus.textContent = `Upload failed: ${e.message}`;

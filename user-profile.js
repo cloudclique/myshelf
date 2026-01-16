@@ -1,5 +1,6 @@
 import { auth, db, collectionName } from './firebase-config.js';
 
+
 // --- Constants ---
 let ITEMS_PER_PAGE = localStorage.getItem('profileViewMode') === 'list' ? 5 : 32;
 const COMMENTS_PER_PAGE = 10;

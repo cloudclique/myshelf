@@ -286,29 +286,11 @@ function updateLoginButton(user) {
     headerTools.appendChild(btn);
 }
 
-// --- Redirect to the logged-in user's profile when clicking the header logo ---
-function setupHeaderLogoRedirect() {
-    const logo = document.querySelector('.header-logo');
-    if (!logo) return;
-
-    logo.style.cursor = 'pointer'; // optional: show pointer on hover
-    logo.onclick = () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            alert("You must be logged in to view your profile.");
-            return;
-        }
-        const userId = currentUser.uid;
-        window.location.href = `../?uid=${userId}`;
-    };
-}
-
 /**
  * Page Init
  */
 auth.onAuthStateChanged(async (user) => {
     updateLoginButton(user);
-    setupHeaderLogoRedirect();
 
     // Parallelize loading pinned user and top users
     const pinnedPromise = user ? showPinnedUser(user.uid) : Promise.resolve(null);

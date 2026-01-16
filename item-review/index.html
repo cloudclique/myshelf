@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Item Review | MyShelf</title>
+    <link rel="stylesheet" href="../style.css">
+    <link rel="icon" type="image/x-icon" href="../myshelf_logo_favicon_color.ico">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+</head>
+
+<body>
+    <div id="header-container"></div>
+
+    <main class="container">
+        <div class="page-header">
+            <h1><i class="bi bi-shield-check"></i> Item Review</h1>
+            <p class="subtitle">Approve or reject community submissions.</p>
+        </div>
+
+        <div id="loadingStatus" class="loading-state">Checking permissions...</div>
+
+        <div id="reviewGrid" class="item-grid">
+            <!-- Pending items will be rendered here -->
+        </div>
+    </main>
+
+    <div id="footer-container"></div>
+
+    <!-- Modals -->
+    <div id="confirmationModal" class="modal">
+        <div class="modal-content">
+            <h3 id="modalTitle">Confirm Action</h3>
+            <p id="modalMessage">Are you sure?</p>
+            <div class="modal-buttons">
+                <button id="modalYesBtn" class="primary-btn">Yes</button>
+                <button id="modalNoBtn" class="secondary-btn">No</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Shared Scripts -->
+    <script>
+        fetch('../header.html')
+            .then(response => response.text())
+            .then(data => {
+                document.getElementById('header-container').innerHTML = data;
+                // Highlight active nav logic if needed
+            });
+
+        fetch('../footer.html')
+            .then(response => response.text())
+            .then(data => document.getElementById('footer-container').innerHTML = data);
+    </script>
+    <script type="module" src="item-review.js"></script>
+</body>
+
+</html>

@@ -101,6 +101,7 @@ let isDragging = false;
 let startDrag = { x: 0, y: 0 };
 
 let itemId = null;
+let targetCollection = 'items';
 // MODIFIED: Store an array of File objects for new uploads
 let selectedImageFiles = [];
 // NEW: Store the existing image objects {url: string, deleteUrl: string} for display/edit context
@@ -189,7 +190,7 @@ async function saveTags() {
     newTags.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
     try {
-        await db.collection('items').doc(itemId).update({
+        await db.collection(targetCollection).doc(itemId).update({
             tags: newTags
         });
 
@@ -462,6 +463,9 @@ async function getUploaderUsername(userId) {
 document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
     itemId = params.get('id');
+    const colParam = params.get('collection');
+    if (colParam) targetCollection = colParam;
+
     if (!itemId) {
         itemDetailsContent.innerHTML = '<p class="error-message">Error: Item ID not found in URL.</p>';
         return;
@@ -504,7 +508,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setupAuthUI(user);
         renderComments(itemId);
         renderShops(itemId);
-        setupHeaderLogoRedirect();
         fetchAndRenderPublicLists(itemId);
     });
 
@@ -818,7 +821,7 @@ async function fetchItemDetails(id) {
     }
 
     try {
-        const docRef = db.collection('items').doc(id);
+        const docRef = db.collection(targetCollection).doc(id);
         const itemDoc = await docRef.get();
         if (!itemDoc.exists) {
             itemDetailsContent.innerHTML = `<p class="error-message">Item with ID: ${id} not found.</p>`;
@@ -1037,6 +1040,7 @@ function renderItemDetails(item, userStatus, privateData = {}, canEdit = false) 
         <div class="item-metadata">
             <p style="margin-bottom:20px;">
                 <span class="status-badge status-${displayStatus.toLowerCase().replace('/', '-')}">${displayStatus}</span>
+                ${item.isDraft ? '<span class="status-badge status-draft" style="background: #6c757d; color: white; margin-left: 10px;">DRAFT</span>' : ''}
             </p>
             <div class="two-column-row">
                 <div><span class="info-label">Category:</span><span class="info-value">${item.itemCategory || 'N/A'}</span></div>
@@ -1092,7 +1096,23 @@ function renderItemDetails(item, userStatus, privateData = {}, canEdit = false) 
         });
     }
 
-    if (statusToggleBtn) statusToggleBtn.disabled = !auth.currentUser;
+    if (statusToggleBtn) {
+        if (targetCollection === 'item-review') {
+            statusToggleBtn.style.display = 'none';
+        } else {
+            statusToggleBtn.style.display = 'inline-block';
+            statusToggleBtn.disabled = !auth.currentUser;
+        }
+    }
+
+    // Also hide Add to List if in review mode
+    if (addToListToggleBtn) {
+        if (targetCollection === 'item-review') {
+            addToListToggleBtn.style.display = 'none';
+        } else {
+            addToListToggleBtn.style.display = 'inline-block';
+        }
+    }
 }
 
 // --- Edit Form ---
@@ -1144,7 +1164,12 @@ editItemForm.addEventListener('submit', async (e) => {
     editMessage.className = 'form-message';
 
     const userId = auth.currentUser.uid;
-    const itemDoc = await db.collection('items').doc(itemId).get();
+    const itemDoc = await db.collection(targetCollection).doc(itemId).get();
+    if (!itemDoc.exists) {
+        editMessage.textContent = "Error: Item not found.";
+        editMessage.className = 'form-message error-message';
+        return;
+    }
     const itemData = itemDoc.data();
     const userRole = await checkUserPermissions(userId);
     const isUploader = userId === itemData.uploaderId;
@@ -1224,7 +1249,7 @@ editItemForm.addEventListener('submit', async (e) => {
     // --- END UPDATED Logic ---
 
     try {
-        await db.collection('items').doc(itemId).set(updatedData, { merge: true });
+        await db.collection(targetCollection).doc(itemId).set(updatedData, { merge: true });
 
         editMessage.textContent = "Details updated successfully! Closing in 1 second...";
         editMessage.className = 'form-message success-message';
@@ -1272,7 +1297,12 @@ async function handleDeleteItem(itemId) {
 
     try {
         const userId = auth.currentUser.uid;
-        const itemDoc = await db.collection('items').doc(itemId).get();
+        const itemDoc = await db.collection(targetCollection).doc(itemId).get();
+        if (!itemDoc.exists) {
+            authMessage.textContent = "Error: Item not found in database.";
+            authMessage.className = 'form-message error-message';
+            return;
+        }
         const itemData = itemDoc.data();
         const userRole = await checkUserPermissions(userId);
         const isUploader = userId === itemData.uploaderId;
@@ -1284,7 +1314,7 @@ async function handleDeleteItem(itemId) {
             return;
         }
 
-        await db.collection('items').doc(itemId).delete();
+        await db.collection(targetCollection).doc(itemId).delete();
         authMessage.textContent = "Item deleted successfully!";
         authMessage.className = 'form-message success-message';
         setTimeout(() => window.location.href = '../', 1500);
@@ -1324,7 +1354,7 @@ async function handleStatusUpdate(e) {
         }
 
         // --- NEW: Fetch full item data for denormalization ---
-        const itemDoc = await db.collection('items').doc(itemId).get();
+        const itemDoc = await db.collection(targetCollection).doc(itemId).get();
         if (!itemDoc.exists) throw new Error("Item not found");
         const itemData = itemDoc.data();
 
@@ -1439,7 +1469,7 @@ async function fetchAndDisplayAverageRating(itemId) {
         // Query all items in user_profiles subcollections with this itemId
         // Note: This requires an index on field 'itemId' if the collection group is large,
         // but for equality, it might work or prompt for index creation.
-        const querySnapshot = await db.collectionGroup('items')
+        const querySnapshot = await db.collectionGroup(targetCollection)
             .where('itemId', '==', itemId)
             .get();
 
@@ -1474,7 +1504,7 @@ async function fetchAndDisplayAverageRating(itemId) {
 
 // --- Comments ---
 function getCommentsRef(itemId, startAfterDoc = null) {
-    let query = db.collection('items').doc(itemId)
+    let query = db.collection(targetCollection).doc(itemId)
         .collection('comments')
         .orderBy('createdAt', 'desc')
         .limit(COMMENTS_PER_PAGE);
@@ -1522,7 +1552,7 @@ async function postComment() {
     const userId = auth.currentUser.uid;
 
     try {
-        const docRef = await db.collection('items').doc(itemId)
+        const docRef = await db.collection(targetCollection).doc(itemId)
             .collection('comments').add({
                 userId,
                 text,
@@ -1568,7 +1598,7 @@ async function createCommentElement(commentId, userId, text, timestamp) {
         const btn = commentEl.querySelector('.delete-comment-btn');
         btn.disabled = true;
         try {
-            await db.collection('items').doc(itemId)
+            await db.collection(targetCollection).doc(itemId)
                 .collection('comments').doc(commentId).delete();
             commentEl.remove();
             commentMessage.textContent = 'Comment deleted.';
@@ -2186,26 +2216,6 @@ async function applyShopPermissions(itemData) {
     window.__canUserCommentShop = canPost;
 }
 
-
-// --- Redirect to the logged-in user's profile when clicking the header logo ---
-function setupHeaderLogoRedirect() {
-    const logo = document.querySelector('.header-logo');
-    if (!logo) return;
-
-    logo.style.cursor = 'pointer'; // optional: show pointer on hover
-    logo.onclick = () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            alert("You must be logged in to view your profile.");
-            return;
-        }
-        const userId = currentUser.uid;
-        window.location.href = `../?uid=${currentUser.uid}`;
-    };
-}
-
-
-
 // --- Event Listeners ---
 addToListToggleBtn.onclick = () => {
     if (!auth.currentUser) {
@@ -2399,7 +2409,7 @@ function itemMatchesLiveQuery(itemData, query, logic = 'AND') {
 
 async function fetchAndRenderPublicLists(itemId) {
     try {
-        const itemDoc = await db.collection('items').doc(itemId).get();
+        const itemDoc = await db.collection(targetCollection).doc(itemId).get();
         const itemData = itemDoc.data();
 
         // OPTIMIZED: Fetch ONLY relevant lists in parallel
@@ -2659,7 +2669,7 @@ async function handleAddRelated() {
     showRelatedMessage('Related item added!', true);
 
     try {
-        await db.collection('items').doc(itemId).update({
+        await db.collection(targetCollection).doc(itemId).update({
             relatedUrls: firebase.firestore.FieldValue.arrayUnion(url)
         });
     } catch (error) {
@@ -2677,7 +2687,7 @@ async function handleRemoveRelated(urlToRemove) {
     showRelatedMessage('Related item removed', true);
 
     try {
-        await db.collection('items').doc(itemId).update({
+        await db.collection(targetCollection).doc(itemId).update({
             relatedUrls: firebase.firestore.FieldValue.arrayRemove(urlToRemove)
         });
     } catch (error) {
@@ -2797,7 +2807,7 @@ window.reuploadResizedImages = async function () {
     console.log("Starting re-upload process...");
 
     // Get fresh data
-    const itemDoc = await db.collection('items').doc(itemId).get();
+    const itemDoc = await db.collection(targetCollection).doc(itemId).get();
     if (!itemDoc.exists) {
         console.error("Item not found.");
         return;
@@ -2867,7 +2877,7 @@ window.reuploadResizedImages = async function () {
         if (itemData.itemImageBase64) updates.itemImageBase64 = firebase.firestore.FieldValue.delete();
         if (itemData.itemImage) updates.itemImage = firebase.firestore.FieldValue.delete();
 
-        await db.collection('items').doc(itemId).update(updates);
+        await db.collection(targetCollection).doc(itemId).update(updates);
         console.log("Firestore updated successfully.");
 
         console.log("Re-upload complete. Reloading page...");

@@ -349,7 +349,6 @@ auth.onAuthStateChanged(async user => {
     }
 
     fetchAllItems();
-    setupHeaderLogoRedirect();
 });
 
 // -- EVENT LISTENERS --
@@ -362,23 +361,6 @@ searchInput.onkeypress = e => {
 
 prevPageBtn.onclick = prevPageBtnTop.onclick = handlePrev;
 nextPageBtn.onclick = nextPageBtnTop.onclick = handleNext;
-
-// --- Redirect logo to user profile ---
-function setupHeaderLogoRedirect() {
-    const logo = document.querySelector('.header-logo');
-    if (!logo) return;
-
-    logo.style.cursor = 'pointer';
-    logo.onclick = () => {
-        const currentUser = auth.currentUser;
-        if (!currentUser) {
-            alert('You must be logged in to view your profile.');
-            return;
-        }
-        window.location.href = `../?uid=${currentUser.uid}`;
-    };
-}
-
 
 const searchSuggestions = document.getElementById('searchSuggestions');
 

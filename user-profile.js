@@ -282,6 +282,16 @@ async function initializeProfile() {
     targetUserId = getUserIdFromUrl();
 
     if (!targetUserId) {
+        // Redirection Logic: Check if we are at root with no params/hash
+        const hasParams = window.location.search || window.location.hash;
+        if (!hasParams) {
+            profileTitle.textContent = 'Redirecting...';
+            loadingStatus.textContent = '';
+            profileItemsGrid.innerHTML = '';
+            // The actual redirect is handled in auth.onAuthStateChanged to ensure we have the user state
+            return;
+        }
+
         profileTitle.textContent = 'Error: No User ID Provided';
         loadingStatus.textContent = 'Please return to the search page.';
         profileItemsGrid.innerHTML = '';
@@ -1297,6 +1307,18 @@ function updateHeaderAuthButton(user) {
 }
 
 auth.onAuthStateChanged(async (user) => {
+    // Redirection Logic: Handle root URL redirections
+    const hasParams = window.location.search || window.location.hash;
+    if (!hasParams) {
+        if (user) {
+            window.location.replace(`?uid=${user.uid}`);
+            return;
+        } else {
+            window.location.replace('./search/');
+            return;
+        }
+    }
+
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
     if (user) {

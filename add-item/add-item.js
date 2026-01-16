@@ -1,5 +1,5 @@
 import { auth, db, collectionName } from '../firebase-config.js';
-import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64, } from '../utils.js';
+import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64, processImageForUpload } from '../utils.js';
 
 // --- 1. Constants & DOM ---
 const itemsCollectionName = collectionName;
@@ -137,40 +137,7 @@ auth.onAuthStateChanged(async (user) => {
     setupHeaderLogoRedirect();
 });
 
-/**
- * Converts any image File into a WebP Blob via canvas.
- * @param {File} file Original file
- * @returns {Promise<File>} Converted WebP file
- */
-async function convertFileToWebp(file) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-
-            canvas.toBlob((blob) => {
-                if (!blob) {
-                    reject(new Error("WebP conversion failed."));
-                    return;
-                }
-                const webpFile = new File(
-                    [blob],
-                    file.name.replace(/\.[^.]+$/, "") + ".webp",
-                    { type: "image/webp" }
-                );
-                resolve(webpFile);
-            }, "image/webp", 0.9); // quality 0..1
-        };
-
-        img.onerror = () => reject(new Error("Failed to read image data."));
-        img.src = URL.createObjectURL(file);
-    });
-}
+// convertFileToWebp removed - using processImageForUpload from utils.js
 
 // --- 4. Multi-Image Upload & Preview Logic ---
 // CHANGED: Use the Cloudflare Worker proxy URL instead of the direct imgBB API with the exposed key.
@@ -185,8 +152,8 @@ async function uploadImageToImgbb(file) {
 
     if (file.size > MAX_FILE_SIZE) throw new Error("Image file too large (max 5MB).");
 
-    // 🔥 Convert to WebP before uploading
-    const webpFile = await convertFileToWebp(file);
+    // 🔥 Resize and convert to WebP before uploading
+    const webpFile = await processImageForUpload(file);
 
     const formData = new FormData();
     // The Cloudflare Worker is expected to receive 'image' in the POST body, 
@@ -871,188 +838,81 @@ function setupHeaderLogoRedirect() {
 }
 
 // --- New Helper: Check for similar items ---
-// ---------------- STOP WORDS ----------------
-const STOP_WORDS = new Set([
-    // articles / connectors
-    "the", "a", "an", "and", "or", "with", "without", "of", "for", "to", "in", "on", "at", "by",
+// --- New Helper: Check for similar items (Jaccard Similarity) ---
 
-    // generic product words
-    "figure", "fig", "model", "item", "set", "kit", "toy", "statue", "collectible",
-    "original", "authentic", "official", "version", "edition", "series", "ver.",
+// Simple tokenizer: lowercase, remove special chars, split by space, remove common stops
+function tokenize(text) {
+    if (!text) return new Set();
+    const stopWords = new Set(["the", "a", "an", "and", "or", "in", "on", "at", "to", "for", "with", "by", "ver", "version", "edition"]);
+    return new Set(
+        text.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '') // Keep alphanumeric and spaces
+            .split(/\s+/)
+            .filter(w => w.length > 1 && !stopWords.has(w))
+    );
+}
 
-    // weak adjectives
-    "new", "old", "used", "complete", "boxed", "sealed", "custom",
+// Jaccard Index = (Intersection Size) / (Union Size)
+function calculateJaccardScore(setA, setB) {
+    if (setA.size === 0 || setB.size === 0) return 0;
 
-    // scale / filler
-    "scale", "size", "cm", "mm"
-]);
+    let intersection = 0;
+    for (const item of setA) {
+        if (setB.has(item)) intersection++;
+    }
 
-// -------- SUPPORTIVE WORDS --------
-// Count ONLY if core match is already strong (>= 2)
-const SUPPORTIVE_WORDS = new Set([
-    // Top-tier manufacturers
-    "alter",
-    "goodsmile", "good", "smile", "company", "goodsmilecompany",
-    "maxfactory", "max", "factory",
-    "freeing",
-    "phat", "phatcompany",
-    "kotobukiya",
-    "megahouse", "mega", "house",
-    "union", "creative", "international", "unioncreative", "unioncreativeinternational", "union creative international",
-    "flare",
-    "quesq",
-    "aquamarine",
-    "alphamax", "alpha", "max",
-    "amakuni",
-    "hobbyjapan", "hobby", "japan",
-    "wings",
-    "mimeyoi",
-    "bellfine",
-
-    // Bandai ecosystem
-    "bandai",
-    "bandaispirits", "spirits",
-    "bandainamco", "namco",
-    "banpresto",
-    "tamashii", "tamashiinations", "tamashiiweb",
-
-    // Prize / arcade figures
-    "sega",
-    "segafave", "fave",
-    "taito",
-    "furyu",
-    "systemservice", "system", "service",
-    "eikoh",
-    "bushiroad", "bushi", "road",
-    "skjapan", "sk", "japan",
-
-    // Chinese manufacturers
-    "apex", "apexinnovation", "innovation",
-    "myethos",
-    "astrumdesign", "astrum", "design",
-    "hobbymax",
-    "reverse",
-    "ensoutoys", "enso", "toys",
-    "ribose",
-    "animester",
-    "neonmax",
-
-    // Western / global
-    "sideshow",
-    "prime1studio", "prime", "studio",
-    "ironstudios", "iron", "studios",
-    "funko",
-    "mcfarlane",
-    "hasbro",
-    "hottoys", "hot", "toys",
-
-    // Garage kit / resin studios
-    "e2046",
-    "volks",
-    "orbitalperiod", "orbital", "period",
-    "cerberusproject", "cerberus", "project",
-    "griffonenterprises", "griffon", "enterprises",
-
-    // Misc / legacy
-    "broccoli",
-    "movic",
-    "medicos",
-    "medicom", "medicomtoy", "toy",
-    "threezero", "three", "zero",
-    "sentinel"
-]);
-
-
-// -------- TOKENIZER --------
-function tokenizeWithSupport(text) {
-    const tokens = text
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, " ")
-        .split(/\s+/)
-        .filter(word =>
-            word.length >= 2 &&
-            !STOP_WORDS.has(word)
-        );
-
-    return {
-        core: tokens.filter(w => !SUPPORTIVE_WORDS.has(w)),
-        supportive: tokens.filter(w => SUPPORTIVE_WORDS.has(w))
-    };
+    const union = setA.size + setB.size - intersection;
+    return union === 0 ? 0 : intersection / union;
 }
 
 // -------- SIMILAR ITEM CHECK --------
-async function findSimilarItems(newTitle) {
-    const newTokens = tokenizeWithSupport(newTitle);
-    if (newTokens.core.length === 0) return [];
+async function findSimilarItems(newTitle, category, scale) {
+    // 1. Tokenize input
+    const newTokens = tokenize(newTitle);
+    if (newTokens.size === 0) return [];
 
     try {
-        const snapshot = await db
-            .collection(itemsCollectionName)
-            .orderBy("createdAt", "desc")
-            .get();
+        // 2. Optimized Query: Filter by Category and Scale to limit reads
+        // Use a limit to prevent fetching huge collections if category is generic
+        let query = db.collection(itemsCollectionName)
+            .where('itemCategory', '==', category)
+            .orderBy('createdAt', 'desc')
+            .limit(500); // Check last 500 items in this category
 
-        const allPotentialMatches = [];
+        // Optional: Refine by scale if it's specific
+        if (scale && scale !== 'Other' && scale !== 'Non-Scale') {
+            query = query.where('itemScale', '==', scale);
+        }
+
+        const snapshot = await query.get();
+        const matches = [];
 
         snapshot.forEach(doc => {
             const data = doc.data();
-            const existingTokens = tokenizeWithSupport(data.itemName);
+            const existingTokens = tokenize(data.itemName);
 
-            // Core overlap
-            const coreMatchCount = newTokens.core.filter(word =>
-                existingTokens.core.includes(word)
-            ).length;
+            const score = calculateJaccardScore(newTokens, existingTokens);
 
-            // Supportive overlap (only counted later)
-            const supportiveMatchCount = newTokens.supportive.filter(word =>
-                existingTokens.supportive.includes(word)
-            ).length;
-
-            if (coreMatchCount > 0) {
-                allPotentialMatches.push({
+            // Threshold: 0.5 means 50% of the union of words are shared.
+            // e.g. "Rem Re:Zero Figure" (3) vs "Rem Figure" (2). Union=3, Intersect=2. Score=0.66. Match.
+            if (score >= 0.75) {
+                matches.push({
                     id: doc.id,
                     itemName: data.itemName,
                     thumb: (data.itemImageUrls && data.itemImageUrls.length > 0)
                         ? data.itemImageUrls[0].url
                         : "../placeholder.png",
-                    coreMatchCount,
-                    supportiveMatchCount
+                    score: score
                 });
             }
         });
 
-        // -------- ADAPTIVE THRESHOLD LOGIC --------
-        let currentThreshold = 2;
-        let filteredMatches = [];
-
-        while (currentThreshold <= newTokens.core.length) {
-            const matchesAtThisLevel = allPotentialMatches
-                .filter(m => m.coreMatchCount >= currentThreshold)
-                .map(m => ({
-                    ...m,
-                    matchCount:
-                        m.coreMatchCount +
-                        (m.coreMatchCount >= 2 ? m.supportiveMatchCount : 0)
-                }));
-
-            if (matchesAtThisLevel.length > 0) {
-                filteredMatches = matchesAtThisLevel;
-            }
-
-            // STOP as soon as results are 2 or fewer
-            if (filteredMatches.length <= 2) {
-                break;
-            }
-
-            currentThreshold++;
-        }
-
-        // Final safety: never allow < 2 core matches
-        return filteredMatches
-            .filter(m => m.coreMatchCount >= 2)
-            .sort((a, b) => b.matchCount - a.matchCount);
+        // Sort by highest score
+        return matches.sort((a, b) => b.score - a.score);
 
     } catch (e) {
         console.error("Duplicate check failed:", e);
+        // On error, we assume no duplicates to allow user to proceed
         return [];
     }
 }
@@ -1076,10 +936,13 @@ addItemForm.onsubmit = async (e) => {
     }
 
     const title = itemNameInput.value.trim();
-    uploadButton.disabled = true;
-    uploadStatus.textContent = "Checking database for similar items...";
+    const category = itemCategoryInput.value;
+    const scale = itemScaleInput.value;
 
-    const similarItems = await findSimilarItems(title);
+    uploadButton.disabled = true;
+    uploadStatus.textContent = "Checking for duplicates...";
+
+    const similarItems = await findSimilarItems(title, category, scale);
 
     if (similarItems.length > 0) {
         // Build the HTML for the matches

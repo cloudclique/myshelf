@@ -102,3 +102,55 @@ export function toBase64(file) {
         reader.onerror = error => reject(error);
     });
 }
+
+/**
+ * Processes an image file for upload: resizes it to max 600px on the longest side and converts to WebP.
+ * @param {File} file - The original image file.
+ * @param {number} maxSize - The maximum size in pixels for the longest side (default 600).
+ * @returns {Promise<File>} A promise that resolves to the processed WebP File.
+ */
+export async function processImageForUpload(file, maxSize = 800) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+
+            // Calculate new dimensions
+            if (width > height) {
+                if (width > maxSize) {
+                    height = Math.round(height * (maxSize / width));
+                    width = maxSize;
+                }
+            } else {
+                if (height > maxSize) {
+                    width = Math.round(width * (maxSize / height));
+                    height = maxSize;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            canvas.toBlob((blob) => {
+                if (!blob) {
+                    reject(new Error("Image processing failed."));
+                    return;
+                }
+                const newFile = new File(
+                    [blob],
+                    file.name.replace(/\.[^.]+$/, "") + ".webp",
+                    { type: "image/webp" }
+                );
+                resolve(newFile);
+            }, "image/webp", 0.9); // Quality 0.9
+        };
+
+        img.onerror = () => reject(new Error("Failed to load image for processing."));
+        img.src = URL.createObjectURL(file);
+    });
+}

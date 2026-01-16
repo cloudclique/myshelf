@@ -1,5 +1,5 @@
 import { auth, db, collectionName } from '../firebase-config.js';
-import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS } from '../utils.js';
+import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, processImageForUpload } from '../utils.js';
 
 // --- Constants ---
 
@@ -55,6 +55,7 @@ const editItemForm = document.getElementById('editItemForm');
 const editMessage = document.getElementById('editMessage');
 const statusMessage = document.getElementById('statusMessage');
 const editToggleBtn = document.getElementById('editToggleBtn');
+const reuploadBtn = document.getElementById('reuploadBtn');
 const statusToggleBtn = document.getElementById('statusToggleBtn');
 const editTitleInput = document.getElementById('editTitle');
 const editAgeRatingSelect = document.getElementById('editAgeRating');
@@ -228,34 +229,11 @@ thumbnailInput.onchange = (e) => {
  * Converts any image File into a WebP Blob via canvas.
  * Same as implemented in add-item.js
  */
-async function convertFileToWebp(file) {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-
-            canvas.toBlob((blob) => {
-                if (!blob) {
-                    reject(new Error("WebP conversion failed."));
-                    return;
-                }
-                const webpFile = new File(
-                    [blob],
-                    file.name.replace(/\.[^.]+$/, "") + ".webp",
-                    { type: "image/webp" }
-                );
-                resolve(webpFile);
-            }, "image/webp", 0.9);
-        };
-        img.onerror = () => reject(new Error("Failed to read image data."));
-        img.src = URL.createObjectURL(file);
-    });
-}
+/**
+ * Converts any image File into a WebP Blob via canvas.
+ * Same as implemented in add-item.js
+ */
+// convertFileToWebp removed - using processImageForUpload from utils.js
 
 function clampImagePosition() {
     const containerSize = 300;
@@ -543,26 +521,7 @@ const IMGBB_UPLOAD_URL = `https://imgbbapi.stanislav-zhukov.workers.dev/`;
  * @param {File} file
  * @returns {Promise<Blob>} A WebP blob.
  */
-async function convertImageToWebP(file) {
-    const bitmap = await createImageBitmap(file);
-    const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-
-    const ctx = canvas.getContext("2d");
-    ctx.drawImage(bitmap, 0, 0);
-
-    return new Promise((resolve, reject) => {
-        canvas.toBlob(
-            blob => {
-                if (blob) resolve(blob);
-                else reject(new Error("Failed to convert to WebP"));
-            },
-            "image/webp",
-            0.9 // quality (0–1)
-        );
-    });
-}
+// convertImageToWebP removed - using processImageForUpload from utils.js
 
 /**
  * Uploads a single image file after converting it to WebP.
@@ -573,8 +532,8 @@ async function uploadImageToImgBB(file) {
     if (!file) return null;
     if (file.size > MAX_FILE_SIZE) throw new Error("Image file too large (max 5MB).");
 
-    // 🔥 Convert to WebP before uploading (Matching add-item.js)
-    const webpFile = await convertFileToWebp(file);
+    // 🔥 Resize and convert to WebP before uploading (Matching add-item.js)
+    const webpFile = await processImageForUpload(file);
 
     const formData = new FormData();
     formData.append('image', webpFile);
@@ -915,6 +874,7 @@ async function fetchItemDetails(id) {
 
         let userStatus = null;
         let canEdit = false;
+        let userRole = null; // New variable for scope access
         let privateData = {};
 
         // Only fetch personal/edit data if a user is actually logged in
@@ -932,7 +892,7 @@ async function fetchItemDetails(id) {
 
             updateStatusSelection(userStatus, privateData);
 
-            const userRole = await checkUserPermissions(userId);
+            userRole = await checkUserPermissions(userId);
             const isUploader = userId === itemData.uploaderId;
             const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
             canEdit = isUploader || isAdminOrMod;
@@ -946,10 +906,24 @@ async function fetchItemDetails(id) {
         if (canEdit) {
             editToggleBtn.style.display = 'inline-block';
             editToggleBtn.onclick = toggleEditForm;
+            if (reuploadBtn) {
+                // Modified: Only show if user is explicitly 'admin'
+                if (userRole === 'admin') {
+                    reuploadBtn.style.display = 'inline-block';
+                    reuploadBtn.onclick = () => {
+                        if (confirm("Reprocess all images? This will resize them to max 800px and convert to WebP.")) {
+                            window.reuploadResizedImages();
+                        }
+                    };
+                } else {
+                    reuploadBtn.style.display = 'none';
+                }
+            }
             setupEditForm(itemData);
             setupDeleteButton(itemData.id);
         } else {
             editToggleBtn.style.display = 'none';
+            if (reuploadBtn) reuploadBtn.style.display = 'none';
             deleteContainer.innerHTML = '';
         }
 
@@ -2812,3 +2786,96 @@ function setupStarRating() {
         });
     }
 }
+
+// --- Console Command for Re-uploading Resized Images ---
+window.reuploadResizedImages = async function () {
+    if (!auth.currentUser || !itemId) {
+        console.error("You must be logged in and viewing an item.");
+        return;
+    }
+
+    console.log("Starting re-upload process...");
+
+    // Get fresh data
+    const itemDoc = await db.collection('items').doc(itemId).get();
+    if (!itemDoc.exists) {
+        console.error("Item not found.");
+        return;
+    }
+    const itemData = itemDoc.data();
+
+    // Check permissions
+    const userId = auth.currentUser.uid;
+    const userRole = await checkUserPermissions(userId);
+    const isUploader = userId === itemData.uploaderId;
+    const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
+
+    if (!(isUploader || isAdminOrMod)) {
+        console.error("Permission denied: You are not the uploader or an admin.");
+        return;
+    }
+
+    const currentImages = Array.isArray(itemData.itemImageUrls) && itemData.itemImageUrls.length > 0
+        ? itemData.itemImageUrls
+        : [itemData.itemImageUrl, itemData.itemImageBase64, itemData.itemImage]
+            .filter(url => url)
+            .map(url => typeof url === 'string' ? { url: url } : url)
+            .filter(obj => obj && obj.url);
+
+    if (currentImages.length === 0) {
+        console.log("No images to re-upload.");
+        return;
+    }
+
+    console.log("Found " + currentImages.length + " images. Processing...");
+    const newImages = [];
+
+    for (let i = 0; i < currentImages.length; i++) {
+        const imgObj = currentImages[i];
+        console.log("Processing image " + (i + 1) + "/" + currentImages.length + ": " + imgObj.url);
+
+        try {
+            // Fetch the image
+            const response = await fetch(imgObj.url, { mode: 'cors' });
+            if (!response.ok) throw new Error("Failed to fetch image: " + response.statusText);
+
+            const blob = await response.blob();
+            // Create a File object
+            const file = new File([blob], "image_" + Date.now() + "_" + i + ".webp", { type: blob.type });
+
+            // Upload (this handles resizing via processImageForUpload)
+            const newImgObj = await uploadImageToImgBB(file);
+            newImages.push(newImgObj);
+
+            console.log("Image " + (i + 1) + " re-uploaded successfully: " + newImgObj.url);
+
+        } catch (error) {
+            console.error("Error processing image " + (i + 1) + ":", error);
+            console.error("Aborting process to prevent partial data loss.");
+            return;
+        }
+    }
+
+    // Update Firestore
+    try {
+        console.log("Updating Firestore...");
+        const updates = {
+            itemImageUrls: newImages
+        };
+
+        if (itemData.itemImageUrl) updates.itemImageUrl = firebase.firestore.FieldValue.delete();
+        if (itemData.itemImageBase64) updates.itemImageBase64 = firebase.firestore.FieldValue.delete();
+        if (itemData.itemImage) updates.itemImage = firebase.firestore.FieldValue.delete();
+
+        await db.collection('items').doc(itemId).update(updates);
+        console.log("Firestore updated successfully.");
+
+        console.log("Re-upload complete. Reloading page...");
+        alert("Images successfully re-processed and re-uploaded.");
+        window.location.reload();
+
+    } catch (error) {
+        console.error("Error updating Firestore:", error);
+        alert("Error updating Firestore: " + error.message);
+    }
+};

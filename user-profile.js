@@ -351,7 +351,6 @@ async function initializeProfile() {
         if (syncEl) syncEl.style.display = 'block'; // Show "syncing..."
 
         performGlobalSync(targetUserId).then(() => {
-            console.log("Global sync: All categories checked.");
             if (syncEl) syncEl.style.display = 'none'; // Hide when done
         });
     }
@@ -1799,8 +1798,9 @@ async function performGlobalSync(uid) {
     const mainCollectionRef = db.collection(collectionName);
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const freshCounts = { Owned: 0, Wished: 0, Ordered: 0 };
+    const updatedItems = []; // Track actual updates
 
-    console.log("Starting background sync for Owned, Wished, and Ordered items...");
+    console.log("Starting background sync...");
 
     for (const category of categories) {
         try {
@@ -1834,7 +1834,7 @@ async function performGlobalSync(uid) {
                     JSON.stringify(cachedData.itemImageUrls) !== JSON.stringify(mainData.itemImageUrls);
 
                 if (needsUpdate) {
-                    console.log(`[Sync] Updating stale data for: ${mainData.itemName} (${category})`);
+                    updatedItems.push(`${mainData.itemName} (${category})`); // Add to report
                     return userDoc.ref.update({
                         itemName: mainData.itemName,
                         itemImageUrls: mainData.itemImageUrls
@@ -1846,6 +1846,13 @@ async function performGlobalSync(uid) {
         } catch (error) {
             console.error(`Sync error in category ${category}:`, error);
         }
+    }
+
+    // Report results
+    if (updatedItems.length > 0) {
+        console.log(`[Sync] Updated ${updatedItems.length} items:`, updatedItems);
+    } else {
+        console.log("[Sync] Collection up to date.");
     }
 
     // Update the cache and redraw buttons

@@ -4,168 +4,214 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Community Gallery</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="../style.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    <title>User Profile</title>
+    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css"
+        media="print" onload="this.media='all'">
+    <noscript>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css">
+    </noscript>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap"
-        rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+        rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript>
+        <link
+            href="https://fonts.googleapis.com/css2?family=BBH+Bogle&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+            rel="stylesheet">
+    </noscript>
     <link rel="icon" type="image/x-icon"
         href="https://github.com/cloudclique/myshelf/raw/refs/heads/main/myshelf_logo_favicon_color.ico">
-    <style>
-        #commentsList::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        #commentsList::-webkit-scrollbar-thumb {
-            background: #e5e7eb;
-            border-radius: 10px;
-        }
-
-        .no-scroll {
-            overflow: hidden;
-        }
-
-        .image-actions {
-            position: absolute;
-            bottom: 8px;
-            right: 8px;
-            display: flex;
-            gap: 8px;
-        }
-
-        .image-actions button {
-            background: rgba(0, 0, 0, 0.5);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-    </style>
+    <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet" media="print"
+        onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet">
+    </noscript>
 </head>
 
 <body>
+
     <div style="position: relative;">
         <div id="header"></div>
         <div class="header-tools" id="headerTools" style="position: absolute; top: 20%; right: 15px;"></div>
     </div>
-    <script>
-        fetch('./header.html').then(res => res.text()).then(html => { document.getElementById('header').innerHTML = html; });
-    </script>
+    <script>fetch('./header.html').then(res => res.text()).then(html => { document.getElementById('header').innerHTML = html; });</script>
 
-    <div class="item-header-bg">
-        <div class="item-header">
-            <div class="flex items-center space-x-3">
-                <button id="openUploadModalBtn" class="action-btn">
-                    <i class="bi bi-plus-lg mr-1"></i> Image
-                </button>
+    <div id="roleModal" class="modal" style="display:none; justify-content: center;">
+        <div class="modal-content" style="max-width: 400px; text-align: center;">
+            <h2 style="margin-top: 0;">Manage User Role</h2>
+            <p style="color: #888; font-size: 0.9em;">Select a new role for this user:</p>
+            <div id="roleModalOptions" style="display: flex; flex-direction: column; gap: 10px; margin: 20px 0;">
             </div>
-            <div class="flex items-center space-x-3">
-                <button id="loadAllBtn" class="secondary-btn">Load All</button>
-                <button id="loadMyBtn" class="action-btn">My Images</button>
+            <button id="closeRoleModal" class="secondary-btn">Cancel</button>
+        </div>
+    </div>
+
+    <div id="confirmationModal" class="modal" style="display:none; justify-content: center;">
+        <div class="modal-content">
+            <p id="confirmationText"></p>
+            <div class="modal-actions">
+                <button id="confirmYesBtn" class="action-btn">Yes</button>
+                <button id="confirmNoBtn" class="action-btn">No</button>
             </div>
         </div>
     </div>
 
-    <!-- UPLOAD MODAL -->
-    <div id="uploadModal"
-        class="fixed inset-0 z-[60] bg-black bg-opacity-70 hidden items-center justify-center p-4 backdrop-blur-sm">
-        <div
-            class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md relative animate-in fade-in zoom-in duration-300">
-            <button id="closeUploadModal"
-                class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors">
-                <i class="bi bi-x-lg text-xl"></i>
-            </button>
-            <h2 class="text-2xl font-bold mb-6 text-gray-800">Share with Community</h2>
+    <div class="user-controlls">
+        <div class="profile-banner-container">
+            <img id="profileBanner" src="https://placehold.co/1000x200/555/eee?text=User+Profile+Banner"
+                alt="User Profile Banner">
+        </div>
 
-            <div class="space-y-6">
-                <div class="border-2 border-dashed border-gray-200 rounded-2xl p-10 text-center hover:border-indigo-400 hover:bg-indigo-50 transition-all cursor-pointer group"
-                    onclick="document.getElementById('imageInput').click()">
-                    <div
-                        class="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
-                        <i class="bi bi-cloud-arrow-up text-3xl text-indigo-600"></i>
+        <div id="syncStatus"
+            style="position: absolute; display: none; font-size: 0.6rem; color: #888; text-align: center;">
+            <i class="bi bi-arrow-repeat spin"></i> syncing...
+        </div>
+
+        <div class="status-alignment">
+            <h1 id="profileTitle">User Profile</h1>
+            <div class="profile-cntrl-btns">
+                <section class="profile-header">
+                    <div id="statusFilters" class="status-tabs"></div>
+                </section>
+                <div style="display: flex; gap: 10px;">
+                    <button id="openChatBtn" class="action-btn">Message User</button>
+                    <button id="staffActionBtn" class="action-btn" style="display: none; background-color: #d9534f;">
+                        <i class="bi bi-shield-lock-fill"></i> Staff
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="detail-page-wrapper">
+        <div id="profileLoader" class="profile-loader">
+            <div class="spinner"></div>
+            <p>Loading profile...</p>
+        </div>
+
+        <main class="main-column">
+
+            <section class="tiles-unified item-section">
+                <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">
+                    <div class="search-func-div" style="position: relative;">
+                        <input type="text" id="profileSearchInput" class="modern_text_field" placeholder="Search..." />
+                        <button id="profileSearchBtn" class="action-btn"
+                            style="width: fit-content; flex-shrink: 0; background: #27272721; color: var(--accent-clr);"><i
+                                class="bi bi-search"></i></button>
+                        <div id="searchSuggestions" class="search-suggestions"></div>
                     </div>
-                    <p class="text-gray-600 font-medium">Click to select image</p>
-                    <p class="text-gray-400 text-xs mt-1">PNG, JPG or WebP up to 10MB</p>
-                    <input type="file" id="imageInput" accept="image/*" class="hidden">
+                    <button id="profileClearSearchBtn" class="secondary-btn" style="display:none;"><i
+                            class="bi bi-x-square-fill"></i></button>
                 </div>
 
-                <div id="selectedFileName"
-                    class="text-sm text-center py-2 px-4 bg-indigo-50 text-indigo-700 rounded-lg font-medium hidden truncate">
+                <div class="form-group-row" style="margin-bottom: 0px; align-items: center;">
+
+                    <select id="sortSelect" class="sort-ddown"></select>
+
+                    <button id="sortOrderBtn" class="action-btn" title="Toggle Ascending/Descending"
+                        style="background: var(--accent-color); color: rgb(255, 255, 255);">
+                        <i id="sortOrderIcon" class="bi bi-sort-down"></i>
+                    </button>
+
+                    <div class="search-func-div" style="position: relative;">
+                    </div>
+
+                    <button id="viewToggleBtn" class="action-btn" title="Toggle Grid/List View"
+                        style="background: var(--accent-color); color: var(--text-color-reverse);">
+                        <i class="bi bi-grid-3x3-gap-fill" id="viewToggleIcon"></i>
+                    </button>
+
+                    <button id="profileClearSearchBtn" class="secondary-btn" style="display:none;"><i
+                            class="bi bi-x-square-fill"></i></button>
                 </div>
 
-                <button id="uploadBtn"
-                    class="w-full py-4 bg-indigo-600 text-white rounded-xl font-bold shadow-indigo-200 shadow-lg hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
-                    Upload to Gallery
-                </button>
+                <div id="profileItemsGrid" class="item-grid">
+                    <p id="loadingStatus">Loading user collection...</p>
+                </div>
+                <div id="paginationContainer" class="pagination-container"></div>
+            </section>
 
-                <p id="statusMessage" class="text-center text-sm font-medium"></p>
+            <div id="commentsSection" class="tiles-unified item-section">
+                <h2>Comments</h2>
+                <div id="addCommentBox" class="comment-form-container" style="display:none;">
+                    <textarea id="commentInput" placeholder="Write a comment..." maxlength="800"
+                        class="modern_text_field"></textarea>
+                    <button id="postCommentBtn" class="action-btn" style="margin-bottom: 10px;"><i
+                            class="bi bi-send-fill"></i></button>
+                </div>
+                <p id="loginToComment" style="display:none;">You must log in to post comments.</p>
+                <div id="commentsList" class="comments-list"></div>
+                <div id="commentPagination" style="justify-content: center;display: flex;"></div>
+            </div>
+        </main>
+
+        <section class="side-column">
+            <section class="tiles-unified">
+                <div class="status-alignment">
+                    <h2>Lists</h2>
+                </div>
+                <div id="profileListsGrid" class="list-grid">
+                </div>
+                <div id="listsPagination" class="pagination-container">
+                </div>
+            </section>
+
+            <div id="userGalleryPreview" class="user-gallery-preview">
+                <h2>User Gallery</h2>
+                <div id="previewGrid" class="preview-grid"></div>
+                <button id="viewMoreGalleryBtn" class="action-btn">View More</button>
+            </div>
+        </section>
+
+    </div>
+
+    <div id="createListModal" class="modal" style="display:none;">
+        <div class="modal-content">
+            <h3>Create New List</h3>
+
+            <input id="listNameInput" placeholder="List name" />
+
+            <select id="listPrivacySelect">
+                <option value="private">Private</option>
+                <option value="public">Public</option>
+            </select>
+
+            <select id="listTypeSelect">
+                <option value="static">Static</option>
+                <option value="live">Live</option>
+            </select>
+
+            <div id="liveListOptions" style="display:none;">
+                <input id="liveQueryInput" placeholder="Live filter (e.g. {anime} 1/7)" />
+                <select id="liveLogicSelect">
+                    <option value="AND">AND</option>
+                    <option value="OR">OR</option>
+                </select>
+            </div>
+
+            <p id="createListError" class="error-message"></p>
+
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button id="confirmCreateListBtn" class="action-btn primary-btn">Create</button>
+                <button id="cancelCreateListBtn" class="action-btn">Cancel</button>
             </div>
         </div>
     </div>
 
-    <div class="gallery-page-wrapper">
-        <h1 class="text-3xl font-bold mb-6 text-gray-800">Community Gallery</h1>
-        <div class="gallery-wrapper">
-            <div id="gallery"></div>
-        </div>
-    </div>
-
-    <div id="lightbox"
-        class="fixed inset-0 z-50 bg-black bg-opacity-95 hidden flex-col md:flex-row items-center justify-center p-2 md:p-6">
-        <div class="flex-1 flex items-center justify-center w-full overflow-hidden relative">
-            <img id="lightboxMainImg" src="" alt="Full size"
-                class="max-w-full object-contain shadow-2xl transition-all duration-300"
-                style="max-height: calc(100vh - 50px);">
-            <div id="lightboxActions" class="image-actions hidden">
-                <button id="lightboxLikeBtn"><i class="bi bi-heart"></i> <span id="lightboxLikeCount">0</span></button>
-                <button id="openCommentsBtn"><i class="bi bi-chat-left-text"></i> Comments</button>
-                <button id="lightboxShareBtn"><i class="bi bi-share"></i> Share</button>
-            </div>
-        </div>
-
-        <div id="commentSidebar"
-            class="w-full md:w-96 bg-white flex flex-col p-5 overflow-hidden rounded-xl md:ml-4 shadow-2xl"
-            style="height: calc(100vh - 50px); z-index: 1000;">
-            <h3 class="font-bold text-xl mb-4 border-b pb-2 text-gray-800 flex items-center"
-                style="display: flex; justify-content: space-between;">
-                <div>
-                    <i class="bi bi-chat-left-text mr-2 text-indigo-600"></i> Comments
-                </div>
-                <button id="commentCloseBtn" style="color: var(--text-clr);"><i class="bi bi-x-lg"></i></button>
-            </h3>
-            <div id="commentsList" class="flex-1 overflow-y-auto space-y-4 mb-4 pr-2"></div>
-            <div id="commentInputSection" class="hidden border-t pt-4">
-                <textarea id="commentText"
-                    class="w-full border border-gray-200 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
-                    placeholder="Write a comment..." rows="3"></textarea>
-                <button id="postCommentBtn"
-                    class="mt-2 w-full bg-indigo-600 text-white py-2 rounded-lg font-bold hover:bg-indigo-700 transition">Post
-                    Comment</button>
-            </div>
-            <p id="commentLoginPrompt" class="text-sm text-gray-500 text-center py-4 bg-gray-50 rounded-lg">Log in to
-                comment.</p>
-        </div>
-
-        <button id="closeLightboxBtn"
-            class="absolute top-4 right-4 text-white p-2 rounded-full bg-black bg-opacity-40 hover:bg-opacity-70 z-50"
-            style="width: 50px; height: 50px;"><i class="bi bi-x-lg"></i></button>
-    </div>
 
     <div style="position: relative;">
         <div id="footer"></div>
     </div>
-    <script>fetch('../footer.html').then(res => res.text()).then(html => { document.getElementById('footer').innerHTML = html; });</script>
+    <script>fetch('./footer.html').then(res => res.text()).then(html => { document.getElementById('footer').innerHTML = html; });</script>
 
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-    <script type="module" src="script.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script type="module" src="./firebase-config.js"></script>
+    <script type="module" src="user-profile.js"></script>
+
 </body>
 
 </html>

@@ -110,7 +110,7 @@ async function fetchTopUsers(limitCount = 10) {
  */
 function createUserCard(user, container, isPinned = false) {
     const link = document.createElement("a");
-    link.href = `../user/?uid=${user.uid}`;
+    link.href = `../?uid=${user.uid}`;
     link.className = "user-card-link";
 
     const card = document.createElement("div");
@@ -299,7 +299,7 @@ function setupHeaderLogoRedirect() {
             return;
         }
         const userId = currentUser.uid;
-        window.location.href = `../user/?uid=${userId}`;
+        window.location.href = `../?uid=${userId}`;
     };
 }
 

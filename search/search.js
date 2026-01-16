@@ -375,7 +375,7 @@ function setupHeaderLogoRedirect() {
             alert('You must be logged in to view your profile.');
             return;
         }
-        window.location.href = `../user/?uid=${currentUser.uid}`;
+        window.location.href = `../?uid=${currentUser.uid}`;
     };
 }
 

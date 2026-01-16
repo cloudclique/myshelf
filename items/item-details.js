@@ -2226,7 +2226,7 @@ function setupHeaderLogoRedirect() {
             return;
         }
         const userId = currentUser.uid;
-        window.location.href = `../user/?uid=${userId}`;
+        window.location.href = `../?uid=${currentUser.uid}`;
     };
 }
 

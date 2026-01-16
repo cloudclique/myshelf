@@ -1,4 +1,4 @@
-import { auth, db } from '../firebase-config.js';
+﻿import { auth, db } from '../firebase-config.js';
 
 // ---------- URL PARAMETERS ----------
 const params = new URLSearchParams(window.location.search);
@@ -36,13 +36,27 @@ const favIcon = document.getElementById('favIcon');
 const favText = document.getElementById('favText');
 let isFavorited = false;
 
+// Comments DOM
+const commentInput = document.getElementById('commentInput');
+const postCommentBtn = document.getElementById('postCommentBtn');
+const commentMessage = document.getElementById('commentMessage');
+const commentsList = document.getElementById('commentsList');
+const authCommentBox = document.getElementById('authCommentBox');
+const loginToCommentMsg = document.getElementById('loginToCommentMsg');
+const paginationControls = document.getElementById('paginationControls');
+
 // ---------- STATE ----------
 let listRef = null;
 let listData = null;
 let listOwnerId = null;
 let isNsfwAllowed = false;
 let allFetchedItems = [];
+let currentFilteredItems = []; // Track filtered items for pagination
 const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
+
+// Pagination State
+let currentPage = 1;
+const ITEMS_PER_PAGE = 48;
 
 
 const liveQueryGroup = document.getElementById('liveQueryGroup');
@@ -96,6 +110,14 @@ function setupHeaderLogoRedirect() {
 auth.onAuthStateChanged(async (user) => {
     updateHeaderAuthButton(user);
     setupHeaderLogoRedirect();
+
+    if (user) {
+        if (authCommentBox) authCommentBox.style.display = 'block';
+        if (loginToCommentMsg) loginToCommentMsg.style.display = 'none';
+    } else {
+        if (authCommentBox) authCommentBox.style.display = 'none';
+        if (loginToCommentMsg) loginToCommentMsg.style.display = 'block';
+    }
 
     if (user) {
         try {
@@ -191,6 +213,7 @@ async function loadList(currentUserId) {
         if (listTitle) listTitle.textContent = "Error Loading List";
     } finally {
         if (listLoader) listLoader.style.display = 'none';
+        loadComments();
     }
     checkFavoriteStatus(currentUserId);
 }
@@ -214,14 +237,64 @@ async function fetchAllItems(itemIds) {
 function renderFilteredItems(items) {
     if (!itemsGrid) return;
     itemsGrid.innerHTML = '';
+
+    currentFilteredItems = items; // Update state
+
     if (items.length === 0) {
         itemsGrid.innerHTML = '<p>No items match your search.</p>';
+        paginationControls.innerHTML = '';
         return;
     }
 
-    items.forEach(itemObj => {
+    // Pagination Logic
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const visibleItems = items.slice(start, end);
+
+    visibleItems.forEach(itemObj => {
         itemsGrid.appendChild(createItemCard(itemObj.id, itemObj.data));
     });
+
+    renderPagination(items.length);
+}
+
+function renderPagination(totalItems) {
+    if (!paginationControls) return;
+    paginationControls.innerHTML = '';
+
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    if (totalPages <= 1) return;
+
+    // Previous Button
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'action-btn';
+    prevBtn.innerHTML = '<i class="bi bi-caret-left-fill"></i>';
+    prevBtn.disabled = currentPage === 1;
+    prevBtn.onclick = () => changePage(currentPage - 1);
+
+    // Page Indicator
+    const pageIndicator = document.createElement('span');
+    pageIndicator.className = 'page-indicator';
+    pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+    pageIndicator.style.alignContent = 'center';
+    pageIndicator.style.margin = '0 10px';
+
+    // Next Button
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'action-btn';
+    nextBtn.innerHTML = '<i class="bi bi-caret-right-fill"></i>';
+    nextBtn.disabled = currentPage === totalPages;
+    nextBtn.onclick = () => changePage(currentPage + 1);
+
+    paginationControls.appendChild(prevBtn);
+    paginationControls.appendChild(pageIndicator);
+    paginationControls.appendChild(nextBtn);
+}
+
+function changePage(newPage) {
+    currentPage = newPage;
+    renderFilteredItems(currentFilteredItems);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function createItemCard(id, item) {
@@ -243,9 +316,7 @@ function createItemCard(id, item) {
     img.src = (item.itemImageUrls && item.itemImageUrls[0]?.url) || DEFAULT_IMAGE_URL;
     img.className = 'item-image';
 
-    const hor = (item['img-align-hor'] || 'center').toLowerCase();
-    const ver = (item['img-align-ver'] || 'center').toLowerCase();
-    img.classList.add(`img-align-hor-${hor}`, `img-align-ver-${ver}`);
+
 
     imageWrapper.appendChild(img);
 
@@ -256,10 +327,17 @@ function createItemCard(id, item) {
         imageWrapper.appendChild(badge);
     }
 
+    if (item.isDraft) {
+        const draftBadge = document.createElement('div');
+        draftBadge.className = 'draft-overlay';
+        draftBadge.textContent = 'Draft';
+        imageWrapper.appendChild(draftBadge);
+    }
+
     if (auth.currentUser?.uid === listOwnerId && listData?.mode !== 'live') {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-btn';
-        removeBtn.innerHTML = '✕';
+        removeBtn.innerHTML = 'âœ•';
         removeBtn.onclick = (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -443,6 +521,7 @@ function handleSearch() {
         });
     }
 
+    currentPage = 1; // Reset to first page on new search
     renderFilteredItems(sortItems(filtered));
 }
 
@@ -689,7 +768,7 @@ if (rollBtn) {
             const winningElement = rouletteTrack.children[winningIndex];
             const itemName = winningElement.querySelector('p').textContent;
             winningItemId = winningElement.getAttribute('data-id');
-            winnerDisplay.innerHTML = `✨ Winner: ${itemName} ✨`;
+            winnerDisplay.innerHTML = `âœ¨ Winner: ${itemName} âœ¨`;
             rollBtn.disabled = false;
             rollBtn.textContent = "Go to";
             winningElement.style.outline = "3px solid var(--accent-clr)";
@@ -729,6 +808,7 @@ function filterItemsByQuery(items, query, logic = 'AND') {
             item.itemName,
             item.itemCategory,
             item.itemScale,
+            item.itemAgeRating,
             ...(item.tags || [])
         ].join(' ').toLowerCase();
 
@@ -876,6 +956,140 @@ if (favoriteListBtn) {
             updateFavButtonUI();
         } catch (err) {
             console.error("Error updating favorites:", err);
+        }
+    };
+}
+
+// =====================================
+// COMMENTS
+// =====================================
+
+async function loadComments() {
+    if (!commentsList || !listRef) return;
+    commentsList.innerHTML = '';
+
+    try {
+        const snapshot = await listRef.collection('comments').orderBy('createdAt', 'desc').limit(20).get(); // Limit 20 for now
+        if (snapshot.empty) {
+            commentsList.innerHTML = '<p style="text-align:center; color:#888;">No comments yet.</p>';
+            return;
+        }
+
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            const el = await createCommentElement(doc.id, data.userId, data.text, formatTime(data.createdAt));
+            commentsList.appendChild(el);
+        }
+    } catch (err) {
+        console.error("Error loading comments:", err);
+        commentsList.innerHTML = '<p style="color:red;">Error loading comments.</p>';
+    }
+}
+
+// Global cache for usernames
+const usernameCache = {};
+
+async function getUploaderUsername(userId) {
+    if (!userId) return "Unknown user";
+    if (usernameCache[userId]) return usernameCache[userId];
+
+    try {
+        const profileRef = db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(userId);
+        const snap = await profileRef.get();
+        const username = snap.exists && snap.data().username ? snap.data().username : "Unknown user";
+        usernameCache[userId] = username;
+        return username;
+    } catch (err) {
+        return "Unknown user";
+    }
+}
+
+function formatTime(timestamp) {
+    if (!timestamp) return 'Just now';
+    const date = timestamp.toDate();
+    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+async function createCommentElement(commentId, userId, text, timeStr) {
+    const div = document.createElement('div');
+    div.className = 'comment';
+
+    const username = await getUploaderUsername(userId);
+    const linkedText = linkify(text);
+
+    let deleteBtnHtml = '';
+    const currentUser = auth.currentUser;
+    // Allow delete if: (1) Creator of comment OR (2) Owner of the list
+    if (currentUser && (currentUser.uid === userId || currentUser.uid === listOwnerId)) {
+        deleteBtnHtml = `<button class="delete-comment-btn" data-id="${commentId}" title="Delete comment">&times;</button>`;
+    }
+
+    div.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:5px;">
+          ${deleteBtnHtml}
+          <a href="../user/?uid=${userId}" class="comment-author" style="text-decoration: underline;">${username}</a>
+        </div>
+        <div style="font-size:0.8em; color:#888;">${timeStr}</div>
+      </div>
+      <div class="comment-text">${linkedText}</div>
+    `;
+
+    const delBtn = div.querySelector('.delete-comment-btn');
+    if (delBtn) {
+        delBtn.onclick = async () => {
+            if (!confirm('Delete comment?')) return;
+            try {
+                await listRef.collection('comments').doc(commentId).delete();
+                div.remove();
+            } catch (e) { alert(e.message); }
+        };
+    }
+
+    return div;
+}
+
+function linkify(text) {
+    const urlPattern = /(\b(https?:\/\/|www\.)[^\s]+\b)/g;
+    return text.replace(urlPattern, (url) => {
+        let fullUrl = url;
+        if (url.startsWith('www.')) fullUrl = 'http://' + url;
+        return `<a href="${fullUrl}" target="_blank" style="color:var(--accent-clr);">${url}</a>`;
+    });
+}
+
+if (postCommentBtn) {
+    postCommentBtn.onclick = async () => {
+        const text = commentInput.value.trim();
+        if (!text) return;
+        const user = auth.currentUser;
+        if (!user) return;
+
+        try {
+            postCommentBtn.disabled = true;
+            postCommentBtn.textContent = 'Posting...';
+            commentMessage.textContent = '';
+
+            const docRef = await listRef.collection('comments').add({
+                userId: user.uid,
+                text: text,
+                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+            });
+
+            commentInput.value = '';
+            // Prepend locally
+            const newEl = await createCommentElement(docRef.id, user.uid, text, 'Just now');
+            if (commentsList.children.length === 1 && commentsList.children[0].textContent === 'No comments yet.') {
+                commentsList.innerHTML = '';
+            }
+            commentsList.prepend(newEl);
+
+        } catch (e) {
+            commentMessage.textContent = "Error: " + e.message;
+            commentMessage.style.color = 'red';
+        } finally {
+            postCommentBtn.disabled = false;
+            postCommentBtn.textContent = 'Post Comment';
         }
     };
 }

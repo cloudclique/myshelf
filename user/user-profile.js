@@ -50,7 +50,7 @@ let currentPage = 1;
 let lastFetchedItems = [];
 let currentSortValue = '';
 let isProfileOwner = false;
-let isNsfwAllowed = false;
+let isNsfwAllowed = localStorage.getItem('isNsfwAllowed') === 'true';
 let commentsCurrentPage = 1;
 let pageCursors = [null];
 // View Toggle State
@@ -652,8 +652,8 @@ async function fetchPage() {
         const detailedItems = await Promise.all(snapshot.docs.map(async doc => {
             const userItemData = doc.data();
 
-            // OPTIMIZATION: Check for denormalized data on the user item itself
-            if (userItemData.itemName && userItemData.itemImageUrls) {
+            // OPTIMIZATION: Check for denormalized data on the user item itself (Must include isDraft to be valid)
+            if (userItemData.itemName && userItemData.itemImageUrls && 'isDraft' in userItemData) {
                 return {
                     doc: {
                         id: userItemData.itemId,
@@ -745,10 +745,7 @@ function renderProfileItem(doc, status, privateNotes = {}) {
     img.className = 'item-image';
 
     // Alignment Logic
-    const horAlign = (item['img-align-hor'] || 'center').toLowerCase();
-    const verAlign = (item['img-align-ver'] || 'center').toLowerCase();
-    img.classList.add(`img-align-hor-${['left', 'center', 'right'].includes(horAlign) ? horAlign : 'center'}`);
-    img.classList.add(`img-align-ver-${['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'}`);
+
     imageWrapper.appendChild(img);
 
     if (shouldBlur) {
@@ -756,6 +753,13 @@ function renderProfileItem(doc, status, privateNotes = {}) {
         badgeOverlay.className = 'nsfw-overlay';
         badgeOverlay.textContent = '18+';
         imageWrapper.appendChild(badgeOverlay);
+    }
+
+    if (item.isDraft) {
+        const draftOverlay = document.createElement('div');
+        draftOverlay.className = 'draft-overlay';
+        draftOverlay.textContent = 'Draft';
+        imageWrapper.appendChild(draftOverlay);
     }
 
     // --- Info Section ---
@@ -1299,12 +1303,15 @@ auth.onAuthStateChanged(async (user) => {
         try {
             const profileDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(user.uid).get();
             isNsfwAllowed = profileDoc.data()?.allowNSFW === true;
+            localStorage.setItem('isNsfwAllowed', isNsfwAllowed);
         } catch (err) {
             console.error("Error fetching NSFW preference:", err);
             isNsfwAllowed = false;
+            localStorage.setItem('isNsfwAllowed', 'false');
         }
     } else {
         isNsfwAllowed = false;
+        localStorage.setItem('isNsfwAllowed', 'false');
     }
 
     // Update Profile Owner status based on current auth user

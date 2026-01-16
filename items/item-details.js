@@ -2,8 +2,7 @@ import { auth, db, collectionName } from '../firebase-config.js';
 import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS } from '../utils.js';
 
 // --- Constants ---
-const VERTICAL_ALIGN_OPTIONS = ['top', 'center', 'bottom'];
-const HORIZONTAL_ALIGN_OPTIONS = ['left', 'center', 'right'];
+
 const MAX_IMAGE_COUNT = 9; // NEW: Max number of images allowed
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB per file
 
@@ -63,8 +62,9 @@ const editCategorySelect = document.getElementById('editCategory');
 const editReleaseDateInput = document.getElementById('editReleaseDate');
 const editScaleSelect = document.getElementById('editScale');
 // REMOVED: editTagsInput
-const editImageAlignVerSelect = document.getElementById('editImageAlignVer');
-const editImageAlignHorSelect = document.getElementById('editImageAlignHor');
+// NEW: Draft Checkbox
+const editDraftInput = document.getElementById('editItemDraft');
+
 const editImageInput = document.getElementById('editImage');
 // REMOVED: editImagePreview
 // NEW: Container for edit image previews
@@ -1069,6 +1069,7 @@ function renderItemDetails(item, userStatus, privateData = {}, canEdit = false) 
                 <div><span class="info-label">Scale:</span><span class="info-value">${item.itemScale || 'N/A'}</span></div>
                 <div><span class="info-label">Age Rating:</span><span class="info-value">${item.itemAgeRating || 'N/A'}</span></div>
                 <div><span class="info-label">Release Date:</span><span class="info-value">${item.itemReleaseDate || 'N/A'}</span></div>
+                <div><span class="info-label">Community Rating:</span><span id="avgRatingValue" class="info-value">Loading...</span></div>
                 <div>
                     <span class="info-label">Uploader:</span>
                     <span id="uploaderName" class="info-value">Loading...</span>
@@ -1078,6 +1079,9 @@ function renderItemDetails(item, userStatus, privateData = {}, canEdit = false) 
             ${privateInfoHtml}
         </div>
     `;
+
+    // Trigger average rating fetch
+    fetchAndDisplayAverageRating(item.id);
 
     tagsBox.innerHTML = `
         <div class="tags-header">
@@ -1138,11 +1142,11 @@ function setupEditForm(item) {
     populateDropdown('editCategory', CATEGORY_OPTIONS, item.itemCategory);
     populateDropdown('editAgeRating', AGERATING_OPTIONS, item.itemAgeRating);
     populateDropdown('editScale', SCALE_OPTIONS, item.itemScale);
-    populateDropdown('editImageAlignVer', VERTICAL_ALIGN_OPTIONS, item['img-align-ver']);
-    populateDropdown('editImageAlignHor', HORIZONTAL_ALIGN_OPTIONS, item['img-align-hor']);
+
 
     editTitleInput.value = item.itemName || '';
     editReleaseDateInput.value = item.itemReleaseDate || '';
+    if (editDraftInput) editDraftInput.checked = item.isDraft === true;
     // REMOVED: editTagsInput setup
 
     // Clear file input and temporary file object array
@@ -1184,8 +1188,8 @@ editItemForm.addEventListener('submit', async (e) => {
         itemAgeRating: editAgeRatingSelect.value,
         itemScale: editScaleSelect.value,
         itemReleaseDate: editReleaseDateInput.value,
-        'img-align-ver': editImageAlignVerSelect.value,
-        'img-align-hor': editImageAlignHorSelect.value,
+        isDraft: editDraftInput ? editDraftInput.checked : false,
+
         lastEdited: firebase.firestore.FieldValue.serverTimestamp()
     };
 
@@ -1345,6 +1349,22 @@ async function handleStatusUpdate(e) {
             privateData = existingDoc.data().privateNotes;
         }
 
+        // --- NEW: Fetch full item data for denormalization ---
+        const itemDoc = await db.collection('items').doc(itemId).get();
+        if (!itemDoc.exists) throw new Error("Item not found");
+        const itemData = itemDoc.data();
+
+        const denormalizedData = {
+            itemName: itemData.itemName,
+            itemImageUrls: itemData.itemImageUrls || [],
+            itemCategory: itemData.itemCategory || '',
+            itemScale: itemData.itemScale || '',
+            itemReleaseDate: itemData.itemReleaseDate || '',
+            itemAgeRating: itemData.itemAgeRating || '',
+            tags: itemData.tags || [],
+            isDraft: itemData.isDraft || false
+        };
+
         // Merge visible UI fields into privateData
         if (newStatus === 'Owned' || newStatus === 'Ordered') {
             privateData.amount = document.getElementById('privAmount')?.value || '1';
@@ -1369,7 +1389,8 @@ async function handleStatusUpdate(e) {
             itemId: itemId,
             status: newStatus,
             privateNotes: privateData,
-            addedDate: firebase.firestore.FieldValue.serverTimestamp()
+            addedDate: firebase.firestore.FieldValue.serverTimestamp(),
+            ...denormalizedData // Spread denormalized data
         }, { merge: true });
 
         await updateProfileCounters(userId);
@@ -1433,6 +1454,48 @@ async function handleRemoveStatus() {
         },
         'Remove'
     );
+}
+
+// --- Average Rating ---
+async function fetchAndDisplayAverageRating(itemId) {
+    const ratingEl = document.getElementById('avgRatingValue');
+    if (!ratingEl) return;
+
+    try {
+        // Query all items in user_profiles subcollections with this itemId
+        // Note: This requires an index on field 'itemId' if the collection group is large,
+        // but for equality, it might work or prompt for index creation.
+        const querySnapshot = await db.collectionGroup('items')
+            .where('itemId', '==', itemId)
+            .get();
+
+        let totalScore = 0;
+        let count = 0;
+
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            // privateNotes.score is where the rating is stored (1-10)
+            if (data.privateNotes && data.privateNotes.score) {
+                const score = parseFloat(data.privateNotes.score);
+                if (!isNaN(score) && score > 0) {
+                    totalScore += score;
+                    count++;
+                }
+            }
+        });
+
+        if (count > 0) {
+            const average = (totalScore / count).toFixed(1);
+            ratingEl.textContent = `${average}/10 (${count} user${count === 1 ? '' : 's'})`;
+        } else {
+            ratingEl.textContent = 'No ratings yet';
+        }
+
+    } catch (error) {
+        console.error("Error fetching average rating:", error);
+        // If index is missing, we might want to fail gracefully
+        ratingEl.textContent = 'N/A';
+    }
 }
 
 // --- Comments ---

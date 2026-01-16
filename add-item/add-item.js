@@ -23,6 +23,7 @@ const itemCategoryInput = document.getElementById('itemCategory');
 const itemReleaseDateInput = document.getElementById('itemReleaseDate');
 const itemScaleInput = document.getElementById('itemScale');
 const itemTagsInput = document.getElementById('tags');
+const itemDraftInput = document.getElementById('itemDraft');
 
 const importMfcBtn = document.getElementById('importMfcBtn');
 const mfcImportFile = document.getElementById('mfcImportFile');
@@ -659,6 +660,7 @@ addItemForm.onsubmit = async (e) => {
         // Replace '?' globally with ',' before splitting the tags
         tags: itemTagsInput.value.replace(/\?/g, ',').split(',').map(tag => tag.trim()).filter(tag => tag),
         // *** MODIFIED LINE END ***
+        isDraft: itemDraftInput ? itemDraftInput.checked : false,
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 

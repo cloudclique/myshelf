@@ -119,11 +119,7 @@ function createItemCard(itemData) {
             itemData.itemImageUrls[0].url) ||
         DEFAULT_IMAGE_URL;
 
-    const horAlign = itemData['img-align-hor']?.toLowerCase() || 'center';
-    const verAlign = itemData['img-align-ver']?.toLowerCase() || 'center';
-    const imageClasses = `item-image img-align-hor-${['left', 'center', 'right'].includes(horAlign) ? horAlign : 'center'
-        } img-align-ver-${['top', 'center', 'bottom'].includes(verAlign) ? verAlign : 'center'
-        }`;
+    const imageClasses = 'item-image';
 
     const isAdultContent = (itemData.itemAgeRating === '18+' || itemData.itemAgeRating === 'Adult');
     const shouldBlur = isAdultContent && !allowNSFW;
@@ -132,6 +128,7 @@ function createItemCard(itemData) {
         <div class="item-image-wrapper ${shouldBlur ? 'nsfw-blur' : ''}">
             <img src="${imageSource}" alt="${itemData.itemName}" class="${imageClasses}">
             ${shouldBlur ? '<div class="nsfw-overlay">18+</div>' : ''}
+            ${itemData.isDraft ? '<div class="draft-overlay">Draft</div>' : ''}
         </div>
         <div class="item-info">
             <h3>${itemData.itemName || 'Untitled'}</h3>
@@ -266,7 +263,8 @@ function handleSearch(resetPage = true) {
             const age = (item.itemAgeRating || '').toLowerCase();
 
             // Use a separator to prevent word bleeding between fields
-            const combinedText = [name, category, scale, age, ...tags].join(' | ');
+            const status = item.isDraft ? 'draft' : 'released';
+            const combinedText = [name, category, scale, age, status, ...tags].join(' | ');
 
             // 1. Exclusion Check: If any excluded keyword is present, discard item
             const hasExcluded = excludedKeywords.some(kw => combinedText.includes(kw));

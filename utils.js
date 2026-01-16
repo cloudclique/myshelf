@@ -8,7 +8,7 @@ export const CATEGORY_OPTIONS = [
 ];
 
 export const SCALE_OPTIONS = [
-    "Non-Scale", "1/4", "1/5","1/6", "1/7", "1/8", "1/10", "1/12", "Other"
+    "Non-Scale", "1/4", "1/5", "1/6", "1/7", "1/8", "1/10", "1/12", "Other"
 ];
 
 export const AGERATING_OPTIONS = [
@@ -68,13 +68,13 @@ export function populateDropdown(selectId, options, defaultValue = "") {
 
     // Clear existing options
     select.innerHTML = '';
-    
+
     // Add default "All" or "Select" option
     const labelText = select.previousElementSibling?.textContent.replace(':', '').trim() || 'Select Option';
 
     const defaultOption = document.createElement('option');
     defaultOption.value = "";
-    defaultOption.textContent = `-- ${labelText} --`; 
+    defaultOption.textContent = `-- ${labelText} --`;
     select.appendChild(defaultOption);
 
 

@@ -126,6 +126,26 @@
             <section class="item-section">
                 <div id="listItemsGrid" class="item-grid">
                 </div>
+                <div id="paginationControls" class="pagination-container"
+                    style="margin-top: 20px; display: flex; justify-content: center; gap: 5px;"></div>
+            </section>
+
+            <section class="item-section" style="margin-top: 30px;">
+                <h2 style="margin-bottom: 20px; color: var(--text-clr);">Comments</h2>
+                <div class="comment-input-area" id="authCommentBox"
+                    style="background: var(--secondary-bg); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
+                    <textarea id="commentInput" class="modern_text_field" placeholder="Write a comment..." rows="3"
+                        style="width: 100%; margin-bottom: 10px;"></textarea>
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <p id="commentMessage" class="form-message"></p>
+                        <button id="postCommentBtn" class="action-btn">Post Comment</button>
+                    </div>
+                </div>
+                <!-- Non-logged in message handled in JS -->
+                <div id="loginToCommentMsg" style="display: none; text-align: center; padding: 20px;">
+                    <p>Please <a href="../login/" style="color: var(--accent-clr);">login</a> to leave a comment.</p>
+                </div>
+                <div id="commentsList" class="comments-list"></div>
             </section>
         </main>
     </div>

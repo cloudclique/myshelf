@@ -157,6 +157,11 @@
 
                 </div>
 
+                <div style="margin-bottom: 20px; display: block; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="editItemDraft" class="status-checkbox" style="width: auto; margin: 0;">
+                    <label for="editItemDraft" style="display: inline; margin: 0;">Mark as Draft</label>
+                </div>
+
                 <label>Change Thumbnail (95x95):</label>
                 <div id="editThumbnailTrigger" class="thumbnail-upload-box">
                     <i class="bi bi-camera"></i>
@@ -186,16 +191,6 @@
                     <div id="editImageUploadsContainer" class="image-previews-container">
                     </div>
                     <p class="image-note" id="editImageNote">click an image to set it as the primary cover.</p>
-                </div>
-                <div class="two-column-row">
-                    <div>
-                        <label for="editImageAlignVer">Vertical Align:</label>
-                        <select id="editImageAlignVer" class="modern_dropdown"></select>
-                    </div>
-                    <div>
-                        <label for="editImageAlignHor">Horizontal Align:</label>
-                        <select id="editImageAlignHor" class="modern_dropdown"></select>
-                    </div>
                 </div>
                 <p id="editMessage" class="form-message"></p>
                 <button type="submit" class="action-btn">Save Edits</button>

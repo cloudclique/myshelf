@@ -1311,12 +1311,21 @@ auth.onAuthStateChanged(async (user) => {
     const hasParams = window.location.search || window.location.hash;
     if (!hasParams) {
         if (user) {
+            localStorage.setItem('cached_uid', user.uid);
             window.location.replace(`?uid=${user.uid}`);
             return;
         } else {
+            localStorage.removeItem('cached_uid');
             window.location.replace('./search/');
             return;
         }
+    }
+
+    // Update Cache on typical auth change (e.g. regular login/logout on other pages)
+    if (user) {
+        localStorage.setItem('cached_uid', user.uid);
+    } else {
+        localStorage.removeItem('cached_uid');
     }
 
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';

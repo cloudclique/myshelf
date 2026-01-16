@@ -92,11 +92,16 @@ auth.onAuthStateChanged((user) => {
     headerTools.innerHTML = '';
 
     if (user) {
+        localStorage.setItem('cached_uid', user.uid); // Cache UID for fast redirect
         openUploadModalBtn.disabled = false;
         loadMyBtn.disabled = false;
         headerTools.innerHTML = `<button id="logoutBtn" class="logout-btn">Logout</button>`;
-        document.getElementById('logoutBtn').onclick = () => auth.signOut();
+        document.getElementById('logoutBtn').onclick = () => {
+            localStorage.removeItem('cached_uid'); // Clear cache on logout
+            auth.signOut();
+        }
     } else {
+        localStorage.removeItem('cached_uid'); // Ensure cleared
         openUploadModalBtn.disabled = true;
         loadMyBtn.disabled = true;
         headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;

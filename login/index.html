@@ -177,8 +177,13 @@
         } else {
           user = (await auth
             .createUserWithEmailAndPassword(email, password)).user;
+          user = (await auth
+            .createUserWithEmailAndPassword(email, password)).user;
           await createUserProfile(user);
         }
+
+        // Cache UID for fast redirect
+        localStorage.setItem('cached_uid', user.uid);
 
         authMessage.textContent = 'Success! Redirecting…';
         authMessage.className = 'form-message success-message';
@@ -213,6 +218,9 @@
         if (!snap.exists) {
           await createUserProfile(user);
         }
+
+        // Cache UID for fast redirect
+        localStorage.setItem('cached_uid', user.uid);
 
         authMessage.textContent = 'Welcome! Redirecting…';
         authMessage.className = 'form-message success-message';

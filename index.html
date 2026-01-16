@@ -28,6 +28,19 @@
     <noscript>
         <link href="https://fonts.googleapis.com/css2?family=BBH+Hegarty&display=swap" rel="stylesheet">
     </noscript>
+    <script>
+        (function () {
+            const hasParams = window.location.search || window.location.hash;
+            if (!hasParams) {
+                const cachedUid = localStorage.getItem('cached_uid');
+                if (cachedUid) {
+                    window.location.replace('?uid=' + cachedUid);
+                } else {
+                    window.location.replace('./search/');
+                }
+            }
+        })();
+    </script>
 </head>
 
 <body>

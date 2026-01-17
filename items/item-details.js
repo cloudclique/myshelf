@@ -3041,6 +3041,67 @@ async function handleRemoveRelated(url) {
 
 // --- End of File ---
 
+/**
+ * Fans out item updates to all user profiles and public lists that contain the item.
+ * @param {string} itemId - The ID of the item that was updated.
+ * @param {object} updatedFields - The fields that were updated.
+ */
+async function fanOutItemUpdates(itemId, updatedFields) {
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    // 1. Update User Profiles denormalized data
+    try {
+        const userItemsSnaps = await db.collectionGroup('items')
+            .where(`${itemId}.itemId`, '==', itemId)
+            .get();
+
+        const userUpdatePromises = userItemsSnaps.docs.map(doc => {
+            const updateObj = {};
+            for (const [key, value] of Object.entries(updatedFields)) {
+                updateObj[`${itemId}.${key}`] = value;
+            }
+            return doc.ref.update(updateObj);
+        });
+        await Promise.all(userUpdatePromises);
+    } catch (e) {
+        console.error("Error fanning out to user profiles:", e);
+    }
+
+    // 2. Update Public Lists denormalized data
+    try {
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+        const metaSnap = await metadataRef.get();
+        let maxShard = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 5;
+
+        for (let i = 1; i <= maxShard; i++) {
+            const shardRef = db.collection(`lists-${i}`).doc('lists');
+            const shardSnap = await shardRef.get();
+            if (shardSnap.exists) {
+                const listsMap = shardSnap.data();
+                let shardNeedsUpdate = false;
+                const updatedShardMap = { ...listsMap };
+
+                Object.entries(listsMap).forEach(([listId, listData]) => {
+                    if (listData.items && listData.items[itemId]) {
+                        updatedShardMap[listId].items[itemId] = {
+                            ...listData.items[itemId],
+                            ...updatedFields
+                        };
+                        shardNeedsUpdate = true;
+                    }
+                });
+
+                if (shardNeedsUpdate) {
+                    await shardRef.set(updatedShardMap);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error fanning out to public lists:", e);
+    }
+}
+
+
 // --- Rating Helpers ---
 
 function setupStarRating() {

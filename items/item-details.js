@@ -2393,37 +2393,43 @@ closeListModalBtn.onclick = () => listModal.style.display = 'none';
 
 async function loadUserLists() {
     const userId = auth.currentUser.uid;
-
-    // 1. Reference for Private Lists (Single Doc)
-    const privateListsRef = db.collection('artifacts').doc('default-app-id')
-        .collection('user_profiles').doc(userId)
-        .collection('lists').doc('lists');
-
-    // 2. Reference for Public Lists owned by this user
-    const publicListsRef = db.collection('public_lists').where('userId', '==', userId);
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
     try {
         existingListsDropdown.innerHTML = '<option value="">-- Select a List --</option>';
 
-        // Fetch both simultaneously for better performance
-        const [privateSnap, publicSnap] = await Promise.all([
-            privateListsRef.get(),
-            publicListsRef.get()
-        ]);
+        // 1. Fetch PRIVATE lists (Profile Map)
+        const privateSnap = await db.collection('artifacts').doc(appId)
+            .collection('user_profiles').doc(userId)
+            .collection('lists').doc('lists').get();
 
-        // Populate Private Lists
         if (privateSnap.exists) {
-            const privateMap = privateSnap.data();
-            Object.entries(privateMap).forEach(([id, list]) => {
+            Object.entries(privateSnap.data()).forEach(([id, list]) => {
                 existingListsDropdown.innerHTML += `<option value="private|${id}">${list.name} (Private)</option>`;
             });
         }
 
-        // Populate Public Lists
-        publicSnap.forEach(doc => {
-            const list = doc.data();
-            // Store type in value: "type|id"
-            existingListsDropdown.innerHTML += `<option value="public|${doc.id}">${list.name} (Public)</option>`;
+        // 2. Fetch OWNED public lists from Shards
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+        const metaSnap = await metadataRef.get();
+        let maxShard = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 5;
+
+        const shardPromises = [];
+        for (let i = 1; i <= maxShard; i++) {
+            shardPromises.push(db.collection(`lists-${i}`).doc('lists').get());
+        }
+
+        const shardSnapshots = await Promise.all(shardPromises);
+        shardSnapshots.forEach((doc, index) => {
+            if (doc.exists) {
+                const shardId = index + 1;
+                Object.entries(doc.data()).forEach(([listId, listData]) => {
+                    if (listData.userId === userId) {
+                        // Store shardId in value for easier updates
+                        existingListsDropdown.innerHTML += `<option value="public|${shardId}|${listId}">${listData.name} (Public)</option>`;
+                    }
+                });
+            }
         });
 
     } catch (error) {
@@ -2434,34 +2440,34 @@ async function loadUserLists() {
 async function addItemToList(combinedValue) {
     if (!combinedValue || !itemId) return;
 
-    const [type, listId] = combinedValue.split('|');
+    const parts = combinedValue.split('|');
+    const type = parts[0];
     const userId = auth.currentUser.uid;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     let listRef;
+    let listId;
 
     if (type === 'public') {
-        listRef = db.collection('public_lists').doc(listId);
+        const shardId = parts[1];
+        listId = parts[2];
+        listRef = db.collection(`lists-${shardId}`).doc('lists');
     } else {
+        listId = parts[1];
         // Private List: List ID is a key in the 'lists' document
-        listRef = db.collection('artifacts').doc('default-app-id')
+        listRef = db.collection('artifacts').doc(appId)
             .collection('user_profiles').doc(userId)
             .collection('lists').doc('lists');
     }
 
     try {
-        if (type === 'public') {
-            await listRef.update({
+        // Both public (sharded) and private use map-based updates via dot notation or set with merge
+        // To be safe with nested fields, we dot-notation it or set merge
+        await listRef.set({
+            [listId]: {
                 items: firebase.firestore.FieldValue.arrayUnion(itemId),
                 lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            });
-        } else {
-            // Private Map Update
-            await listRef.set({
-                [listId]: {
-                    items: firebase.firestore.FieldValue.arrayUnion(itemId),
-                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-                }
-            }, { merge: true });
-        }
+            }
+        }, { merge: true });
 
         listMessage.textContent = "Item added to list!";
         listMessage.className = "form-message success-message";
@@ -2483,8 +2489,10 @@ async function addItemToList(combinedValue) {
 createNewListBtn.onclick = async () => {
     const nameInput = document.getElementById('newListName');
     const name = nameInput.value.trim();
-    const privacy = document.querySelector('input[name="listPrivacy"]:checked').value;
+    const privacySelect = document.querySelector('input[name="listPrivacy"]:checked');
+    const privacy = privacySelect ? privacySelect.value : 'public';
     const userId = auth.currentUser.uid;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
     if (!name) {
         listMessage.textContent = "Please enter a name.";
@@ -2496,36 +2504,30 @@ createNewListBtn.onclick = async () => {
         let newListId = db.collection('dummy').doc().id; // Generate ID
 
         if (privacy === 'public') {
-            newListRef = db.collection('public_lists').doc(newListId);
+            const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+            const metaSnap = await metadataRef.get();
+            const shardId = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 1;
+            newListRef = db.collection(`lists-${shardId}`).doc('lists');
         } else {
-            newListRef = db.collection('artifacts').doc('default-app-id')
+            newListRef = db.collection('artifacts').doc(appId)
                 .collection('user_profiles').doc(userId)
                 .collection('lists').doc('lists');
         }
 
-        if (privacy === 'public') {
-            await newListRef.set({
-                name: name,
-                privacy: privacy,
-                mode: 'static',
-                items: [itemId],
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                userId: userId
-            });
-        } else {
-            // Private Map Set
-            await newListRef.set({
-                [newListId]: {
-                    name: name,
-                    privacy: privacy,
-                    mode: 'static',
-                    items: [itemId],
-                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-                    userId: userId,
-                    id: newListId // Useful to store ID inside too
-                }
-            }, { merge: true });
-        }
+        const payload = {
+            name: name,
+            privacy: privacy,
+            mode: 'static',
+            items: [itemId],
+            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            userId: userId,
+            id: newListId
+        };
+
+        // Create the list in the map
+        await newListRef.set({
+            [newListId]: payload
+        }, { merge: true });
 
         listMessage.textContent = "List created and item added!";
         listMessage.className = "form-message success-message";
@@ -2601,8 +2603,12 @@ async function fetchAndRenderPublicLists(itemId, providedItemData = null) {
     try {
         let itemData = providedItemData;
 
+        if (!itemData && loadedItemData && (loadedItemData.id === itemId || loadedItemData.itemId === itemId)) {
+            itemData = loadedItemData;
+        }
+
         if (!itemData) {
-            // Fallback: This might fail for sharded items if not consistent, but keeps existing logic for legacy/review
+            // Fallback: This might fail for sharded items if not consistent
             const itemDoc = await db.collection(targetCollection).doc(itemId).get();
             if (itemDoc.exists) {
                 itemData = itemDoc.data();
@@ -2614,33 +2620,37 @@ async function fetchAndRenderPublicLists(itemId, providedItemData = null) {
             return;
         }
 
-        // OPTIMIZED: Fetch ONLY relevant lists in parallel
-        // 1. Static Lists: Direct query for lists containing this item
-        // 2. Live Lists: Fetch all live lists (usually small subset) to check logic client-side
-        const [staticListsSnap, liveListsSnap] = await Promise.all([
-            db.collection('public_lists').where('items', 'array-contains', itemId).get(),
-            db.collection('public_lists').where('mode', '==', 'live').get()
-        ]);
+        // --- NEW: FETCH PUBLIC LISTS FROM SHARDS ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+        const metaSnap = await metadataRef.get();
+        let maxShard = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 5;
 
+        const shardPromises = [];
+        for (let i = 1; i <= maxShard; i++) {
+            shardPromises.push(db.collection(`lists-${i}`).doc('lists').get());
+        }
+
+        const shardSnapshots = await Promise.all(shardPromises);
         let matchedLiveLists = [];
         let staticLists = [];
 
-        // Process Static Lists (Already filtered by DB)
-        staticListsSnap.forEach(doc => {
-            const list = doc.data();
-            list.id = doc.id;
-            list.type = list.privacy;
-            staticLists.push(list);
-        });
+        shardSnapshots.forEach(doc => {
+            if (doc.exists) {
+                const listsInShard = doc.data() || {};
+                Object.entries(listsInShard).forEach(([listId, listData]) => {
+                    const list = { ...listData, id: listId, type: listData.privacy };
 
-        // Process Live Lists (Client-side logic check)
-        liveListsSnap.forEach(doc => {
-            const list = doc.data();
-            list.id = doc.id;
-            list.type = list.privacy;
+                    // 1. Check Static Lists
+                    if (list.items && Array.isArray(list.items) && list.items.includes(itemId)) {
+                        staticLists.push(list);
+                    }
 
-            if (itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
-                matchedLiveLists.push(list);
+                    // 2. Check Live Lists
+                    if (list.mode === 'live' && itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
+                        matchedLiveLists.push(list);
+                    }
+                });
             }
         });
 
@@ -2697,7 +2707,7 @@ function renderListsPage(page) {
                 </div>
                 <div class="list-info">
                     <h3>${list.name || 'Untitled List'}</h3>
-                    <span>${list.items?.length || 0} Items â€¢ ${list.type}</span>
+                    <span>${list.items?.length || 0} Items • ${list.type}</span>
                 </div>
             </div>
         `;

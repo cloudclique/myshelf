@@ -391,71 +391,52 @@ async function fetchUserLists(userId) {
     }
 
     try {
-        // ... existing logic ...
-        // 1. Load user profile (favorites live here)
-        const userDoc = await db
-            .collection('artifacts').doc('default-app-id')
-            .collection('user_profiles').doc(userId)
-            .get();
-
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const userDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(userId).get();
         const favoriteListIds = userDoc.data()?.favoriteLists || [];
-
         const listMap = new Map(); // dedupe by ID
 
-        // 2. Fetch FAVORITE public lists by ID
-        const favoritePromises = favoriteListIds.map(listId =>
-            db.collection('public_lists').doc(listId).get()
-        );
+        // --- NEW: FETCH PUBLIC LISTS FROM SHARDS ---
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+        const metaSnap = await metadataRef.get();
+        let maxShard = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 5;
 
-        const favoriteSnapshots = await Promise.all(favoritePromises);
+        const shardPromises = [];
+        for (let i = 1; i <= maxShard; i++) {
+            shardPromises.push(db.collection(`lists-${i}`).doc('lists').get());
+        }
 
-        favoriteSnapshots.forEach(doc => {
-            if (!doc.exists) return;
+        const shardSnapshots = await Promise.all(shardPromises);
 
-            listMap.set(doc.id, {
-                id: doc.id,
-                type: 'public',
-                isFavorite: true,
-                ...doc.data()
-            });
-        });
+        shardSnapshots.forEach(doc => {
+            if (doc.exists) {
+                const listsInShard = doc.data() || {};
+                Object.entries(listsInShard).forEach(([listId, listData]) => {
+                    const isFavorite = favoriteListIds.includes(listId);
+                    const isOwner = listData.userId === userId;
 
-        // 3. Fetch USER OWNED public lists
-        const publicSnapshot = await db
-            .collection('public_lists')
-            .where('userId', '==', userId)
-            .get();
-
-        publicSnapshot.forEach(doc => {
-            const existing = listMap.get(doc.id);
-
-            listMap.set(doc.id, {
-                id: doc.id,
-                type: 'public',
-                isFavorite: existing?.isFavorite || favoriteListIds.includes(doc.id),
-                ...doc.data()
-            });
+                    if (isFavorite || isOwner) {
+                        listMap.set(listId, {
+                            id: listId,
+                            type: 'public',
+                            isFavorite: isFavorite,
+                            ...listData
+                        });
+                    }
+                });
+            }
         });
 
         // 4. Fetch PRIVATE lists (profile owner only)
         if (isProfileOwner) {
             const privateDoc = await db
-                .collection('artifacts').doc('default-app-id')
+                .collection('artifacts').doc(appId)
                 .collection('user_profiles').doc(userId)
                 .collection('lists').doc('lists')
                 .get();
 
             if (privateDoc.exists) {
                 const privateListsMap = privateDoc.data();
-                Object.values(privateListsMap).forEach(list => {
-                    // Ensure list has an ID attached if it's stored as value
-                    // The map key is usually the ID, but let's trust the object has it or inject it?
-                    // Structure says map: "listId" -> fields. So the value is the object.
-                    // The object might not have the ID inside it if it's just keys.
-                    // Actually, usually we store id inside too or we need to use the key.
-                    // Let's iterate entries to be safe.
-                });
-
                 Object.entries(privateListsMap).forEach(([id, data]) => {
                     listMap.set(id, {
                         id: id,
@@ -1709,12 +1690,14 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
 
     let ref;
     const isPublic = listPrivacySelect.value === 'public';
-    let newId;
+    let newId = db.collection('dummy').doc().id; // Generate ID
 
     if (isPublic) {
-        // Public lists are still individual documents
-        ref = db.collection('public_lists').doc();
-        newId = ref.id;
+        // Public lists: Single doc with map in sharded collections
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+        const metaSnap = await metadataRef.get();
+        const shardId = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 1;
+        ref = db.collection(`lists-${shardId}`).doc('lists');
     } else {
         // Private lists: Single doc with map
         ref = db.collection('artifacts')
@@ -1723,7 +1706,6 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
             .doc(user.uid)
             .collection('lists')
             .doc('lists');
-        newId = db.collection('dummy').doc().id; // Generate ID
     }
 
     const payload = {
@@ -1746,14 +1728,11 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
     }
 
     try {
-        if (isPublic) {
-            await ref.set(payload);
-        } else {
-            // Update the map
-            await ref.set({
-                [newId]: payload
-            }, { merge: true });
-        }
+        // Update the map for both public (sharded) and private
+        await ref.set({
+            [newId]: payload
+        }, { merge: true });
+
         createListModal.style.display = 'none';
         await fetchUserLists(targetUserId);
     } catch (err) {

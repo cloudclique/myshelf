@@ -218,20 +218,25 @@ async function loadList(currentUserId) {
 
             // 3. Compare with current saved items array
             const currentIds = listData.items || [];
-            const isDifferent = JSON.stringify(matchedIds.sort()) !== JSON.stringify(currentIds.sort());
+            const isDifferent = JSON.stringify(matchedIds.sort()) !== JSON.stringify((currentIds || []).sort());
 
-            if (isDifferent && currentUserId === listOwnerId) {
-                // Update - Care needed for Public Lists stored in Shards
-                if (listType === 'public') {
-                    // We need to update the Map in the shard
-                    await updatePublicListInShard(listId, { items: matchedIds });
-                } else {
-                    // Private Map Update
-                    await listRef.update({
-                        [`${listId}.items`]: matchedIds
-                    });
+            if (isDifferent && currentUserId) {
+                // Anyone can sync a public live list; only the owner can sync a private one.
+                const canSync = (currentUserId === listOwnerId) || (listType === 'public');
+
+                if (canSync) {
+                    // Update - Care needed for Public Lists stored in Shards
+                    if (listType === 'public') {
+                        // We need to update the Map in the shard
+                        await updatePublicListInShard(listId, { items: matchedIds });
+                    } else {
+                        // Private Map Update
+                        await listRef.update({
+                            [`${listId}.items`]: matchedIds
+                        });
+                    }
+                    listData.items = matchedIds;
                 }
-                listData.items = matchedIds;
             }
 
             allFetchedItems = matchedItems;
@@ -767,61 +772,77 @@ if (saveListChangesBtn) {
         if (!newName || !newPrivacy) return;
 
         try {
-            const updatePayload = {
+            saveListChangesBtn.disabled = true;
+            saveListChangesBtn.textContent = "Saving...";
+
+            const updateData = {
                 name: newName,
                 mode: newMode,
                 liveQuery: newMode === 'live' ? newQuery : (listData.liveQuery || ""),
-                liveLogic: newMode === 'live' ? newLogic : (listData.liveLogic || "AND")
+                liveLogic: newMode === 'live' ? newLogic : (listData.liveLogic || "AND"),
+                items: newMode === 'live' ? [] : (listData.items || []),
+                privacy: newPrivacy,
+                userId: listOwnerId,
+                createdAt: listData.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+                id: listId
             };
 
-            // If switching to Live, we force a sync by clearing items so loadList catches it
-            if (newMode === 'live') {
-                updatePayload.items = [];
-            }
-
             if (newPrivacy !== listType) {
-                // Migration Logic (Complex) - Skip for this specific task to avoid scope creep 
-                // unless explicitly requested. But we should handle "Private -> Private" rename/update.
-                // The prompt was "wrong path".
-                // If we assume just updating props in place:
-                if (newPrivacy === 'private') {
-                    // Still private, different props
-                    await listRef.update({
-                        [`${listId}.name`]: newName,
-                        [`${listId}.mode`]: newMode,
-                        [`${listId}.liveQuery`]: newMode === 'live' ? newQuery : "",
-                        [`${listId}.liveLogic`]: newMode === 'live' ? newLogic : "AND",
-                        [`${listId}.items`]: listData.items // Persist items or clear if live
-                    });
-                    location.reload();
+                // Migration Logic
+                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+                if (newPrivacy === 'public') {
+                    // Private -> Public
+                    const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+                    const metaSnap = await metadataRef.get();
+                    const shardId = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 1;
+                    const publicRef = db.collection(`lists-${shardId}`).doc('lists');
+
+                    // 1. Write to Public Shard
+                    await publicRef.set({ [listId]: updateData }, { merge: true });
+
+                    // 2. Remove from Private Map
+                    const privateRef = db.collection('artifacts').doc(appId)
+                        .collection('user_profiles').doc(listOwnerId)
+                        .collection('lists').doc('lists');
+                    await privateRef.update({ [listId]: firebase.firestore.FieldValue.delete() });
+
+                    window.location.href = `?list=${listId}&type=public`;
                 } else {
-                    alert("Changing privacy type is currently disabled for maintenance.");
+                    // Public -> Private
+                    const privateRef = db.collection('artifacts').doc(appId)
+                        .collection('user_profiles').doc(listOwnerId)
+                        .collection('lists').doc('lists');
+
+                    // 1. Write to Private Map
+                    await privateRef.set({ [listId]: updateData }, { merge: true });
+
+                    // 2. Remove from Public Shard (listRef was set to the correct shard doc in loadList)
+                    await listRef.update({ [listId]: firebase.firestore.FieldValue.delete() });
+
+                    window.location.href = `?list=${listId}&type=private`;
                 }
             } else {
                 // Same privacy, just update fields
                 if (listType === 'public') {
-                    await listRef.update({
-                        [`${listId}.name`]: newName,
-                        [`${listId}.mode`]: newMode,
-                        [`${listId}.liveQuery`]: newMode === 'live' ? newQuery : "",
-                        [`${listId}.liveLogic`]: newMode === 'live' ? newLogic : "AND",
-                        // Update items if cleared?
-                        ...((newMode === 'live') ? { [`${listId}.items`]: [] } : {})
-                    });
+                    await updatePublicListInShard(listId, updateData);
                 } else {
                     // Private Map Update
                     await listRef.update({
                         [`${listId}.name`]: newName,
                         [`${listId}.mode`]: newMode,
-                        [`${listId}.liveQuery`]: newMode === 'live' ? newQuery : "",
-                        [`${listId}.liveLogic`]: newMode === 'live' ? newLogic : "AND",
-                        ...((newMode === 'live') ? { [`${listId}.items`]: [] } : {})
+                        [`${listId}.liveQuery`]: updateData.liveQuery,
+                        [`${listId}.liveLogic`]: updateData.liveLogic,
+                        [`${listId}.items`]: updateData.items
                     });
                 }
                 location.reload();
             }
         } catch (e) {
             alert("Save failed: " + e.message);
+        } finally {
+            saveListChangesBtn.disabled = false;
+            saveListChangesBtn.textContent = "Save Changes";
         }
     };
 }

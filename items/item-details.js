@@ -1,4 +1,4 @@
-import { auth, db, collectionName } from '../firebase-config.js';
+﻿import { auth, db, collectionName } from '../firebase-config.js';
 import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, processImageForUpload } from '../utils.js';
 
 // --- Constants ---
@@ -12,6 +12,8 @@ const LISTS_PER_PAGE = 6;
 let allPublicListsForThisItem = [];
 let listsCurrentPage = 1;
 let currentPrivateData = {};
+let loadedItemData = null; // NEW: Cache to store item data for status updates
+let activeDocRef = null; // Store reference for updates (Related Items etc)
 
 
 
@@ -275,8 +277,8 @@ function resetCropper() {
 
     let fitScale;
 
-    // Portrait → fit crop WIDTH
-    // Landscape / square → fit crop HEIGHT
+    // Portrait â†’ fit crop WIDTH
+    // Landscape / square â†’ fit crop HEIGHT
     if (imgH > imgW) {
         fitScale = cropSize / imgW;
     } else {
@@ -307,29 +309,24 @@ const startInteraction = (clientX, clientY) => {
     isDragging = true;
     startDrag = { x: clientX - currentPos.x, y: clientY - currentPos.y };
     cropCanvas.style.cursor = 'grabbing';
-    clampImagePosition();
 };
 
 const moveInteraction = (clientX, clientY) => {
     if (!isDragging) return;
-
     currentPos.x = clientX - startDrag.x;
     currentPos.y = clientY - startDrag.y;
-
     drawCropper();
 };
-
 
 const stopInteraction = () => {
     isDragging = false;
     cropCanvas.style.cursor = 'grab';
-    clampImagePosition();
 };
 
 // Mouse Listeners
-cropCanvas.onmousedown = (e) => startInteraction(e.clientX, e.clientY);
-window.onmousemove = (e) => moveInteraction(e.clientX, e.clientY);
-window.onmouseup = stopInteraction;
+cropCanvas.addEventListener('mousedown', (e) => startInteraction(e.clientX, e.clientY));
+window.addEventListener('mousemove', (e) => moveInteraction(e.clientX, e.clientY));
+window.addEventListener('mouseup', stopInteraction);
 
 // Touch Listeners
 cropCanvas.addEventListener('touchstart', (e) => {
@@ -347,24 +344,23 @@ window.addEventListener('touchmove', (e) => {
 window.addEventListener('touchend', stopInteraction);
 
 function drawCropper() {
+    clampImagePosition(); // Clamp BEFORE drawing to prevent "snapping" lag
     const ctx = cropCanvas.getContext('2d');
-    cropCanvas.width = 300; cropCanvas.height = 300;
+    cropCanvas.width = 300;
+    cropCanvas.height = 300;
     ctx.clearRect(0, 0, 300, 300);
     ctx.drawImage(cropperImg, currentPos.x, currentPos.y, cropperImg.width * currentScale, cropperImg.height * currentScale);
-    clampImagePosition();
 }
 
-// Drag & Zoom Listeners
-cropCanvas.onmousedown = (e) => { isDragging = true; startDrag = { x: e.clientX - currentPos.x, y: e.clientY - currentPos.y }; };
-window.onmousemove = (e) => { if (!isDragging) return; currentPos.x = e.clientX - startDrag.x; currentPos.y = e.clientY - startDrag.y; drawCropper(); };
-window.onmouseup = () => isDragging = false;
+// Zoom Listener
 zoomSlider.oninput = (e) => {
     const oldScale = currentScale;
-    currentScale = Math.max(parseFloat(e.target.value), zoomSlider.min);
+    currentScale = Math.max(parseFloat(e.target.value), parseFloat(zoomSlider.min));
 
     const centerX = 150;
     const centerY = 150;
 
+    // Adjust position to zoom toward the center
     currentPos.x = centerX - (centerX - currentPos.x) * (currentScale / oldScale);
     currentPos.y = centerY - (centerY - currentPos.y) * (currentScale / oldScale);
 
@@ -397,15 +393,18 @@ async function updateProfileCounters(userId) {
     const profileRef = db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(userId);
 
     try {
-        const snapshot = await userItemsRef.get();
+        const itemsDoc = await userItemsRef.doc('items').get();
         let itemsOwned = 0, itemsWished = 0, itemsOrdered = 0;
 
-        snapshot.forEach(doc => {
-            const status = doc.data().status;
-            if (status === 'Owned') itemsOwned++;
-            else if (status === 'Wished') itemsWished++;
-            else if (status === 'Ordered') itemsOrdered++;
-        });
+        if (itemsDoc.exists) {
+            const itemsMap = itemsDoc.data();
+            Object.values(itemsMap).forEach(item => {
+                const status = item.status;
+                if (status === 'Owned') itemsOwned++;
+                else if (status === 'Wished') itemsWished++;
+                else if (status === 'Ordered') itemsOrdered++;
+            });
+        }
 
         await profileRef.update({
             itemsOwned,
@@ -508,7 +507,6 @@ document.addEventListener('DOMContentLoaded', () => {
         setupAuthUI(user);
         renderComments(itemId);
         renderShops(itemId);
-        fetchAndRenderPublicLists(itemId);
     });
 
     if (submitCommentBtn) submitCommentBtn.addEventListener('click', postComment);
@@ -535,7 +533,7 @@ async function uploadImageToImgBB(file) {
     if (!file) return null;
     if (file.size > MAX_FILE_SIZE) throw new Error("Image file too large (max 5MB).");
 
-    // 🔥 Resize and convert to WebP before uploading (Matching add-item.js)
+    // ðŸ”¥ Resize and convert to WebP before uploading (Matching add-item.js)
     const webpFile = await processImageForUpload(file);
 
     const formData = new FormData();
@@ -814,24 +812,69 @@ function renderItemSkeleton() {
 
 async function fetchItemDetails(id) {
     // Render skeleton immediately
-    if (Object.keys(usernameCache).length === 0) { // Naive check to only show on first load if needed
+    if (Object.keys(usernameCache).length === 0) {
         renderItemSkeleton();
     } else if (!itemDetailsContent.querySelector('.item-metadata')) {
         renderItemSkeleton();
     }
 
     try {
-        const docRef = db.collection(targetCollection).doc(id);
-        const itemDoc = await docRef.get();
-        if (!itemDoc.exists) {
+        let itemData = null;
+        let foundInCollection = null;
+
+        // 1. Try 'item-review' (Unsharded, Direct Access)
+        if (targetCollection !== 'items') {
+            // If URL explicitly says collection=item-review, or default behavior
+            const reviewDoc = await db.collection(targetCollection).doc(id).get();
+            if (reviewDoc.exists) {
+                itemData = reviewDoc.data();
+                itemData.id = reviewDoc.id;
+                foundInCollection = targetCollection;
+                activeDocRef = db.collection(targetCollection).doc(id);
+            }
+        }
+
+        // 2. If trying for Main 'items', SCAN SHARDS
+        if (!itemData && (targetCollection === 'items' || !targetCollection)) {
+            // Optimization: Start scanning
+            // This can be slow. A better approach would be an Index, but per structure.txt limit:
+
+            let shardId = 1;
+            let found = false;
+
+            // Loop until found or reasonable limit (e.g., 20 shards seems safe for now)
+            while (!found && shardId < 50) {
+                const shardRef = db.collection(`items-${shardId}`).doc('items');
+                const shardDoc = await shardRef.get();
+
+                if (!shardDoc.exists) {
+                    // End of shards
+                    break;
+                }
+
+                const itemsArray = shardDoc.data().items || [];
+                const match = itemsArray.find(i => i.itemId === id);
+
+                if (match) {
+                    itemData = match;
+                    itemData.id = match.itemId; // Ensure id prop is set
+                    foundInCollection = `items-${shardId}`;
+                    activeDocRef = shardRef; // For shard, ref points to the shard doc. Update logic must handle map.
+                    found = true;
+                }
+                shardId++;
+            }
+        }
+
+        if (!itemData) {
             itemDetailsContent.innerHTML = `<p class="error-message">Item with ID: ${id} not found.</p>`;
             return;
         }
 
-        const itemData = itemDoc.data();
-        itemData.id = itemDoc.id;
+        loadedItemData = itemData; // Cache for other functions
 
         // --- NSFW CHECK START ---
+        // Reuse existing logic, assuming itemData is populated
         const itemAgeRating = itemData.itemAgeRating || '';
         if (itemAgeRating === '18+') {
             let allowNSFW = false;
@@ -883,14 +926,18 @@ async function fetchItemDetails(id) {
         // Only fetch personal/edit data if a user is actually logged in
         if (auth.currentUser) {
             const userId = auth.currentUser.uid;
-            const userStatusDocRef = getUserCollectionRef(db, userId).doc(id);
-            const userStatusSnap = await userStatusDocRef.get();
 
-            if (userStatusSnap.exists) {
-                const userData = userStatusSnap.data();
-                userStatus = userData.status;
-                privateData = userData.privateNotes || {};
-                currentPrivateData = privateData;
+            // Check status in User's own aggregated collection (NEW LOGIC)
+            // We need to fetch the 'items' doc and check the map for this ID
+            const userItemsDoc = await getUserCollectionRef(db, userId).doc('items').get();
+            if (userItemsDoc.exists) {
+                const map = userItemsDoc.data();
+                if (map[id]) {
+                    const userData = map[id];
+                    userStatus = userData.status;
+                    privateData = userData.privateNotes || {};
+                    currentPrivateData = privateData;
+                }
             }
 
             updateStatusSelection(userStatus, privateData);
@@ -904,6 +951,9 @@ async function fetchItemDetails(id) {
         // ALWAYS render the page for safe items (moved outside the auth check)
         renderItemDetails(itemData, userStatus, privateData, canEdit);
         setupRelatedItems(itemData, canEdit);
+
+        // Fetch Public Lists using the data we already have
+        fetchAndRenderPublicLists(itemData.id, itemData);
 
         // Manage Edit/Delete UI visibility
         if (canEdit) {
@@ -1155,7 +1205,7 @@ function setupEditForm(item) {
     editMessage.className = 'form-message';
 }
 
-// MODIFIED: Edit form submit handler for multiple images and modal closure
+// MODIFIED: Edit form submit handler for sharded architecture
 editItemForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!auth.currentUser || !itemId) return;
@@ -1164,106 +1214,141 @@ editItemForm.addEventListener('submit', async (e) => {
     editMessage.className = 'form-message';
 
     const userId = auth.currentUser.uid;
-    const itemDoc = await db.collection(targetCollection).doc(itemId).get();
-    if (!itemDoc.exists) {
-        editMessage.textContent = "Error: Item not found.";
-        editMessage.className = 'form-message error-message';
-        return;
-    }
-    const itemData = itemDoc.data();
-    const userRole = await checkUserPermissions(userId);
-    const isUploader = userId === itemData.uploaderId;
-    const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
 
-    if (!(isUploader || isAdminOrMod)) {
-        editMessage.textContent = "Permission denied.";
-        editMessage.className = 'form-message error-message';
-        return;
-    }
-
-    const updatedData = {
-        itemName: editTitleInput.value,
-        itemCategory: editCategorySelect.value,
-        itemAgeRating: editAgeRatingSelect.value,
-        itemScale: editScaleSelect.value,
-        itemReleaseDate: editReleaseDateInput.value,
-        isDraft: editDraftInput ? editDraftInput.checked : false,
-
-        lastEdited: firebase.firestore.FieldValue.serverTimestamp()
-    };
-
-    // --- UPDATED: Multi-Image & Thumbnail Logic ---
-    let finalImageObjects = [...currentItemImageUrls];
+    // 1. Find the item in Shards or Review
+    let collectionRef = null;
+    let currentItemData = null;
+    let foundShardId = null;
 
     try {
-        // 1. Handle New Cropped Thumbnail (95x95)
-        // This ensures the cropped image ALWAYS becomes Index 0
-        if (selectedThumbnailFile) {
-            editMessage.textContent = "Uploading new thumbnail...";
-            const thumbObject = await uploadImageToImgBB(selectedThumbnailFile);
-
-            // Replace slot 0 directly instead of moving the array
-            finalImageObjects[0] = thumbObject;
-
-            // Clean up the variable after assignment
-            selectedThumbnailFile = null;
+        if (targetCollection !== 'items') {
+            const doc = await db.collection(targetCollection).doc(itemId).get();
+            if (doc.exists) {
+                currentItemData = doc.data();
+                collectionRef = db.collection(targetCollection).doc(itemId);
+            }
         }
 
-        // 2. Handle Additional Multi-Image Uploads
-        if (selectedImageFiles.length > 0) {
-            const currentTotal = finalImageObjects.length;
-            editMessage.textContent = `Uploading ${selectedImageFiles.length} additional image(s)...`;
+        if (!currentItemData) {
+            // Scan shards
+            let shardId = 1;
+            while (shardId < 50) {
+                const shardRef = db.collection(`items-${shardId}`).doc('items');
+                const shardDoc = await shardRef.get();
+                if (!shardDoc.exists) break;
 
-            const uploadPromises = selectedImageFiles.map(file => uploadImageToImgBB(file));
-            const uploadedNewImages = await Promise.all(uploadPromises);
-
-            // Append new images after the thumbnail and existing images
-            finalImageObjects = [...finalImageObjects, ...uploadedNewImages];
-
-            // Reset file inputs
-            editImageInput.value = '';
-            selectedImageFiles = [];
+                const itemsArray = shardDoc.data().items || [];
+                const match = itemsArray.find(i => i.itemId === itemId);
+                if (match) {
+                    currentItemData = match;
+                    collectionRef = shardRef; // The shard doc
+                    foundShardId = shardId;
+                    break;
+                }
+                shardId++;
+            }
         }
 
-        // 3. Final Validation & Array Cleanup
-        if (finalImageObjects.length > MAX_IMAGE_COUNT) {
-            editMessage.textContent = `Error: Total images (${finalImageObjects.length}) exceeds maximum of ${MAX_IMAGE_COUNT}.`;
+        if (!currentItemData) {
+            editMessage.textContent = "Error: Item not found.";
             editMessage.className = 'form-message error-message';
             return;
         }
 
-        // Assign the ordered array to our update object
-        updatedData.itemImageUrls = finalImageObjects;
+        const userRole = await checkUserPermissions(userId);
+        const isUploader = userId === currentItemData.uploaderId;
+        const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
 
-    } catch (error) {
-        editMessage.textContent = `Upload failed: ${error.message}`;
-        editMessage.className = 'form-message error-message';
-        return;
-    }
+        if (!(isUploader || isAdminOrMod)) {
+            editMessage.textContent = "Permission denied.";
+            editMessage.className = 'form-message error-message';
+            return;
+        }
 
-    // Explicitly clean up legacy single-image fields
-    if (itemData.itemImageUrl) updatedData.itemImageUrl = firebase.firestore.FieldValue.delete();
-    if (itemData.itemImageBase64) updatedData.itemImageBase64 = firebase.firestore.FieldValue.delete();
-    if (itemData.itemImage) updatedData.itemImage = firebase.firestore.FieldValue.delete();
+        const updatedFields = {
+            itemName: editTitleInput.value,
+            itemCategory: editCategorySelect.value,
+            itemAgeRating: editAgeRatingSelect.value,
+            itemScale: editScaleSelect.value,
+            itemReleaseDate: editReleaseDateInput.value,
+            isDraft: editDraftInput ? editDraftInput.checked : false,
+            lastEdited: firebase.firestore.Timestamp.now() // Use helper or Timestamp directly
+        };
 
-    // --- END UPDATED Logic ---
+        // --- Multi-Image Logic ---
+        let finalImageObjects = [...currentItemImageUrls];
 
-    try {
-        await db.collection(targetCollection).doc(itemId).set(updatedData, { merge: true });
+        // 1. Thumbnail
+        if (selectedThumbnailFile) {
+            editMessage.textContent = "Uploading new thumbnail...";
+            const thumbObject = await uploadImageToImgBB(selectedThumbnailFile);
+            finalImageObjects[0] = thumbObject;
+            selectedThumbnailFile = null;
+        }
 
-        editMessage.textContent = "Details updated successfully! Closing in 1 second...";
+        // 2. Additional Images
+        if (selectedImageFiles.length > 0) {
+            editMessage.textContent = `Uploading ${selectedImageFiles.length} additional image(s)...`;
+            const uploadPromises = selectedImageFiles.map(file => uploadImageToImgBB(file));
+            const uploadedNewImages = await Promise.all(uploadPromises);
+            finalImageObjects = [...finalImageObjects, ...uploadedNewImages];
+            editImageInput.value = '';
+            selectedImageFiles = [];
+        }
+
+        if (finalImageObjects.length > MAX_IMAGE_COUNT) {
+            editMessage.textContent = `Error: Too many images.`;
+            editMessage.className = 'form-message error-message';
+            return;
+        }
+
+        updatedFields.itemImageUrls = finalImageObjects;
+
+        // Clean legacy fields if present in object
+        delete updatedFields.itemImageUrl;
+        delete updatedFields.itemImageBase64;
+        delete updatedFields.itemImage;
+
+        // Perform Update
+        if (foundShardId) {
+            // Sharded Update: Atomic read-modify-write required (using transaction for safety)
+            await db.runTransaction(async (transaction) => {
+                const shardDoc = await transaction.get(collectionRef);
+                if (!shardDoc.exists) throw "Shard missing";
+
+                const items = shardDoc.data().items || [];
+                const index = items.findIndex(i => i.itemId === itemId);
+
+                if (index === -1) throw "Item missing in shard during update";
+
+                const mergedItem = { ...items[index], ...updatedFields };
+                items[index] = mergedItem;
+
+                transaction.update(collectionRef, { items: items });
+            });
+        } else {
+            // Legacy/Review Collection Update
+            await collectionRef.set(updatedFields, { merge: true });
+        }
+
+
+        // --- Fan-Out Update ---
+        editMessage.textContent = "Syncing changes to user profiles...";
+        await fanOutItemUpdates(itemId, updatedFields);
+
+        editMessage.textContent = "Details updated and synced successfully!";
         editMessage.className = 'form-message success-message';
-
-        // Update local state
+        editMessage.className = 'form-message success-message';
         currentItemImageUrls = finalImageObjects;
 
         setTimeout(() => {
             closeEditModal();
             editToggleBtn.innerHTML = '<i class="bi bi-gear-wide-connected"></i>';
             fetchItemDetails(itemId);
-        }, 1000); // Slightly longer delay to allow user to see success
+        }, 1000);
 
     } catch (error) {
+        console.error(error);
         editMessage.textContent = `Error saving edits: ${error.message}`;
         editMessage.className = 'form-message error-message';
     }
@@ -1272,7 +1357,6 @@ editItemForm.addEventListener('submit', async (e) => {
 
 // --- Delete (Uses Modal) ---
 function setupDeleteButton(id) {
-    // MODIFIED: The structure in HTML for deleteContainer is now simpler and in the title bar
     deleteContainer.innerHTML = `
         <button id="deleteBtn" class="item-manage-btn" title="Delete Item Permanently"><i class="bi bi-trash3-fill"></i></button>
     `;
@@ -1289,32 +1373,60 @@ function showConfirmDelete(itemId) {
 
 
 async function handleDeleteItem(itemId) {
-    if (!auth.currentUser) {
-        authMessage.textContent = "You must be logged in.";
-        authMessage.className = 'form-message error-message';
-        return;
-    }
+    if (!auth.currentUser) return;
 
     try {
         const userId = auth.currentUser.uid;
-        const itemDoc = await db.collection(targetCollection).doc(itemId).get();
-        if (!itemDoc.exists) {
-            authMessage.textContent = "Error: Item not found in database.";
-            authMessage.className = 'form-message error-message';
-            return;
+
+        // Find Item
+        let collectionRef = null;
+        let foundShardId = null;
+        let currentItemData = null;
+
+        if (targetCollection !== 'items') {
+            const doc = await db.collection(targetCollection).doc(itemId).get();
+            if (doc.exists) {
+                currentItemData = doc.data();
+                collectionRef = db.collection(targetCollection).doc(itemId);
+            }
         }
-        const itemData = itemDoc.data();
+        if (!currentItemData) {
+            let shardId = 1;
+            while (shardId < 50) {
+                const shardRef = db.collection(`items-${shardId}`).doc('items');
+                const shardDoc = await shardRef.get();
+                if (shardDoc.exists) {
+                    const match = (shardDoc.data().items || []).find(i => i.itemId === itemId);
+                    if (match) {
+                        currentItemData = match;
+                        collectionRef = shardRef;
+                        foundShardId = shardId;
+                        break;
+                    }
+                }
+                shardId++;
+            }
+        }
+
+        if (!currentItemData) throw new Error("Item not found");
+
         const userRole = await checkUserPermissions(userId);
-        const isUploader = userId === itemData.uploaderId;
+        const isUploader = userId === currentItemData.uploaderId;
         const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
 
-        if (!(isUploader || isAdminOrMod)) {
-            authMessage.textContent = "Permission denied.";
-            authMessage.className = 'form-message error-message';
-            return;
+        if (!(isUploader || isAdminOrMod)) throw new Error("Permission denied");
+
+        if (foundShardId) {
+            await db.runTransaction(async (transaction) => {
+                const shardDoc = await transaction.get(collectionRef);
+                const items = shardDoc.data().items || [];
+                const newItems = items.filter(i => i.itemId !== itemId);
+                transaction.update(collectionRef, { items: newItems });
+            });
+        } else {
+            await collectionRef.delete();
         }
 
-        await db.collection(targetCollection).doc(itemId).delete();
         authMessage.textContent = "Item deleted successfully!";
         authMessage.className = 'form-message success-message';
         setTimeout(() => window.location.href = '../', 1500);
@@ -1340,23 +1452,26 @@ async function handleStatusUpdate(e) {
 
     const userId = auth.currentUser.uid;
     const newStatus = selectedStatus.value;
-    const userItemDocRef = getUserCollectionRef(db, userId).doc(itemId);
 
     statusMessage.textContent = `Saving...`;
     statusMessage.className = 'form-message';
 
     try {
-        // --- Get existing data first so we don't overwrite other status info ---
-        const existingDoc = await userItemDocRef.get();
-        let privateData = {};
-        if (existingDoc.exists && existingDoc.data().privateNotes) {
-            privateData = existingDoc.data().privateNotes;
-        }
+        // 1. Fetch current user items (Aggregated Map)
+        const userItemsDocRef = getUserCollectionRef(db, userId).doc('items');
+        const docSnap = await userItemsDocRef.get();
+        let itemsMap = docSnap.exists ? docSnap.data() : {};
 
-        // --- NEW: Fetch full item data for denormalization ---
-        const itemDoc = await db.collection(targetCollection).doc(itemId).get();
-        if (!itemDoc.exists) throw new Error("Item not found");
-        const itemData = itemDoc.data();
+        const currentData = itemsMap[itemId] || {};
+        let privateData = currentData.privateNotes || {};
+
+        // 2. Fetch Global Item Data for Denormalization
+        // 2. Fetch Global Item Data for Denormalization
+        // Use cached data from fetchItemDetails instead of refetching (which fails on shards)
+        if (!loadedItemData) {
+            throw new Error("Item data reference lost. Please refresh the page.");
+        }
+        const itemData = loadedItemData;
 
         const denormalizedData = {
             itemName: itemData.itemName,
@@ -1369,12 +1484,11 @@ async function handleStatusUpdate(e) {
             isDraft: itemData.isDraft || false
         };
 
-        // Merge visible UI fields into privateData
+        // 3. Harvest Private Notes from UI
         if (newStatus === 'Owned' || newStatus === 'Ordered') {
             privateData.amount = document.getElementById('privAmount')?.value || '1';
             privateData.price = document.getElementById('privPrice')?.value || '';
             privateData.shipping = document.getElementById('privShipping')?.value || '';
-            // Capture the Score field
             privateData.score = document.getElementById('privScore')?.value || '';
             privateData.store = document.getElementById('privStore')?.value || '';
 
@@ -1389,22 +1503,43 @@ async function handleStatusUpdate(e) {
             privateData.target = document.getElementById('privTarget')?.value || '';
         }
 
-        await userItemDocRef.set({
+        // 4. Update Map
+        itemsMap[itemId] = {
+            ...currentData,
             itemId: itemId,
             status: newStatus,
+            updatedAt: firebase.firestore.Timestamp.now(),
+            addedDate: currentData.addedDate || firebase.firestore.Timestamp.now(), // Preserve addedDate
             privateNotes: privateData,
-            addedDate: firebase.firestore.FieldValue.serverTimestamp(),
-            ...denormalizedData // Spread denormalized data
-        }, { merge: true });
+            ...denormalizedData
+        };
 
+        await userItemsDocRef.set(itemsMap);
+
+        // 5. Update Counters & UI
         await updateProfileCounters(userId);
 
-        // Update success message
+        // 6. Sync Rating to Global Collection (Only for Owners)
+        // User requested: "calculate for the users who own that item"
+        if (newStatus === 'Owned' && privateData.score) {
+            const scoreVal = parseFloat(privateData.score);
+            if (!isNaN(scoreVal)) {
+                await saveCommunityRating(itemId, userId, scoreVal);
+            } else {
+                // Invalid score, remove any existing rating
+                await deleteCommunityRating(itemId, userId);
+            }
+        } else {
+            // If not owned (or moved to Wished/Ordered) or no score, ensure no public rating exists
+            await deleteCommunityRating(itemId, userId);
+        }
+
         statusMessage.textContent = 'Status saved! Closing...';
         statusMessage.className = 'form-message success-message';
         currentPrivateData = privateData;
+        updateStatusSelection(newStatus, privateData);
 
-        // Auto-close logic: Wait 0.8 seconds, then hide form and refresh UI
+        // Auto-close logic
         setTimeout(() => {
             collectionStatusForm.style.display = 'none';
             if (statusToggleBtn) statusToggleBtn.classList.remove('active');
@@ -1413,7 +1548,8 @@ async function handleStatusUpdate(e) {
         }, 800);
 
     } catch (error) {
-        statusMessage.textContent = `Error: ${error.message}`;
+        console.error(error);
+        statusMessage.textContent = `Failed to update status: ${error.message}`;
         statusMessage.className = 'form-message error-message';
     }
 }
@@ -1426,10 +1562,12 @@ async function handleRemoveStatus() {
     }
 
     const userId = auth.currentUser.uid;
-    const userItemDocRef = getUserCollectionRef(db, userId).doc(itemId);
+    // Target the 'items' aggregated map
+    const userItemsDocRef = getUserCollectionRef(db, userId).doc('items');
+
     try {
-        const statusSnap = await userItemDocRef.get();
-        if (!statusSnap.exists) {
+        const docSnap = await userItemsDocRef.get();
+        if (!docSnap.exists || !docSnap.data()[itemId]) {
             statusMessage.textContent = "This item is not in your profile.";
             statusMessage.className = 'form-message info-message';
             return;
@@ -1446,7 +1584,14 @@ async function handleRemoveStatus() {
             statusMessage.textContent = 'Removing item from profile...';
             statusMessage.className = 'form-message';
             try {
-                await userItemDocRef.delete();
+                // Clean up community rating if it exists
+                await deleteCommunityRating(itemId, userId);
+
+                // Delete the specific item key from the map
+                await userItemsDocRef.update({
+                    [itemId]: firebase.firestore.FieldValue.delete()
+                });
+
                 await updateProfileCounters(userId);
                 statusMessage.textContent = 'Status removed.';
                 statusMessage.className = 'form-message success-message';
@@ -1461,15 +1606,14 @@ async function handleRemoveStatus() {
 }
 
 // --- Average Rating ---
+// --- Average Rating ---
 async function fetchAndDisplayAverageRating(itemId) {
     const ratingEl = document.getElementById('avgRatingValue');
     if (!ratingEl) return;
 
     try {
-        // Query all items in user_profiles subcollections with this itemId
-        // Note: This requires an index on field 'itemId' if the collection group is large,
-        // but for equality, it might work or prompt for index creation.
-        const querySnapshot = await db.collectionGroup(targetCollection)
+        // Query the dedicated 'ratings' collection
+        const querySnapshot = await db.collection('ratings')
             .where('itemId', '==', itemId)
             .get();
 
@@ -1478,13 +1622,10 @@ async function fetchAndDisplayAverageRating(itemId) {
 
         querySnapshot.forEach(doc => {
             const data = doc.data();
-            // privateNotes.score is where the rating is stored (1-10)
-            if (data.privateNotes && data.privateNotes.score) {
-                const score = parseFloat(data.privateNotes.score);
-                if (!isNaN(score) && score > 0) {
-                    totalScore += score;
-                    count++;
-                }
+            const score = parseFloat(data.score);
+            if (!isNaN(score) && score > 0) {
+                totalScore += score;
+                count++;
             }
         });
 
@@ -1497,8 +1638,28 @@ async function fetchAndDisplayAverageRating(itemId) {
 
     } catch (error) {
         console.error("Error fetching average rating:", error);
-        // If index is missing, we might want to fail gracefully
         ratingEl.textContent = 'N/A';
+    }
+}
+
+async function saveCommunityRating(itemId, userId, score) {
+    try {
+        await db.collection('ratings').doc(`${itemId}_${userId}`).set({
+            itemId: itemId,
+            userId: userId,
+            score: score,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    } catch (e) {
+        console.warn("Failed to save public rating:", e);
+    }
+}
+
+async function deleteCommunityRating(itemId, userId) {
+    try {
+        await db.collection('ratings').doc(`${itemId}_${userId}`).delete();
+    } catch (e) {
+        console.warn("Failed to delete public rating:", e);
     }
 }
 
@@ -1807,7 +1968,7 @@ function deleteComment(itemId, commentId, deleteButtonEl) {
                     commentMessage.className = 'form-message error-message';
                     if (deleteButtonEl) {
                         deleteButtonEl.disabled = false;
-                        deleteButtonEl.textContent = '×';
+                        deleteButtonEl.textContent = 'Ã—';
                     }
                     return;
                 }
@@ -1822,7 +1983,7 @@ function deleteComment(itemId, commentId, deleteButtonEl) {
                     commentMessage.className = 'form-message error-message';
                     if (deleteButtonEl) {
                         deleteButtonEl.disabled = false;
-                        deleteButtonEl.textContent = '×';
+                        deleteButtonEl.textContent = 'Ã—';
                     }
                     return;
                 }
@@ -1848,7 +2009,7 @@ function deleteComment(itemId, commentId, deleteButtonEl) {
                 commentMessage.className = 'form-message error-message';
                 if (deleteButtonEl) {
                     deleteButtonEl.disabled = false;
-                    deleteButtonEl.textContent = '×';
+                    deleteButtonEl.textContent = 'Ã—';
                 }
             }
         },
@@ -2140,7 +2301,7 @@ function deleteShop(itemId, shopId, deleteButtonEl) {
                     ShopMessage.className = 'form-message error-message';
                     if (deleteButtonEl) {
                         deleteButtonEl.disabled = false;
-                        deleteButtonEl.textContent = '×';
+                        deleteButtonEl.textContent = 'Ã—';
                     }
                     return;
                 }
@@ -2157,7 +2318,7 @@ function deleteShop(itemId, shopId, deleteButtonEl) {
                     ShopMessage.className = 'form-message error-message';
                     if (deleteButtonEl) {
                         deleteButtonEl.disabled = false;
-                        deleteButtonEl.textContent = '×';
+                        deleteButtonEl.textContent = 'Ã—';
                     }
                     return;
                 }
@@ -2182,7 +2343,7 @@ function deleteShop(itemId, shopId, deleteButtonEl) {
                 ShopMessage.className = 'form-message error-message';
                 if (deleteButtonEl) {
                     deleteButtonEl.disabled = false;
-                    deleteButtonEl.textContent = '×';
+                    deleteButtonEl.textContent = 'Ã—';
                 }
             }
         },
@@ -2233,10 +2394,10 @@ closeListModalBtn.onclick = () => listModal.style.display = 'none';
 async function loadUserLists() {
     const userId = auth.currentUser.uid;
 
-    // 1. Reference for Private Lists
+    // 1. Reference for Private Lists (Single Doc)
     const privateListsRef = db.collection('artifacts').doc('default-app-id')
         .collection('user_profiles').doc(userId)
-        .collection('lists');
+        .collection('lists').doc('lists');
 
     // 2. Reference for Public Lists owned by this user
     const publicListsRef = db.collection('public_lists').where('userId', '==', userId);
@@ -2251,11 +2412,12 @@ async function loadUserLists() {
         ]);
 
         // Populate Private Lists
-        privateSnap.forEach(doc => {
-            const list = doc.data();
-            // Store type in value: "type|id"
-            existingListsDropdown.innerHTML += `<option value="private|${doc.id}">${list.name} (Private)</option>`;
-        });
+        if (privateSnap.exists) {
+            const privateMap = privateSnap.data();
+            Object.entries(privateMap).forEach(([id, list]) => {
+                existingListsDropdown.innerHTML += `<option value="private|${id}">${list.name} (Private)</option>`;
+            });
+        }
 
         // Populate Public Lists
         publicSnap.forEach(doc => {
@@ -2279,16 +2441,27 @@ async function addItemToList(combinedValue) {
     if (type === 'public') {
         listRef = db.collection('public_lists').doc(listId);
     } else {
+        // Private List: List ID is a key in the 'lists' document
         listRef = db.collection('artifacts').doc('default-app-id')
             .collection('user_profiles').doc(userId)
-            .collection('lists').doc(listId);
+            .collection('lists').doc('lists');
     }
 
     try {
-        await listRef.update({
-            items: firebase.firestore.FieldValue.arrayUnion(itemId),
-            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        if (type === 'public') {
+            await listRef.update({
+                items: firebase.firestore.FieldValue.arrayUnion(itemId),
+                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+            });
+        } else {
+            // Private Map Update
+            await listRef.set({
+                [listId]: {
+                    items: firebase.firestore.FieldValue.arrayUnion(itemId),
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                }
+            }, { merge: true });
+        }
 
         listMessage.textContent = "Item added to list!";
         listMessage.className = "form-message success-message";
@@ -2320,22 +2493,39 @@ createNewListBtn.onclick = async () => {
 
     try {
         let newListRef;
+        let newListId = db.collection('dummy').doc().id; // Generate ID
+
         if (privacy === 'public') {
-            newListRef = db.collection('public_lists').doc();
+            newListRef = db.collection('public_lists').doc(newListId);
         } else {
             newListRef = db.collection('artifacts').doc('default-app-id')
                 .collection('user_profiles').doc(userId)
-                .collection('lists').doc();
+                .collection('lists').doc('lists');
         }
 
-        await newListRef.set({
-            name: name,
-            privacy: privacy,
-            mode: 'static',
-            items: [itemId],
-            createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-            userId: userId
-        });
+        if (privacy === 'public') {
+            await newListRef.set({
+                name: name,
+                privacy: privacy,
+                mode: 'static',
+                items: [itemId],
+                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                userId: userId
+            });
+        } else {
+            // Private Map Set
+            await newListRef.set({
+                [newListId]: {
+                    name: name,
+                    privacy: privacy,
+                    mode: 'static',
+                    items: [itemId],
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    userId: userId,
+                    id: newListId // Useful to store ID inside too
+                }
+            }, { merge: true });
+        }
 
         listMessage.textContent = "List created and item added!";
         listMessage.className = "form-message success-message";
@@ -2407,10 +2597,22 @@ function itemMatchesLiveQuery(itemData, query, logic = 'AND') {
 }
 
 
-async function fetchAndRenderPublicLists(itemId) {
+async function fetchAndRenderPublicLists(itemId, providedItemData = null) {
     try {
-        const itemDoc = await db.collection(targetCollection).doc(itemId).get();
-        const itemData = itemDoc.data();
+        let itemData = providedItemData;
+
+        if (!itemData) {
+            // Fallback: This might fail for sharded items if not consistent, but keeps existing logic for legacy/review
+            const itemDoc = await db.collection(targetCollection).doc(itemId).get();
+            if (itemDoc.exists) {
+                itemData = itemDoc.data();
+            }
+        }
+
+        if (!itemData) {
+            console.warn("fetchAndRenderPublicLists: itemData could not be retrieved.");
+            return;
+        }
 
         // OPTIMIZED: Fetch ONLY relevant lists in parallel
         // 1. Static Lists: Direct query for lists containing this item
@@ -2495,7 +2697,7 @@ function renderListsPage(page) {
                 </div>
                 <div class="list-info">
                     <h3>${list.name || 'Untitled List'}</h3>
-                    <span>${list.items?.length || 0} Items • ${list.type}</span>
+                    <span>${list.items?.length || 0} Items â€¢ ${list.type}</span>
                 </div>
             </div>
         `;
@@ -2600,10 +2802,8 @@ function renderPrivateFields(status, existingData = {}) {
     }
 }
 
+// --- Related Items Logic (Fixed) ---
 
-
-
-// --- DOM Elements ---
 const relatedEditor = document.getElementById('relatedEditor');
 const editRelatedBtn = document.getElementById('editRelatedBtn');
 const relatedUrlInput = document.getElementById('relatedUrlInput');
@@ -2611,24 +2811,60 @@ const addRelatedBtn = document.getElementById('addRelatedBtn');
 const relatedItemsContainer = document.getElementById('relatedItemsContainer');
 const relatedMessage = document.getElementById('relatedMessage');
 
-// --- State ---
-let isEditMode = false;
 let currentRelatedUrls = [];
-let renderToken = 0;
-let messageTimeout = null;
 
-// --- Setup ---
+// --- Helper: Fetch Item by ID (Cross-Shard) ---
+async function fetchItemById(id) {
+    if (!id) return null;
+
+    // 1. Try Cache
+    if (loadedItemData && loadedItemData.id === id) return loadedItemData;
+
+    // 2. Try 'item-review'
+    try {
+        const reviewDoc = await db.collection('item-review').doc(id).get();
+        if (reviewDoc.exists) {
+            const data = reviewDoc.data();
+            data.id = reviewDoc.id;
+            return data;
+        }
+    } catch (e) { console.warn("Review lookup failed", e); }
+
+    // 3. Scan Shards (Optimized Limit)
+    let shardId = 1;
+    while (shardId < 20) {
+        try {
+            const shardRef = db.collection(`items-${shardId}`).doc('items');
+            const shardDoc = await shardRef.get();
+            if (!shardDoc.exists) break;
+
+            const items = shardDoc.data().items || [];
+            const match = items.find(i => i.itemId === id);
+            if (match) {
+                match.id = match.itemId;
+                return match;
+            }
+        } catch (e) { break; }
+        shardId++;
+    }
+    return null;
+}
+
 function setupRelatedItems(itemData, canEdit) {
     currentRelatedUrls = [...new Set(itemData.relatedUrls || [])];
 
     if (canEdit && editRelatedBtn) {
         editRelatedBtn.style.display = 'inline-block';
-
         editRelatedBtn.onclick = () => {
-            isEditMode = !isEditMode;
-            relatedEditor.style.display = isEditMode ? 'block' : 'none';
-            toggleRemoveButtons();
+            if (relatedEditor.style.display === 'none') {
+                relatedEditor.style.display = 'block';
+            } else {
+                relatedEditor.style.display = 'none';
+            }
         };
+    } else {
+        if (editRelatedBtn) editRelatedBtn.style.display = 'none';
+        if (relatedEditor) relatedEditor.style.display = 'none';
     }
 
     if (addRelatedBtn) {
@@ -2638,254 +2874,204 @@ function setupRelatedItems(itemData, canEdit) {
     renderRelatedItems(currentRelatedUrls);
 }
 
-// --- UI Helpers ---
-function toggleRemoveButtons() {
-    document.querySelectorAll('.remove-related-btn').forEach(btn => {
-        btn.style.display = isEditMode ? 'flex' : 'none';
-    });
-}
-
-function showRelatedMessage(text, success = true) {
-    clearTimeout(messageTimeout);
-
-    relatedMessage.textContent = text;
-    relatedMessage.className = `form-message ${success ? 'success-message' : 'error-message'}`;
-    relatedMessage.style.opacity = '1';
-
-    messageTimeout = setTimeout(() => {
-        relatedMessage.style.opacity = '0';
-    }, 1000);
-}
-
-// --- Firestore Actions (SILENT) ---
-async function handleAddRelated() {
-    const url = relatedUrlInput.value.trim();
-    if (!url || currentRelatedUrls.includes(url)) return;
-
-    // optimistic UI
-    currentRelatedUrls.push(url);
-    renderRelatedItems(currentRelatedUrls);
-    relatedUrlInput.value = '';
-    showRelatedMessage('Related item added!', true);
-
-    try {
-        await db.collection(targetCollection).doc(itemId).update({
-            relatedUrls: firebase.firestore.FieldValue.arrayUnion(url)
-        });
-    } catch (error) {
-        // rollback on failure
-        currentRelatedUrls = currentRelatedUrls.filter(u => u !== url);
-        renderRelatedItems(currentRelatedUrls);
-        showRelatedMessage(error.message, false);
-    }
-}
-
-async function handleRemoveRelated(urlToRemove) {
-    // optimistic UI (instant, silent)
-    currentRelatedUrls = currentRelatedUrls.filter(u => u !== urlToRemove);
-    renderRelatedItems(currentRelatedUrls);
-    showRelatedMessage('Related item removed', true);
-
-    try {
-        await db.collection(targetCollection).doc(itemId).update({
-            relatedUrls: firebase.firestore.FieldValue.arrayRemove(urlToRemove)
-        });
-    } catch (error) {
-        // rollback on failure
-        currentRelatedUrls.push(urlToRemove);
-        renderRelatedItems(currentRelatedUrls);
-        showRelatedMessage(error.message, false);
-    }
-}
-
-// --- Rendering (async-safe, de-duped) ---
 async function renderRelatedItems(urls) {
-    const myToken = ++renderToken;
-    relatedItemsContainer.innerHTML = '';
-    if (!urls.length) return;
+    if (!relatedItemsContainer) return;
+
+    if (!urls || urls.length === 0) {
+        relatedItemsContainer.innerHTML = '<p class="no-data-text">No related items.</p>';
+        return;
+    }
+
+    relatedItemsContainer.innerHTML = '<p style="font-size:0.8em; color:#888;">Loading details...</p>';
+
+    const cards = [];
 
     for (const url of urls) {
-        if (myToken !== renderToken) return;
+        let label = "External Link";
+        let subLabel = new URL(url).hostname;
+        let imgUrl = "https://placehold.co/100?text=Link";
+        let isInternal = false;
 
         try {
-            const urlObj = new URL(url);
-            const relatedId = urlObj.searchParams.get('id');
-            if (!relatedId) continue;
+            const u = new URL(url, window.location.origin);
+            const idParam = u.searchParams.get('id');
 
-            const relatedDoc = await db.collection('items').doc(relatedId).get();
-            if (myToken !== renderToken || !relatedDoc.exists) return;
-
-            const data = relatedDoc.data();
-            const previewUrl =
-                data.itemImageUrls?.[0]?.url ||
-                'https://placehold.co/200x200?text=No+Image';
-
-            if (relatedItemsContainer.querySelector(`[data-url="${url}"]`)) continue;
-
-            const wrapper = document.createElement('div');
-            wrapper.className = 'related-item-wrapper';
-            wrapper.dataset.url = url;
-
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'remove-related-btn';
-            removeBtn.innerHTML = '&times;';
-            removeBtn.style.display = isEditMode ? 'flex' : 'none';
-            removeBtn.onclick = e => {
-                e.preventDefault();
-                handleRemoveRelated(url);
-            };
-
-            const card = document.createElement('a');
-            card.href = url;
-            card.className = 'related-item-card';
-            card.innerHTML = `
-                <div class="related-img-wrapper">
-                    <img src="${previewUrl}" class="related-preview-img">
-                </div>
-                <span class="related-item-title">
-                    ${data.itemName || 'Untitled'}
-                </span>
-            `;
-
-            wrapper.appendChild(removeBtn);
-            wrapper.appendChild(card);
-            relatedItemsContainer.appendChild(wrapper);
-
-        } catch (err) {
-            console.error('Render error:', err);
+            if (idParam) {
+                isInternal = true;
+                const itemData = await fetchItemById(idParam);
+                if (itemData) {
+                    label = itemData.itemName || "Unknown Item";
+                    subLabel = itemData.itemCategory || "Item";
+                    // Handle image array or string
+                    if (Array.isArray(itemData.itemImageUrls) && itemData.itemImageUrls.length > 0) {
+                        imgUrl = itemData.itemImageUrls[0].url || itemData.itemImageUrls[0];
+                    } else if (itemData.itemImageUrl) {
+                        imgUrl = itemData.itemImageUrl;
+                    }
+                } else {
+                    label = "Item Not Found";
+                    subLabel = `ID: ${idParam}`;
+                }
+            }
+        } catch (e) {
+            console.warn("Error parsing URL", e);
         }
+
+        cards.push(`
+            <div class="related-card-wrapper">
+                <a href="${url}" class="related-item-card" target="${isInternal ? '_self' : '_blank'}">
+                    <div class="related-img-container">
+                        <img src="${imgUrl}" alt="${label}" onerror="this.src='https://placehold.co/100?text=Error'">
+                    </div>
+                    <div class="related-info">
+                        <span class="related-title" title="${label}">${label}</span>
+                        <span class="related-sub" title="${subLabel}">${subLabel}</span>
+                    </div>
+                </a>
+                ${activeDocRef && editRelatedBtn && editRelatedBtn.style.display !== 'none' ?
+                `<button class="mini-delete-btn related-del-btn" onclick="handleRemoveRelated('${url}')" title="Remove">&times;</button>`
+                : ''}
+            </div>
+        `);
+    }
+
+    relatedItemsContainer.innerHTML = `
+        <div class="related-grid">
+            ${cards.join('')}
+        </div>
+    `;
+}
+
+async function handleAddRelated() {
+    if (!relatedUrlInput || !activeDocRef) return;
+    const url = relatedUrlInput.value.trim();
+    if (!url) return;
+
+    if (currentRelatedUrls.includes(url)) {
+        alert("Link already exists.");
+        return;
+    }
+
+    relatedMessage.textContent = "Adding...";
+    relatedMessage.className = "form-message";
+
+    try {
+        const isSharded = activeDocRef.path.includes('items-');
+
+        if (isSharded) {
+            const docSnap = await activeDocRef.get();
+            let items = docSnap.data().items || [];
+            const idx = items.findIndex(i => i.itemId === itemId);
+            if (idx !== -1) {
+                const item = items[idx];
+                const urls = item.relatedUrls || [];
+                if (!urls.includes(url)) {
+                    urls.push(url);
+                    items[idx] = { ...item, relatedUrls: urls };
+                    await activeDocRef.update({ items: items });
+                }
+            }
+        } else {
+            await activeDocRef.update({
+                relatedUrls: firebase.firestore.FieldValue.arrayUnion(url)
+            });
+        }
+
+        currentRelatedUrls.push(url);
+        renderRelatedItems(currentRelatedUrls);
+        relatedUrlInput.value = '';
+        relatedMessage.textContent = "Added!";
+        relatedMessage.className = "form-message success-message";
+        setTimeout(() => { relatedMessage.textContent = ''; }, 2000);
+
+    } catch (e) {
+        console.error(e);
+        relatedMessage.textContent = "Error adding.";
+        relatedMessage.className = "form-message error-message";
     }
 }
 
+async function handleRemoveRelated(url) {
+    if (!activeDocRef) return;
+    if (!confirm("Remove link?")) return;
+
+    try {
+        const isSharded = activeDocRef.path.includes('items-');
+
+        if (isSharded) {
+            const docSnap = await activeDocRef.get();
+            let items = docSnap.data().items || [];
+            const idx = items.findIndex(i => i.itemId === itemId);
+            if (idx !== -1) {
+                const item = items[idx];
+                let urls = item.relatedUrls || [];
+                if (urls.includes(url)) {
+                    urls = urls.filter(u => u !== url);
+                    items[idx] = { ...item, relatedUrls: urls };
+                    await activeDocRef.update({ items: items });
+                }
+            }
+        } else {
+            await activeDocRef.update({
+                relatedUrls: firebase.firestore.FieldValue.arrayRemove(url)
+            });
+        }
+
+        currentRelatedUrls = currentRelatedUrls.filter(u => u !== url);
+        renderRelatedItems(currentRelatedUrls);
+
+    } catch (e) {
+        console.error(e);
+        alert("Error removing link");
+    }
+}
+
+
+
+
+// --- End of File ---
+
+// --- Rating Helpers ---
 
 function setupStarRating() {
-    const container = document.getElementById('priorityStarRating');
-    const input = document.getElementById('privPriority');
-    if (!container || !input) return;
+    const starContainer = document.getElementById('priorityStarRating');
+    const priorityInput = document.getElementById('privPriority');
 
-    const stars = container.querySelectorAll('i');
-    let currentValue = parseInt(input.value) || 0;
+    if (!starContainer || !priorityInput) return;
 
-    // Initial render
-    updateStars(currentValue);
+    const stars = starContainer.querySelectorAll('i');
+
+    // Initial highlight
+    const initialVal = parseInt(priorityInput.value || 0);
+    highlightStars(stars, initialVal);
 
     stars.forEach(star => {
-        star.addEventListener('mouseover', () => {
-            const hoverValue = parseInt(star.dataset.value);
-            updateStars(hoverValue, true);
-        });
-
-        star.addEventListener('mouseout', () => {
-            updateStars(currentValue);
-        });
-
-        star.addEventListener('click', () => {
-            currentValue = parseInt(star.dataset.value);
-            input.value = currentValue;
-            updateStars(currentValue);
-        });
-    });
-
-    function updateStars(value, isHover = false) {
-        stars.forEach(s => {
-            const starVal = parseInt(s.dataset.value);
-            s.classList.remove('active', 'hover');
-            if (starVal <= value) {
-                s.classList.add(isHover ? 'hover' : 'active');
-            }
-        });
-    }
-}
-
-// --- Console Command for Re-uploading Resized Images ---
-window.reuploadResizedImages = async function () {
-    if (!auth.currentUser || !itemId) {
-        console.error("You must be logged in and viewing an item.");
-        return;
-    }
-
-    console.log("Starting re-upload process...");
-
-    // Get fresh data
-    const itemDoc = await db.collection(targetCollection).doc(itemId).get();
-    if (!itemDoc.exists) {
-        console.error("Item not found.");
-        return;
-    }
-    const itemData = itemDoc.data();
-
-    // Check permissions
-    const userId = auth.currentUser.uid;
-    const userRole = await checkUserPermissions(userId);
-    const isUploader = userId === itemData.uploaderId;
-    const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
-
-    if (!(isUploader || isAdminOrMod)) {
-        console.error("Permission denied: You are not the uploader or an admin.");
-        return;
-    }
-
-    const currentImages = Array.isArray(itemData.itemImageUrls) && itemData.itemImageUrls.length > 0
-        ? itemData.itemImageUrls
-        : [itemData.itemImageUrl, itemData.itemImageBase64, itemData.itemImage]
-            .filter(url => url)
-            .map(url => typeof url === 'string' ? { url: url } : url)
-            .filter(obj => obj && obj.url);
-
-    if (currentImages.length === 0) {
-        console.log("No images to re-upload.");
-        return;
-    }
-
-    console.log("Found " + currentImages.length + " images. Processing...");
-    const newImages = [];
-
-    for (let i = 0; i < currentImages.length; i++) {
-        const imgObj = currentImages[i];
-        console.log("Processing image " + (i + 1) + "/" + currentImages.length + ": " + imgObj.url);
-
-        try {
-            // Fetch the image
-            const response = await fetch(imgObj.url, { mode: 'cors' });
-            if (!response.ok) throw new Error("Failed to fetch image: " + response.statusText);
-
-            const blob = await response.blob();
-            // Create a File object
-            const file = new File([blob], "image_" + Date.now() + "_" + i + ".webp", { type: blob.type });
-
-            // Upload (this handles resizing via processImageForUpload)
-            const newImgObj = await uploadImageToImgBB(file);
-            newImages.push(newImgObj);
-
-            console.log("Image " + (i + 1) + " re-uploaded successfully: " + newImgObj.url);
-
-        } catch (error) {
-            console.error("Error processing image " + (i + 1) + ":", error);
-            console.error("Aborting process to prevent partial data loss.");
-            return;
-        }
-    }
-
-    // Update Firestore
-    try {
-        console.log("Updating Firestore...");
-        const updates = {
-            itemImageUrls: newImages
+        star.onmouseover = () => {
+            const val = parseInt(star.dataset.value);
+            highlightStars(stars, val);
         };
 
-        if (itemData.itemImageUrl) updates.itemImageUrl = firebase.firestore.FieldValue.delete();
-        if (itemData.itemImageBase64) updates.itemImageBase64 = firebase.firestore.FieldValue.delete();
-        if (itemData.itemImage) updates.itemImage = firebase.firestore.FieldValue.delete();
+        star.onmouseout = () => {
+            const currentVal = parseInt(priorityInput.value || 0);
+            highlightStars(stars, currentVal);
+        };
 
-        await db.collection(targetCollection).doc(itemId).update(updates);
-        console.log("Firestore updated successfully.");
+        star.onclick = () => {
+            const val = parseInt(star.dataset.value);
+            priorityInput.value = val;
+            highlightStars(stars, val);
+        };
+    });
+}
 
-        console.log("Re-upload complete. Reloading page...");
-        alert("Images successfully re-processed and re-uploaded.");
-        window.location.reload();
+function highlightStars(stars, value) {
+    stars.forEach(star => {
+        const starVal = parseInt(star.dataset.value);
+        if (starVal <= value) {
+            star.style.color = 'gold';
+        } else {
+            star.style.color = '#ccc';
+        }
+    });
+}
 
-    } catch (error) {
-        console.error("Error updating Firestore:", error);
-        alert("Error updating Firestore: " + error.message);
-    }
-};

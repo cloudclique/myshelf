@@ -800,7 +800,11 @@ async function proceedWithUpload() {
     uploadStatus.textContent = "Starting upload...";
     uploadStatus.className = 'form-message';
 
+    // Generate a new ID for the item
+    const newItemId = db.collection('items').doc().id;
+
     const itemData = {
+        itemId: newItemId, // Ensure ID is part of the object
         uploaderId: currentUserId,
         uploaderName: currentUserName,
         itemName: itemNameInput.value,
@@ -810,41 +814,73 @@ async function proceedWithUpload() {
         itemScale: itemScaleInput.value,
         tags: itemTagsInput.value.replace(/\?/g, ',').split(',').map(tag => tag.trim()).filter(tag => tag),
         isDraft: itemDraftInput ? itemDraftInput.checked : false,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        createdAt: new Date()
     };
 
     try {
         const userRole = await checkUserRole(currentUserId);
         const isStaff = ['admin', 'mod'].includes(userRole);
-        const targetCollection = isStaff ? itemsCollectionName : 'item-review';
 
+        // Handle images
         uploadStatus.textContent = `Uploading ${selectedImageFiles.length} image(s)...`;
         const uploadPromises = selectedImageFiles.map(file => uploadImageToImgbb(file));
         const uploadedImageObjects = await Promise.all(uploadPromises);
-
         itemData.itemImageUrls = uploadedImageObjects;
 
-        // If it's a review, we might want to flag it or just know it's in a different collection
-        const docRef = await db.collection(targetCollection).add(itemData);
-
-        if (isStaff) {
-            uploadStatus.textContent = "Item uploaded successfully!";
-            uploadStatus.className = 'form-message success-message';
-            setTimeout(() => {
-                window.location.href = `../items/?id=${docRef.id}`;
-            }, 1000);
-        } else {
-            // Trigger ShelfBug Notification
-            sendShelfBugNotification(currentUserId, itemData.itemName, docRef.id);
+        if (!isStaff) {
+            // Non-staff: Review Queue (Unsharded for now)
+            await db.collection('item-review').doc(newItemId).set(itemData);
+            sendShelfBugNotification(currentUserId, itemData.itemName, newItemId);
 
             uploadStatus.textContent = "Item submitted for review! Check your messages.";
             uploadStatus.className = 'form-message success-message';
-            setTimeout(() => {
-                // Redirect user to their chat or home? User asked for message "with the link". 
-                // Redirecting to home seems safer as they can check chat there.
-                window.location.href = `../index.html`;
-            }, 2000);
+            setTimeout(() => { window.location.href = `../index.html`; }, 2000);
+            return;
         }
+
+        // Staff: Write to Global Shards
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('items_sharding');
+
+        await db.runTransaction(async (transaction) => {
+            const metaDoc = await transaction.get(metadataRef);
+            let currentShardId = 1;
+            let currentCount = 0;
+
+            if (metaDoc.exists) {
+                const meta = metaDoc.data();
+                currentShardId = meta.currentShardId || 1;
+                currentCount = meta.count || 0;
+            }
+
+            const MAX_ITEMS_PER_SHARD = 500;
+            let targetShardId = currentShardId;
+
+            if (currentCount >= MAX_ITEMS_PER_SHARD) {
+                targetShardId++;
+                currentCount = 0;
+            }
+
+            const shardRef = db.collection(`items-${targetShardId}`).doc('items');
+            const shardDoc = await transaction.get(shardRef);
+
+            let itemsArray = [];
+            if (shardDoc.exists) {
+                const data = shardDoc.data();
+                itemsArray = data.items || [];
+            }
+
+            itemsArray.push(itemData);
+
+            transaction.set(shardRef, { items: itemsArray });
+            transaction.set(metadataRef, { currentShardId: targetShardId, count: currentCount + 1 }, { merge: true });
+        });
+
+        uploadStatus.textContent = "Item uploaded successfully!";
+        uploadStatus.className = 'form-message success-message';
+        setTimeout(() => {
+            window.location.href = `../items/?id=${newItemId}`;
+        }, 1000);
 
     } catch (e) {
         console.error(e);

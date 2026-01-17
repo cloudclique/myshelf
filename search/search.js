@@ -192,29 +192,51 @@ function updateURLPage() {
 async function fetchAllItems() {
     loadingStatus.textContent = '';
 
-    // Only show skeletons if grid is empty (initial load)
     if (latestAdditionsGrid.children.length === 0) {
         renderSkeletonGrid();
     }
 
     try {
-        const snapshot = await db
-            .collection(collectionName)
-            .orderBy('createdAt', 'desc')
-            .get();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('items_sharding');
+        const metaSnap = await metadataRef.get();
+        let maxShard = 1;
+        if (metaSnap.exists) {
+            maxShard = metaSnap.data().currentShardId || 1;
+        }
 
-        allItems = snapshot.docs.map(doc => {
-            const data = doc.data();
+        allItems = [];
+        const shardPromises = [];
+        // Fetch all shards in parallel
+        for (let i = 1; i <= maxShard; i++) {
+            shardPromises.push(db.collection(`items-${i}`).doc('items').get());
+        }
 
-            if (Array.isArray(data.tags)) {
-                data.tags = data.tags.map(tag => (tag || '').toLowerCase());
+        const snapshots = await Promise.all(shardPromises);
+
+        snapshots.forEach(doc => {
+            if (doc.exists) {
+                const items = doc.data().items || [];
+                items.forEach(item => {
+                    // Normalize data
+                    if (Array.isArray(item.tags)) {
+                        item.tags = item.tags.map(tag => (tag || '').toLowerCase());
+                    }
+                    item.id = item.itemId; // Ensure ID access
+                    allItems.push(item);
+                });
             }
-
-            data.id = doc.id;
-            return data;
         });
 
-        // --- NO LONGER FILTERING NSFW ---
+        // Also fetch legacy/review items if needed, but assuming migration moved everything to shards.
+
+        // Sort client-side since we lost DB sorting
+        allItems.sort((a, b) => {
+            const dateA = a.createdAt?.seconds || 0;
+            const dateB = b.createdAt?.seconds || 0;
+            return dateB - dateA; // Descending
+        });
+
         filteredItems = [...allItems];
 
         restoreStateFromURL();
@@ -496,13 +518,42 @@ async function fetchPublicLists() {
 
     grid.innerHTML = '<p>Loading lists...</p>';
 
+    // try {  <-- Removing this outer try
     try {
-        const snapshot = await db.collection('public_lists').orderBy('createdAt', 'desc').get();
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+        const metaSnap = await metadataRef.get();
+        let maxShard = 1;
 
-        allPublicLists = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        if (metaSnap.exists) {
+            maxShard = metaSnap.data().currentShardId || 1;
+        } else {
+            // Fallback: try to scan a few if metadata is missing (e.g. migration validation)
+            maxShard = 5;
+        }
+
+        allPublicLists = [];
+        const promises = [];
+
+        // Parallel fetch for speed
+        for (let i = 1; i <= maxShard; i++) {
+            promises.push(db.collection(`lists-${i}`).doc('lists').get().then(doc => ({ doc, shardId: i })));
+        }
+
+        const results = await Promise.all(promises);
+
+        results.forEach(({ doc, shardId }) => {
+            if (doc.exists) {
+                const listMap = doc.data();
+                Object.entries(listMap).forEach(([key, list]) => {
+                    list.id = list.id || list.listId || key;
+                    list.shardId = shardId; // Attach shardId
+                    allPublicLists.push(list);
+                });
+            }
+        });
+
+        allPublicLists.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 
         // Initialize filtered list with all lists
         filteredPublicLists = [...allPublicLists];
@@ -547,7 +598,7 @@ function renderPublicLists(page) {
 
     paginatedLists.forEach(list => {
         const card = document.createElement('a');
-        card.href = `../lists/?list=${list.id}&type=public`;
+        card.href = `../lists/?list=${list.id}&type=public&shard=${list.shardId}`;
         card.className = 'item-card-link';
 
         const listIcon = list.mode === 'live' ? 'bi-journal-code' : 'bi-journal-bookmark-fill';

@@ -1,0 +1,76 @@
+/**
+ * Worker script to proxy image uploads to imgbb.com, hiding the API key.
+ * This uses the modern Module Worker format.
+ */
+
+// Define the ImgBB upload endpoint
+const IMGBB_ENDPOINT = 'https://api.imgbb.com/1/upload';
+
+// The default export is the handler object for a Module Worker
+export default {
+    async fetch(request, env, ctx) {
+        // Only allow POST requests
+        if (request.method !== 'POST') {
+            return new Response('Method Not Allowed', { status: 405 });
+        }
+
+        // 1. Get API Keys
+        const primaryKey = env.Messimages; 
+        const backupKey = env.backup_api;
+
+        if (!primaryKey) {
+            return new Response('Server Configuration Error: Primary API Key (Messimages) is missing.', { status: 500 });
+        }
+
+        try {
+            // 2. Clone the request to read the body (FormData)
+            // We read it once and reuse it
+            const formData = await request.formData();
+
+            // Helper function to try upload
+            const tryUpload = async (key) => {
+                formData.set('key', key); // Update the key
+                return await fetch(IMGBB_ENDPOINT, {
+                    method: 'POST',
+                    body: formData,
+                });
+            };
+
+            // 3. Try Primary Key
+            let response = await tryUpload(primaryKey);
+
+            // 4. Check for Rate Limit / Soft Failure
+            // ImgBB returns 400 for API errors (like rate limit, invalid key, etc.)
+            if (response.status === 400 && backupKey) {
+                // Clone response to read body without consuming the original if we assume it's final
+                // But we intend to potentially discard it, so reading text is fine.
+                const responseClone = response.clone();
+                const errorText = await responseClone.text();
+                
+                // Check for rate limit keywords in the error response
+                // "Rate limit reached" or similar. 
+                // To be safe, we can retry on most 400s if we have a backup, 
+                // or specifically look for "limit".
+                const isRateLimit = errorText.toLowerCase().includes('limit') || 
+                                    errorText.toLowerCase().includes('capacity') ||
+                                    errorText.toLowerCase().includes('too many requests');
+
+                if (isRateLimit) {
+                    console.log("Primary key rate limited. Switching to backup.");
+                    response = await tryUpload(backupKey);
+                }
+            }
+
+            // 5. Send final response
+            return new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers: response.headers,
+            });
+
+        } catch (error) {
+            console.error("Worker Proxy Error:", error);
+            return new Response(`Proxy failed: ${error.message}`, { status: 500 });
+        }
+    }
+};

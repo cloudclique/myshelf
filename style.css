@@ -2243,11 +2243,9 @@ body {
 #gallery {
     display: grid;
     grid-template-columns: repeat(5, 1fr);
-    /* Responsive grid */
+    column-count: 3;
     gap: 10px;
 }
-
-
 
 #gallery img {
     width: 100%;
@@ -2490,9 +2488,9 @@ body {
     background-color: var(--section-bg);
     border-radius: 12px;
     box-shadow: 0 0px 10px var(--drop-shadow-clr);
-    padding: 20px;
-    margin-bottom: 30px;
-
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 15px;
 }
 
 #login-form {
@@ -3170,20 +3168,7 @@ body {
     transform: scale(1.1);
 }
 
-/* Ensure the image fits the card */
-.related-item-card {
-    display: flex;
-    position: relative;
-    flex-direction: row;
-    flex-wrap: nowrap;
-    text-decoration: none;
-    color: inherit;
-    transition: transform 0.2s;
-}
 
-.related-item-card:hover {
-    transform: scale(1.03);
-}
 
 .editor-input-group {
     display: flex;
@@ -3446,22 +3431,6 @@ body {
     opacity: 1;
 }
 
-/* --- Community Gallery Masonry --- */
-.gallery-wrapper {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 15px;
-}
-
-#gallery {
-    column-count: 3;
-    column-gap: 15px;
-}
-
-#gallery .relative {
-    break-inside: avoid;
-    margin-bottom: 15px;
-}
 
 @media (max-width: 1024px) {
     #gallery {
@@ -3535,4 +3504,111 @@ body {
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+/* Related Items Grid */
+.related-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    padding: 10px 0;
+}
+
+.related-card-wrapper {
+    position: relative;
+    width: 100%;
+    /* Wider for list style */
+    max-width: 100%;
+    transition: transform 0.2s;
+}
+
+
+.related-item-card {
+    display: flex;
+    flex-direction: row;
+    /* Horizontal layout */
+    align-items: center;
+    /* Center vertically */
+    text-decoration: none;
+    background: var(--section-bg);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px var(--drop-shadow-clr);
+    overflow: hidden;
+    height: 70px;
+    /* Fixed height pill */
+}
+
+.related-img-container {
+    width: 70px;
+    /* Fixed square on left */
+    height: 70px;
+    background: #eee;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.related-img-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+
+.related-info {
+    padding: 0 10px;
+    /* Horizontal padding */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    /* Center text vertically */
+    gap: 2px;
+    flex-grow: 1;
+    overflow: hidden;
+    text-align: left;
+}
+
+.related-title {
+    font-size: 0.9em;
+    font-weight: bold;
+    color: var(--text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.related-sub {
+    font-size: 0.75em;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.related-del-btn {
+    position: absolute;
+    top: -8px;
+    right: 0px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--delete-color);
+    color: white;
+    font-size: 16px;
+    line-height: 18px;
+    text-align: center;
+    border: 2px solid white;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    z-index: 5;
+}
+
+.related-del-btn:hover {
+    background: darkred;
 }

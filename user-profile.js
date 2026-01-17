@@ -48,7 +48,7 @@ let targetUserId = null;
 let targetUsername = 'User Profile';
 let currentStatusFilter = 'Owned';
 let currentPage = 1;
-let lastFetchedItems = [];
+let globalItemsCache = {}; // Map: userId -> { itemId: itemData }
 let currentSortValue = '';
 let isProfileOwner = false;
 let isNsfwAllowed = localStorage.getItem('isNsfwAllowed') === 'true';
@@ -96,10 +96,14 @@ const headerTools = document.getElementById('headerTools');
 if (profileSearchBtn) profileSearchBtn.onclick = handleProfileSearch;
 if (profileClearSearchBtn) profileClearSearchBtn.onclick = handleProfileClearSearch;
 if (profileSearchInput) profileSearchInput.onkeypress = (e) => { if (e.key === 'Enter') handleProfileSearch(); };
-if (sortSelect) sortSelect.onchange = () => { applySortAndFilter(); updateURLHash(); };
-if (tagFilterDropdown) tagFilterDropdown.onchange = applySortAndFilter;
-if (applyFilterBtn) applyFilterBtn.onclick = applySortAndFilter;
-if (clearFilterBtn) clearFilterBtn.onclick = () => { if (tagFilterDropdown) tagFilterDropdown.value = ''; applySortAndFilter(); };
+if (sortSelect) sortSelect.onchange = () => {
+    currentSortValue = sortSelect.value;
+    renderLocalPage();
+    updateURLHash();
+};
+if (tagFilterDropdown) tagFilterDropdown.onchange = renderLocalPage;
+if (applyFilterBtn) applyFilterBtn.onclick = renderLocalPage;
+if (clearFilterBtn) clearFilterBtn.onclick = () => { if (tagFilterDropdown) tagFilterDropdown.value = ''; renderLocalPage(); };
 if (postCommentBtn) postCommentBtn.onclick = postComment;
 
 // Toggle Listener
@@ -126,7 +130,7 @@ function toggleViewMode() {
     if (queryText) {
         handleProfileSearch();
     } else {
-        applySortAndFilter();
+        renderLocalPage();
     }
 }
 
@@ -222,18 +226,27 @@ async function fetchUsername(userId) {
 async function fetchStatusCounts(userId) {
     const counts = { Owned: 0, Wished: 0, Ordered: 0 };
     if (!userId) return counts;
-    const cacheKey = `profile_status_counts_${userId}`;
-    const cached = getCachedData(cacheKey);
-    if (cached) return cached;
+    const cacheKey = `profile_all_items_${userId}`;
+
+    // Try to get from global cache first if available
+    if (globalItemsCache[userId]) {
+        Object.values(globalItemsCache[userId]).forEach(item => {
+            if (STATUS_OPTIONS.includes(item.status)) counts[item.status]++;
+        });
+        return counts;
+    }
 
     try {
-        const userCollectionRef = getUserCollectionRef(userId);
-        const snapshot = await userCollectionRef.get();
-        snapshot.forEach(doc => {
-            const status = doc.data().status;
-            if (STATUS_OPTIONS.includes(status)) counts[status]++;
-        });
-        setCachedData(cacheKey, counts);
+        const itemsDoc = await getUserCollectionRef(userId).doc('items').get();
+        if (itemsDoc.exists) {
+            const itemsMap = itemsDoc.data();
+            // Cache immediately since we have data
+            globalItemsCache[userId] = itemsMap;
+
+            Object.values(itemsMap).forEach(item => {
+                if (STATUS_OPTIONS.includes(item.status)) counts[item.status]++;
+            });
+        }
     } catch (err) { console.error("Error fetching status counts:", err); }
     return counts;
 }
@@ -248,7 +261,8 @@ if (sortOrderBtn) {
         currentSortOrder = currentSortOrder === 'desc' ? 'asc' : 'desc';
         // Toggle icon: sort-down is Descending, sort-up is Ascending
         sortOrderIcon.className = currentSortOrder === 'desc' ? 'bi bi-sort-down' : 'bi bi-sort-up';
-        applySortAndFilter();
+        sortOrderIcon.className = currentSortOrder === 'desc' ? 'bi bi-sort-down' : 'bi bi-sort-up';
+        renderLocalPage();
     };
 }
 
@@ -300,7 +314,7 @@ async function initializeProfile() {
     }
 
     if (viewMoreGalleryBtn) {
-        viewMoreGalleryBtn.onclick = () => { window.location.href = `../?uid=${targetUserId}`; };
+        viewMoreGalleryBtn.onclick = () => { window.location.href = `../gallery/?uid=${targetUserId}`; };
     }
 
     const currentUser = auth.currentUser;
@@ -315,6 +329,7 @@ async function initializeProfile() {
     currentSortOrder = hashOrder || 'desc';
 
     if (sortSelect && hashSort) sortSelect.value = hashSort;
+    currentSortValue = hashSort || '';
     if (sortOrderIcon) {
         sortOrderIcon.className = currentSortOrder === 'desc' ? 'bi bi-sort-down' : 'bi bi-sort-up';
     }
@@ -340,21 +355,12 @@ async function initializeProfile() {
         profileSearchInput.value = hashSearch;
         handleProfileSearch();
     } else {
-        applySortAndFilter();
+        renderLocalPage();
     }
 
     // 4. Await Non-critical items
     await Promise.all([listsPromise, commentsPromise, galleryPromise]);
 
-    // --- TRIGGER GLOBAL SYNC ---
-    if (isProfileOwner) {
-        const syncEl = document.getElementById('syncStatus');
-        if (syncEl) syncEl.style.display = 'block'; // Show "syncing..."
-
-        performGlobalSync(targetUserId).then(() => {
-            if (syncEl) syncEl.style.display = 'none'; // Hide when done
-        });
-    }
 }
 
 function renderSkeletonGrid() {
@@ -433,20 +439,32 @@ async function fetchUserLists(userId) {
 
         // 4. Fetch PRIVATE lists (profile owner only)
         if (isProfileOwner) {
-            const privateSnapshot = await db
+            const privateDoc = await db
                 .collection('artifacts').doc('default-app-id')
                 .collection('user_profiles').doc(userId)
-                .collection('lists')
+                .collection('lists').doc('lists')
                 .get();
 
-            privateSnapshot.forEach(doc => {
-                listMap.set(doc.id, {
-                    id: doc.id,
-                    type: 'private',
-                    isFavorite: false,
-                    ...doc.data()
+            if (privateDoc.exists) {
+                const privateListsMap = privateDoc.data();
+                Object.values(privateListsMap).forEach(list => {
+                    // Ensure list has an ID attached if it's stored as value
+                    // The map key is usually the ID, but let's trust the object has it or inject it?
+                    // Structure says map: "listId" -> fields. So the value is the object.
+                    // The object might not have the ID inside it if it's just keys.
+                    // Actually, usually we store id inside too or we need to use the key.
+                    // Let's iterate entries to be safe.
                 });
-            });
+
+                Object.entries(privateListsMap).forEach(([id, data]) => {
+                    listMap.set(id, {
+                        id: id,
+                        type: 'private',
+                        isFavorite: false,
+                        ...data
+                    });
+                });
+            }
         }
 
         // 5. Convert map → array + sort
@@ -619,103 +637,181 @@ async function renderStatusButtons() {
     updateSortOptions(); // Initial load
 }
 
+
+
 async function fetchProfileItems(status) {
     if (!targetUserId) return;
-    // Don't clear grid here if skeletons are present and we are initial loading
-    // But if switching tabs, we might want skeletons again
+
     if (profileItemsGrid.children.length === 0 || !profileItemsGrid.querySelector('.skeleton-card')) {
         renderSkeletonGrid();
     }
 
     paginationContainer.innerHTML = '';
-    loadingStatus.textContent = ''; // Hide text status, use skeletons
-    return await fetchPage();
-}
+    loadingStatus.textContent = '';
 
-async function fetchPage() {
-    if (!targetUserId) return;
-    const cacheKey = `profile_items_${targetUserId}_${currentStatusFilter}`;
-    const cached = getCachedData(cacheKey);
-    if (cached) {
-        lastFetchedItems = cached.map(item => ({
-            ...item,
-            doc: {
-                ...item.doc,
-                data: () => item.doc._data
+    // Check if we have data in memory
+    if (!globalItemsCache[targetUserId]) {
+        try {
+            const itemsDoc = await getUserCollectionRef(targetUserId).doc('items').get();
+            if (itemsDoc.exists) {
+                globalItemsCache[targetUserId] = itemsDoc.data();
+            } else {
+                globalItemsCache[targetUserId] = {};
             }
-        }));
-        applySortAndFilter();
-    }
-
-
-    try {
-        const userCollectionRef = getUserCollectionRef(targetUserId);
-        const snapshot = await userCollectionRef.where('status', '==', currentStatusFilter).get();
-        if (snapshot.empty) {
-            lastFetchedItems = [];
-            renderPageItems([]);
-            loadingStatus.textContent = `${targetUsername} has no items in the "${currentStatusFilter}" collection.`;
-            setCachedData(cacheKey, []);
+        } catch (e) {
+            console.error(e);
+            loadingStatus.textContent = "Error loading items.";
             return;
         }
-        const mainCollectionRef = db.collection(collectionName);
-        const detailedItems = await Promise.all(snapshot.docs.map(async doc => {
-            const userItemData = doc.data();
+    }
 
-            // OPTIMIZATION: Check for denormalized data on the user item itself (Must include isDraft to be valid)
-            if (userItemData.itemName && userItemData.itemImageUrls && 'isDraft' in userItemData) {
-                return {
-                    doc: {
-                        id: userItemData.itemId,
-                        exists: true,
-                        data: () => userItemData
-                    },
-                    status: userItemData.status,
-                    privateNotes: userItemData.privateNotes || {}
-                };
-            }
+    renderLocalPage();
+}
 
-            // Fallback: Fetch from main collection (slower)
-            const itemDoc = await mainCollectionRef.doc(userItemData.itemId).get();
-            if (!itemDoc.exists) return null;
-            return {
-                doc: {
-                    id: itemDoc.id,
-                    data: () => itemDoc.data()
-                },
-                status: userItemData.status,
-                privateNotes: userItemData.privateNotes || {}
-            };
-        }));
-        // Strip out complex doc objects for serialization
-        const itemsToCache = detailedItems.filter(Boolean).map(item => ({
-            doc: {
-                id: item.doc.id,
-                data: () => item.doc.data(),
-                _data: item.doc.data() // Store raw data for cache
-            },
-            status: item.status,
-            privateNotes: item.privateNotes
-        }));
+function renderLocalPage() {
+    if (!globalItemsCache[targetUserId]) return;
 
-        lastFetchedItems = itemsToCache.map(item => ({
-            ...item,
-            doc: {
-                ...item.doc,
-                data: () => item.doc._data
-            }
-        }));
+    // 1. Filter by Status
+    const allItems = Object.values(globalItemsCache[targetUserId]);
+    let filtered = allItems.filter(item => item.status === currentStatusFilter);
 
-        setCachedData(cacheKey, lastFetchedItems);
-        applySortAndFilter();
-    } catch (err) {
-        console.error(err);
-        if (!lastFetchedItems.length) {
-            loadingStatus.textContent = `Error loading collection: ${err.message}`;
-            profileItemsGrid.innerHTML = '';
+    // 1b. Filter by Tag
+    if (tagFilterDropdown && tagFilterDropdown.value) {
+        const tag = tagFilterDropdown.value;
+        filtered = filtered.filter(item => item.tags && item.tags.includes(tag));
+    }
+
+    // 2. Search
+    const searchTerm = profileSearchInput ? profileSearchInput.value.trim().toLowerCase() : '';
+    let searched = filtered;
+    if (searchTerm) {
+        searched = filtered.filter(item => item.itemName.toLowerCase().includes(searchTerm));
+    }
+
+    // 3. Sort
+    searched.sort((a, b) => {
+        let valA, valB;
+
+        switch (currentSortValue) {
+            case 'amount':
+                valA = parseInt(a.privateNotes?.amount || 1);
+                valB = parseInt(b.privateNotes?.amount || 1);
+                break;
+            case 'price':
+                valA = parseFloat((a.privateNotes?.price || '0').replace(/[^0-9.]/g, '')) || 0;
+                valB = parseFloat((b.privateNotes?.price || '0').replace(/[^0-9.]/g, '')) || 0;
+                break;
+            case 'totalPrice':
+                // Approximation: Price + Shipping
+                const pA = parseFloat((a.privateNotes?.price || '0').replace(/[^0-9.]/g, '')) || 0;
+                const sA = parseFloat((a.privateNotes?.shipping || '0').replace(/[^0-9.]/g, '')) || 0;
+                valA = pA + sA;
+
+                const pB = parseFloat((b.privateNotes?.price || '0').replace(/[^0-9.]/g, '')) || 0;
+                const sB = parseFloat((b.privateNotes?.shipping || '0').replace(/[^0-9.]/g, '')) || 0;
+                valB = pB + sB;
+                break;
+            case 'storeName':
+                valA = (a.privateNotes?.store || '').toLowerCase();
+                valB = (b.privateNotes?.store || '').toLowerCase();
+                break;
+            case 'score':
+                valA = parseFloat(a.privateNotes?.score || 0);
+                valB = parseFloat(b.privateNotes?.score || 0);
+                break;
+            case 'collectionDate':
+            case 'release': // Fallback to date logic if 'release' is essentially similar or if we map it to collectionDate
+                // Actually release date is usually on the item itself (itemReleaseDate), not privateNotes
+                // collectionDate is in privateNotes
+                if (currentSortValue === 'release') {
+                    valA = a.itemReleaseDate ? new Date(a.itemReleaseDate).getTime() : 0;
+                    valB = b.itemReleaseDate ? new Date(b.itemReleaseDate).getTime() : 0;
+                } else {
+                    valA = a.privateNotes?.collectionDate ? new Date(a.privateNotes.collectionDate).getTime() : 0;
+                    valB = b.privateNotes?.collectionDate ? new Date(b.privateNotes.collectionDate).getTime() : 0;
+                }
+                break;
+            case 'priority':
+                // Map text priority to numbers? Or just alpha
+                // Wished item priority: usually text or number. Assuming text.
+                // If it's "High", "Medium", "Low", we might need a map.
+                // For now, simple alpha sort or numeric if they use numbers.
+                const prioMap = { 'High': 3, 'Medium': 2, 'Low': 1, 'Normal': 1 };
+                const pTextA = a.privateNotes?.priority || 'Normal';
+                const pTextB = b.privateNotes?.priority || 'Normal';
+                valA = prioMap[pTextA] || 0;
+                valB = prioMap[pTextB] || 0;
+                break;
+            case 'name':
+                valA = a.itemName.toLowerCase();
+                valB = b.itemName.toLowerCase();
+                break;
+            default:
+                // Default: Created At
+                valA = a.createdAt?.seconds || 0;
+                valB = b.createdAt?.seconds || 0;
         }
+
+        if (valA < valB) return currentSortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return currentSortOrder === 'asc' ? 1 : -1;
+        return 0;
+    });
+
+    if (searched.length === 0) {
+        profileItemsGrid.innerHTML = '';
+        loadingStatus.textContent = `${targetUsername} has no items in "${currentStatusFilter}".`;
+        return;
+    }
+
+    // 4. Paginate
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    const end = start + ITEMS_PER_PAGE;
+    const pageItems = searched.slice(start, end);
+
+    // Render
+    renderPageItems(pageItems);
+    renderClientPagination(searched.length);
+}
+
+function renderClientPagination(totalItems) {
+    paginationContainer.innerHTML = '';
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+    if (totalPages <= 1) return;
+
+    const maxButtons = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxButtons / 2));
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+
+    if (endPage - startPage + 1 < maxButtons) {
+        startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    if (currentPage > 1) {
+        const prev = document.createElement('button');
+        prev.innerText = '<';
+        prev.className = 'action-btn';
+        prev.onclick = () => { currentPage--; renderLocalPage(); updateURLHash(); };
+        paginationContainer.appendChild(prev);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+        const btn = document.createElement('button');
+        btn.innerText = i;
+        btn.className = `action-btn ${i === currentPage ? 'active' : ''}`;
+        btn.onclick = () => { currentPage = i; renderLocalPage(); updateURLHash(); };
+        paginationContainer.appendChild(btn);
+    }
+
+    if (currentPage < totalPages) {
+        const next = document.createElement('button');
+        next.innerText = '>';
+        next.className = 'action-btn';
+        next.onclick = () => { currentPage++; renderLocalPage(); updateURLHash(); };
+        paginationContainer.appendChild(next);
     }
 }
+
 
 
 function renderPageItems(items) {
@@ -724,13 +820,11 @@ function renderPageItems(items) {
 
     updateViewAppearance();
 
-    items.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item.doc, item.status, item.privateNotes)));
-    renderPaginationButtons();
+    items.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item, item.status, item.privateNotes)));
 }
 
-function renderProfileItem(doc, status, privateNotes = {}) {
-    const item = doc.data();
-    const itemId = doc.id;
+function renderProfileItem(item, status, privateNotes = {}) {
+    const itemId = item.itemId;
     const isAdultContent = (item.itemAgeRating === '18+' || item.itemAgeRating === 'Adult');
     const shouldBlur = isAdultContent && !isNsfwAllowed;
 
@@ -831,49 +925,12 @@ function renderProfileItem(doc, status, privateNotes = {}) {
     return link;
 }
 
-function renderPaginationButtons(filteredTotal = lastFetchedItems.length) {
-    if (!paginationContainer) return;
 
-    paginationContainer.innerHTML = '';
-
-    const totalItems = Number(filteredTotal) || 0;
-    if (totalItems <= ITEMS_PER_PAGE) return;
-
-    const totalPages = Math.max(1, Math.ceil(totalItems / ITEMS_PER_PAGE));
-
-    const prevBtn = document.createElement('button');
-    prevBtn.innerHTML = '<i class="bi bi-caret-left-fill"></i>';
-    prevBtn.className = 'action-btn';
-    prevBtn.disabled = currentPage === 1;
-    prevBtn.onclick = () => {
-        currentPage--;
-        applySortAndFilter();
-        updateURLHash();
-        scrollToItemsTop();
-    };
-
-    const pageIndicator = document.createElement('span');
-    pageIndicator.className = 'page-indicator';
-    pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
-
-    const nextBtn = document.createElement('button');
-    nextBtn.innerHTML = '<i class="bi bi-caret-right-fill"></i>';
-    nextBtn.className = 'action-btn';
-    nextBtn.disabled = currentPage >= totalPages;
-    nextBtn.onclick = () => {
-        currentPage++;
-        applySortAndFilter();
-        updateURLHash();
-        scrollToItemsTop();
-    };
-
-    paginationContainer.append(prevBtn, pageIndicator, nextBtn);
-}
 
 
 async function handleProfileSearch() {
     currentPage = 1;
-    applySortAndFilter();
+    renderLocalPage();
     if (profileClearSearchBtn) {
         profileClearSearchBtn.style.display = profileSearchInput.value.trim() ? 'inline-block' : 'none';
     }
@@ -883,8 +940,9 @@ async function handleProfileSearch() {
 function handleProfileClearSearch() {
     profileSearchInput.value = '';
     profileClearSearchBtn.style.display = 'none';
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    renderPageItems(lastFetchedItems.slice(startIndex, startIndex + ITEMS_PER_PAGE));
+    profileClearSearchBtn.style.display = 'none';
+    currentPage = 1;
+    renderLocalPage();
     updateURLHash();
 }
 
@@ -960,129 +1018,7 @@ function renderGalleryThumbnails(images) {
 }
 
 
-function applySortAndFilter() {
-    if (!lastFetchedItems || !lastFetchedItems.length) {
-        profileItemsGrid.innerHTML = '';
-        loadingStatus.textContent = `No items found in this collection.`;
-        renderPaginationButtons(0);
-        return;
-    }
 
-    currentSortValue = sortSelect?.value ?? '';
-    let items = [...lastFetchedItems];
-
-    // --- 1. Apply Search & Tag Filters ---
-    const queryText = profileSearchInput.value.trim().toLowerCase();
-
-    if (queryText) {
-        const regex = /\{([^}]+)\}|[^\s{}]+/g;
-        const requiredKeywords = [];
-        const excludedKeywords = [];
-        let match;
-
-        while ((match = regex.exec(queryText)) !== null) {
-            const term = (match[1] ? match[1].trim() : match[0]).toLowerCase();
-            // Check for exclusion prefix
-            if (term.startsWith('-') && term.length > 1) {
-                excludedKeywords.push(term.substring(1));
-            } else {
-                requiredKeywords.push(term);
-            }
-        }
-
-        items = items.filter(item => {
-            const data = item.doc.data();
-            const notes = item.privateNotes || {};
-
-            const name = (data.itemName || '').toLowerCase();
-            const tags = (data.tags || []).map(t => t.toLowerCase());
-            const category = (data.itemCategory || '').toLowerCase();
-            const scale = (data.itemScale || '').toLowerCase();
-            const age = (data.itemAgeRating || '').toLowerCase();
-            const store = (notes.store || '').toLowerCase();
-
-            const combinedText = [name, category, scale, age, store, ...tags].join(' ');
-
-            // 1. Exclusion Check (Hard Filter)
-            const isExcluded = excludedKeywords.some(kw => combinedText.includes(kw));
-            if (isExcluded) return false;
-
-            // 2. Requirement Check
-            if (requiredKeywords.length === 0) return true; // Only exclusions provided
-            return requiredKeywords.every(kw => combinedText.includes(kw));
-        });
-    }
-
-    const selectedTag = tagFilterDropdown?.value;
-    if (selectedTag) items = items.filter(item => (item.doc.data().tags || []).includes(selectedTag));
-
-    // --- 2. Sorting Logic ---
-    items.sort((a, b) => {
-        const dataA = a.doc.data();
-        const dataB = b.doc.data();
-        const nA = a.privateNotes || {};
-        const nB = b.privateNotes || {};
-
-        const getNum = (val) => {
-            if (val === undefined || val === null || val === '') return 0;
-            let s = String(val).replace(/[^\d,.-]/g, '');
-            if (!s) return 0;
-            const lastComma = s.lastIndexOf(',');
-            const lastDot = s.lastIndexOf('.');
-            if (lastComma > lastDot) s = s.replace(/\./g, '').replace(',', '.');
-            else if (lastDot > lastComma) s = s.replace(/,/g, '');
-            else if (lastComma !== -1) s = s.replace(',', '.');
-            return parseFloat(s) || 0;
-        };
-
-        const getStr = (val) => String(val || '').toLowerCase();
-
-        let comparison = 0;
-
-        switch (currentSortValue) {
-            case 'amount':
-                comparison = getNum(nA.amount || 1) - getNum(nB.amount || 1);
-                break;
-            case 'price':
-                comparison = getNum(nA.price) - getNum(nB.price);
-                break;
-            case 'totalPrice':
-                comparison = (getNum(nA.price) + getNum(nA.shipping)) - (getNum(nB.price) + getNum(nB.shipping));
-                break;
-            case 'priority':
-                // Assumes priority is stored as a number or mapped elsewhere
-                comparison = getNum(nA.priority) - getNum(nB.priority);
-                break;
-            case 'score':
-                comparison = getNum(nA.score) - getNum(nB.score);
-                break;
-            case 'storeName':
-                comparison = getStr(nA.store).localeCompare(getStr(nB.store));
-                break;
-            case 'release':
-                comparison = new Date(dataA.itemReleaseDate || 0) - new Date(dataB.itemReleaseDate || 0);
-                break;
-            case 'collectionDate':
-                comparison = new Date(nA.collectionDate || 0) - new Date(nB.collectionDate || 0);
-                break;
-            default:
-                return 0;
-        }
-
-        // Apply the direction: If descending, multiply by -1 to flip the order
-        // currentSortOrder should be a global variable ('asc' or 'desc')
-        return currentSortOrder === 'desc' ? comparison * -1 : comparison;
-    });
-
-    // --- 3. Render ---
-    const filteredTotal = items.length;
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const pagedItems = items.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-
-    profileItemsGrid.innerHTML = '';
-    pagedItems.forEach(item => profileItemsGrid.appendChild(renderProfileItem(item.doc, item.status, item.privateNotes)));
-    renderPaginationButtons(filteredTotal);
-}
 
 window.addEventListener('hashchange', async () => {
     const newUserId = getUserIdFromUrl();
@@ -1093,13 +1029,12 @@ window.addEventListener('hashchange', async () => {
         await renderStatusButtons();
         await fetchProfileItems(status);
     }
-    if (page !== currentPage) { currentPage = page; applySortAndFilter(); }
+    if (page !== currentPage) { currentPage = page; renderLocalPage(); }
     if (search !== profileSearchInput.value.trim()) {
         profileSearchInput.value = search;
         await handleProfileSearch();
     } else {
-        const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-        renderPageItems(lastFetchedItems.slice(startIndex, startIndex + ITEMS_PER_PAGE));
+        renderLocalPage();
     }
 });
 
@@ -1141,41 +1076,53 @@ async function loadComments(profileUserId) {
         } catch (err) { console.error("Error fetching user role:", err); }
     }
 
-    const commentsCollection = db.collection('artifacts').doc(appId).collection('user_profiles').doc(profileUserId).collection('comments');
+    // New Map Structure: .../comments/comments
+    const commentsDocRef = db.collection('artifacts').doc(appId).collection('user_profiles').doc(profileUserId).collection('comments').doc('comments');
 
-    // Fetch pinned comments only on the first page
-    let pinnedDocs = [];
-    if (commentsCurrentPage === 1) {
-        try {
-            const pinnedSnapshot = await commentsCollection.where('isPinned', '==', true).get();
-            pinnedDocs = pinnedSnapshot.docs;
-        } catch (err) { console.error("Error fetching pinned comments:", err); }
+    let allComments = [];
+    try {
+        const docSnap = await commentsDocRef.get();
+        if (docSnap.exists) {
+            allComments = Object.entries(docSnap.data()).map(([id, data]) => ({ ...data, id }));
+        }
+    } catch (err) {
+        console.error("Error loading comments:", err);
     }
 
-    const startDoc = pageCursors[commentsCurrentPage - 1] || null;
-    let query = commentsCollection.orderBy('timestamp', 'desc').limit(COMMENTS_PER_PAGE);
-    if (startDoc) query = query.startAfter(startDoc);
-    const snapshot = await query.get();
-
-    if (snapshot.empty && pinnedDocs.length === 0) {
+    if (allComments.length === 0) {
         commentsList.innerHTML = '<p>No comments yet.</p>';
-        if (commentsCurrentPage > 1) commentsCurrentPage--;
         return;
     }
 
+    // Client-side Sort: Pinned first, then Newest
+    allComments.sort((a, b) => {
+        if (a.isPinned && !b.isPinned) return -1;
+        if (!a.isPinned && b.isPinned) return 1;
+        // Sort by timestamp desc
+        const tA = a.timestamp?.seconds || 0;
+        const tB = b.timestamp?.seconds || 0;
+        return tB - tA;
+    });
+
+    // Pagination
+    const totalComments = allComments.length;
+    const totalPages = Math.ceil(totalComments / COMMENTS_PER_PAGE);
+    if (commentsCurrentPage > totalPages) commentsCurrentPage = totalPages || 1;
+
+    const startIndex = (commentsCurrentPage - 1) * COMMENTS_PER_PAGE;
+    const pagedComments = allComments.slice(startIndex, startIndex + COMMENTS_PER_PAGE);
+
     commentsList.innerHTML = '';
 
-    const pinnedIds = new Set(pinnedDocs.map(d => d.id));
-
-    const renderComment = (doc, isPinned = false) => {
-        const c = doc.data();
-        const commentId = doc.id;
-        const time = c.timestamp?.toDate().toLocaleString() ?? 'Just now';
+    const renderComment = (c) => {
+        const commentId = c.id; // Added above
+        const time = c.timestamp?.toDate ? c.timestamp.toDate().toLocaleString() : (new Date(c.timestamp?.seconds * 1000).toLocaleString() || 'Just now');
         const isOwner = currentUid === c.userId;
         const isProfileOwner = currentUid === profileUserId;
         const isAdminOrMod = ['admin', 'mod'].includes(currentUserRole);
         const canDelete = isOwner || isProfileOwner || isAdminOrMod;
         const canPin = isProfileOwner;
+        const isPinned = c.isPinned;
 
         const div = document.createElement('div');
         div.className = `comment${isPinned ? ' pinned' : ''}`;
@@ -1184,7 +1131,7 @@ async function loadComments(profileUserId) {
         <div style="display:flex; align-items:center; gap:5px;">
           ${canDelete ? `<button class="delete-comment-btn" data-id="${commentId}" title="Delete comment">&times;</button>` : ''}
           ${canPin ? `<button class="pin-comment-btn${isPinned ? ' active' : ''}" data-id="${commentId}" title="${isPinned ? 'Unpin comment' : 'Pin comment'}"><i class="bi bi-pin-angle${isPinned ? '-fill' : ''}"></i></button>` : (isPinned ? `<span class="pin-icon" title="Pinned"><i class="bi bi-pin-angle-fill" style="color: gold;"></i></span>` : '')}
-          <a href="../user/?uid=${c.userId}" class="comment-author" style="text-decoration: underline;">${linkify(c.displayName || 'User')}</a>
+          <a href="../?uid=${c.userId}" class="comment-author" style="text-decoration: underline;">${linkify(c.displayName || 'User')}</a>
         </div>
         <div style="font-size:0.8em; color:#888;">${time}</div>
       </div>
@@ -1196,8 +1143,11 @@ async function loadComments(profileUserId) {
             div.querySelector('.delete-comment-btn').onclick = () => {
                 showConfirmationModal("Are you sure you want to delete this comment?", async () => {
                     try {
-                        await commentsCollection.doc(commentId).delete();
-                        commentsCurrentPage = 1; pageCursors = [null]; loadComments(profileUserId);
+                        // Delete from Map: update({ [id]: delete() })
+                        await commentsDocRef.update({
+                            [commentId]: firebase.firestore.FieldValue.delete()
+                        });
+                        loadComments(profileUserId);
                     } catch (err) { console.error("Failed to delete comment:", err); }
                 });
             };
@@ -1206,28 +1156,20 @@ async function loadComments(profileUserId) {
         if (canPin) {
             div.querySelector('.pin-comment-btn').onclick = async () => {
                 try {
-                    await commentsCollection.doc(commentId).update({ isPinned: !isPinned });
+                    // Update specific field in Map: "id.isPinned"
+                    // Firestore supports dot notation for map fields!
+                    await commentsDocRef.update({
+                        [`${commentId}.isPinned`]: !isPinned
+                    });
                     loadComments(profileUserId);
                 } catch (err) { console.error("Failed to toggle pin:", err); }
             };
         }
     };
 
-    // Render pinned comments first
-    pinnedDocs.forEach(doc => renderComment(doc, true));
+    pagedComments.forEach(c => renderComment(c));
 
-    // Render regular comments, excluding those that are pinned
-    snapshot.forEach(doc => {
-        if (!pinnedIds.has(doc.id)) {
-            renderComment(doc, false);
-        }
-    });
-
-    if (snapshot.docs.length === COMMENTS_PER_PAGE) {
-        const lastDoc = snapshot.docs[snapshot.docs.length - 1];
-        if (pageCursors.length === commentsCurrentPage) pageCursors.push(lastDoc);
-    } else pageCursors.length = commentsCurrentPage;
-    renderCommentPagination(profileUserId);
+    renderCommentPagination(profileUserId, totalPages);
 }
 
 async function postComment(event) {
@@ -1238,33 +1180,50 @@ async function postComment(event) {
     const text = input.value.trim();
     if (!text) return;
     input.value = '';
+
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
     try {
-        await db.collection('artifacts').doc(appId).collection('user_profiles').doc(targetUserId).collection('comments').add({
+        const newId = db.collection('_').doc().id; // Generate random ID
+        const commentData = {
             userId: currentUser.uid,
             displayName: currentUser.displayName || currentUser.email || 'Anonymous',
             text,
-            timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-        commentsCurrentPage = 1; pageCursors = [null]; loadComments(targetUserId);
+            timestamp: firebase.firestore.Timestamp.now(), // Use client timestamp for immediate feedback or serverTimestamp but maps support it
+            isPinned: false
+        };
+
+        const commentsDocRef = db.collection('artifacts').doc(appId).collection('user_profiles').doc(targetUserId).collection('comments').doc('comments');
+
+        // Use set with merge to ensure doc creation or update
+        await commentsDocRef.set({
+            [newId]: commentData
+        }, { merge: true });
+
+        commentsCurrentPage = 1;
+        loadComments(targetUserId);
     } catch (err) { console.error("Failed to post comment:", err); }
 }
 
-function renderCommentPagination(profileUserId) {
+function renderCommentPagination(profileUserId, totalPages = 1) {
     const container = document.getElementById('commentPagination');
     if (!container) return;
     container.innerHTML = '';
+
+    if (totalPages <= 1) return;
+
     const prevBtn = document.createElement('button');
     prevBtn.style.margin = '20px';
     prevBtn.className = 'action-btn';
     prevBtn.innerHTML = '<i class="bi bi-caret-left-fill"></i>';
     prevBtn.disabled = commentsCurrentPage === 1;
     prevBtn.onclick = () => { commentsCurrentPage--; loadComments(profileUserId); };
+
     const nextBtn = document.createElement('button');
     nextBtn.style.margin = '20px';
     nextBtn.className = 'action-btn';
     nextBtn.innerHTML = '<i class="bi bi-caret-right-fill"></i>';
-    nextBtn.disabled = pageCursors.length <= commentsCurrentPage;
+    nextBtn.disabled = commentsCurrentPage >= totalPages;
     nextBtn.onclick = () => { commentsCurrentPage++; loadComments(profileUserId); };
     const pageIndicator = document.createElement('span');
     pageIndicator.textContent = `Page ${commentsCurrentPage}`;
@@ -1363,7 +1322,7 @@ auth.onAuthStateChanged(async (user) => {
         loadComments(targetUserId);
     }
 
-    if (lastFetchedItems.length > 0) applySortAndFilter();
+    if (globalItemsCache[targetUserId]) renderLocalPage();
 });
 
 function customizeHeaderForOwner() {
@@ -1680,6 +1639,7 @@ function updateSortOptions() {
     }
 
     sortSelect.innerHTML = baseOptions + specificOptions;
+    if (currentSortValue) sortSelect.value = currentSortValue;
 }
 
 function renderCreateListButton() {
@@ -1749,16 +1709,21 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
 
     let ref;
     const isPublic = listPrivacySelect.value === 'public';
+    let newId;
 
     if (isPublic) {
+        // Public lists are still individual documents
         ref = db.collection('public_lists').doc();
+        newId = ref.id;
     } else {
+        // Private lists: Single doc with map
         ref = db.collection('artifacts')
             .doc(appId)
             .collection('user_profiles')
             .doc(user.uid)
             .collection('lists')
-            .doc();
+            .doc('lists');
+        newId = db.collection('dummy').doc().id; // Generate ID
     }
 
     const payload = {
@@ -1767,7 +1732,8 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
         items: [],
         mode: listTypeSelect.value,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        privacy: listPrivacySelect.value
+        privacy: listPrivacySelect.value,
+        id: newId
     };
 
     if (payload.mode === 'live') {
@@ -1780,7 +1746,14 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
     }
 
     try {
-        await ref.set(payload);
+        if (isPublic) {
+            await ref.set(payload);
+        } else {
+            // Update the map
+            await ref.set({
+                [newId]: payload
+            }, { merge: true });
+        }
         createListModal.style.display = 'none';
         await fetchUserLists(targetUserId);
     } catch (err) {
@@ -1788,80 +1761,3 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
         createListError.textContent = err.message;
     }
 };
-
-
-/**
- * Synchronizes 'Owned', 'Wished', and 'Ordered' items with the main database.
- * Resolves the issue of wrong preview images or names in the user profile.
- */
-async function performGlobalSync(uid) {
-    const categories = ['Owned', 'Wished', 'Ordered'];
-    const mainCollectionRef = db.collection(collectionName);
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const freshCounts = { Owned: 0, Wished: 0, Ordered: 0 };
-    const updatedItems = []; // Track actual updates
-
-    console.log("Starting background sync...");
-
-    for (const category of categories) {
-        try {
-            // Fetch all items with this status for the user
-            const userItemsSnapshot = await db.collection('artifacts')
-                .doc(appId)
-                .collection('user_profiles')
-                .doc(uid)
-                .collection('items')
-                .where('status', '==', category)
-                .get();
-
-            freshCounts[category] = userItemsSnapshot.size;
-
-            if (userItemsSnapshot.empty) continue;
-
-            // Process updates in parallel for this category
-            const syncPromises = userItemsSnapshot.docs.map(async (userDoc) => {
-                const itemId = userDoc.id;
-                const cachedData = userDoc.data();
-
-                // Fetch the source of truth from the main collection (as search.js does)
-                const mainDoc = await mainCollectionRef.doc(itemId).get();
-                if (!mainDoc.exists) return;
-
-                const mainData = mainDoc.data();
-
-                // Compare data
-                const needsUpdate =
-                    cachedData.itemName !== mainData.itemName ||
-                    JSON.stringify(cachedData.itemImageUrls) !== JSON.stringify(mainData.itemImageUrls);
-
-                if (needsUpdate) {
-                    updatedItems.push(`${mainData.itemName} (${category})`); // Add to report
-                    return userDoc.ref.update({
-                        itemName: mainData.itemName,
-                        itemImageUrls: mainData.itemImageUrls
-                    });
-                }
-            });
-
-            await Promise.all(syncPromises);
-        } catch (error) {
-            console.error(`Sync error in category ${category}:`, error);
-        }
-    }
-
-    // Report results
-    if (updatedItems.length > 0) {
-        console.log(`[Sync] Updated ${updatedItems.length} items:`, updatedItems);
-    } else {
-        console.log("[Sync] Collection up to date.");
-    }
-
-    // Update the cache and redraw buttons
-    const cacheKey = `profile_status_counts_${uid}`;
-    setCachedData(cacheKey, freshCounts);
-
-    // Only redraw if we are still on the profile page
-    if (document.getElementById('statusFilters')) {
-        renderStatusButtons();
-    }
-}

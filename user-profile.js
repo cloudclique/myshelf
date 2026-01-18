@@ -38,7 +38,7 @@ function setCachedData(key, data) {
 
 
 const ROLE_HIERARCHY = {
-    'admin': { assigns: ['mod', "shop", "manufacturer", "og", 'user'] },
+    'admin': { assigns: ['admin', 'mod', "shop", "manufacturer", "og", 'user'] },
     'mod': { assigns: ["shop", "manufacturer", "og", 'user'] },
     'user': { assigns: [] }
 };
@@ -290,6 +290,9 @@ async function fetchAndRenderBanner(userId) {
 async function initializeProfile() {
     updateViewAppearance();
 
+    // Hide staff action button by default (prevent flicker)
+    if (staffActionBtn) staffActionBtn.style.display = 'none';
+
     // 1. Immediate UI Feedback
     if (profileLoader) profileLoader.classList.add('hidden');
     renderSkeletonGrid();
@@ -332,6 +335,11 @@ async function initializeProfile() {
     currentSortValue = hashSort || '';
     if (sortOrderIcon) {
         sortOrderIcon.className = currentSortOrder === 'desc' ? 'bi bi-sort-down' : 'bi bi-sort-up';
+    }
+
+    // Role Management Setup
+    if (currentUser && currentUser.uid !== targetUserId) {
+        setupRoleModal(currentUser.uid);
     }
 
     // 2. Parallel Data Fetching
@@ -1295,6 +1303,9 @@ auth.onAuthStateChanged(async (user) => {
     if (isProfileOwner) {
         customizeHeaderForOwner();
         renderCreateListButton();
+    } else if (user && targetUserId) {
+        // Not owner, but logged in -> Check staff permissions
+        setupRoleModal(user.uid);
     }
 
     // Refresh data if auth state changed (might reveal private lists or comment delete buttons)
@@ -1482,7 +1493,7 @@ function setupHeaderLogoRedirect() {
     logo.style.cursor = 'pointer';
     logo.onclick = () => {
         const currentUser = auth.currentUser;
-        if (!currentUser) { alert("You must be logged in to view your profile."); return; }
+        if (!currentUser) { return; }
         window.location.href = `?uid=${currentUser.uid}`;
     };
 }

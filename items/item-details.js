@@ -525,8 +525,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // Start fetch
         fetchItemDetails(itemId);
         setupAuthUI(user);
-        renderComments(itemId);
-        renderShops(itemId);
     });
 
     if (submitCommentBtn) submitCommentBtn.addEventListener('click', postComment);
@@ -972,8 +970,13 @@ async function fetchItemDetails(id) {
         renderItemDetails(itemData, userStatus, privateData, canEdit);
         setupRelatedItems(itemData, canEdit);
 
+
         // Fetch Public Lists using the data we already have
         fetchAndRenderPublicLists(itemData.id, itemData);
+
+        // Render Comments and Shops (using loadedItemData)
+        renderComments(itemData.id);
+        renderShops(itemData.id);
 
         // Manage Edit/Delete UI visibility
         if (canEdit) {
@@ -1447,6 +1450,10 @@ async function handleDeleteItem(itemId) {
             await collectionRef.delete();
         }
 
+        // --- Fan-Out Deletion ---
+        authMessage.textContent = "Syncing deletion to user profiles...";
+        await fanOutItemDeletion(itemId);
+
         authMessage.textContent = "Item deleted successfully!";
         authMessage.className = 'form-message success-message';
         setTimeout(() => window.location.href = '../', 1500);
@@ -1684,252 +1691,14 @@ async function deleteCommunityRating(itemId, userId) {
 }
 
 // --- Comments ---
-function getCommentsRef(itemId, startAfterDoc = null) {
-    let query = db.collection(targetCollection).doc(itemId)
-        .collection('comments')
-        .orderBy('createdAt', 'desc')
-        .limit(COMMENTS_PER_PAGE);
+// getCommentsRef removed - using nested map
 
-    if (startAfterDoc) {
-        query = query.startAfter(startAfterDoc);
-    }
-
-    return query;
-}
 
 function changeCommentPage(direction) {
-    if (direction === 1) {
-        const nextCursor = pageCursors[commentsCurrentPage];
-
-        if (!nextCursor && commentsCurrentPage !== 0) {
-            return;
-        }
-
-        commentsCurrentPage++;
-        renderComments(itemId);
-
-    } else if (direction === -1) {
-        if (commentsCurrentPage > 1) {
-            commentsCurrentPage--;
-            renderComments(itemId);
-        }
-    }
+    commentsCurrentPage += direction;
+    renderComments(itemId);
 }
 
-
-async function postComment() {
-    if (!auth.currentUser || !itemId) {
-        commentMessage.textContent = "You must be logged in to comment.";
-        commentMessage.className = 'form-message error-message';
-        return;
-    }
-
-    const text = commentInput.value.trim();
-    if (!text) return;
-
-    commentMessage.textContent = 'Posting...';
-    commentMessage.className = 'form-message';
-
-    const userId = auth.currentUser.uid;
-
-    try {
-        const docRef = await db.collection(targetCollection).doc(itemId)
-            .collection('comments').add({
-                userId,
-                text,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
-            });
-
-        commentInput.value = '';
-
-        const commentEl = await createCommentElement(docRef.id, userId, text, 'Just now');
-        commentsList.prepend(commentEl);
-
-        commentMessage.textContent = 'Comment posted.';
-        commentMessage.className = 'form-message success-message';
-
-    } catch (error) {
-        commentMessage.textContent = `Error: ${error.message}`;
-        commentMessage.className = 'form-message error-message';
-    }
-}
-
-async function createCommentElement(commentId, userId, text, timestamp) {
-    const commentEl = document.createElement('div');
-    commentEl.className = 'comment';
-    const linkedText = linkify(text);
-
-    const deleteButtonHtml = `<button class="delete-comment-btn">&times;</button>`;
-    commentEl.innerHTML = `
-        <div style="position:relative;">
-            ${deleteButtonHtml}
-            <span class="comment-author">Loading...</span>
-            <span style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
-        </div>
-        <div class="comment-text">${linkedText}</div>
-    `;
-
-    // Fetch and update the username
-    const username = await getUploaderUsername(userId);
-    const authorEl = commentEl.querySelector('.comment-author');
-    authorEl.innerHTML = `<a href="../user/?uid=${userId}">${username}</a>`;
-
-    // Attach delete handler
-    commentEl.querySelector('.delete-comment-btn').onclick = async () => {
-        const btn = commentEl.querySelector('.delete-comment-btn');
-        btn.disabled = true;
-        try {
-            await db.collection(targetCollection).doc(itemId)
-                .collection('comments').doc(commentId).delete();
-            commentEl.remove();
-            commentMessage.textContent = 'Comment deleted.';
-            commentMessage.className = 'form-message success-message';
-        } catch (err) {
-            btn.disabled = false;
-            commentMessage.textContent = `Error deleting comment: ${err.message}`;
-            commentMessage.className = 'form-message error-message';
-        }
-    };
-
-    return commentEl;
-}
-
-/*async function deleteCommentByElement(commentEl, commentId) {
-    const btn = commentEl.querySelector('.delete-comment-btn');
-    btn.disabled = true;
-
-    try {
-        await db.collection('items').doc(itemId)
-            .collection('comments').doc(commentId).delete();
-
-        commentEl.remove();
-
-        if (commentsCache[commentsCurrentPage]) {
-            commentsCache[commentsCurrentPage] = commentsCache[commentsCurrentPage]
-                .filter(d => d.id !== commentId);
-        }
-
-        commentMessage.textContent = 'Comment deleted.';
-        commentMessage.className = 'form-message success-message';
-    } catch (error) {
-        btn.disabled = false;
-        commentMessage.textContent = `Error deleting comment: ${error.message}`;
-        commentMessage.className = 'form-message error-message';
-    }
-}
-*/
-
-function linkify(text) {
-    const urlPattern = /(\b(https?:\/\/|www\.)[^\s]+\b)/g;
-
-    return text.replace(urlPattern, function (url) {
-        let fullUrl = url;
-
-        if (url.startsWith('www.')) {
-            fullUrl = 'http://' + url;
-        }
-
-        return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer">${url}</a>`;
-    });
-}
-
-// Track loaded comments per page
-// --- COMMENTS ---
-const commentsCache = {};
-
-async function renderComments(itemId) {
-    if (!itemId || !commentsList) return;
-
-    const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
-    const currentUserRole = currentUserId ? await checkUserPermissions(currentUserId) : null;
-    const isAdminOrMod = currentUserRole === 'admin' || currentUserRole === 'mod';
-
-    const startDoc = pageCursors[commentsCurrentPage - 1];
-
-    try {
-        let snapshot;
-        if (!commentsCache[commentsCurrentPage]) {
-            snapshot = await getCommentsRef(itemId, startDoc).get();
-            commentsCache[commentsCurrentPage] = snapshot.docs;
-        } else {
-            snapshot = { docs: commentsCache[commentsCurrentPage] };
-        }
-
-        commentsList.innerHTML = '';
-
-        if (snapshot.docs.length === 0) {
-            if (commentsCurrentPage > 1) commentsCurrentPage--;
-            commentsList.innerHTML = '<p>No comments yet or end of list reached.</p>';
-            return;
-        }
-
-        for (const doc of snapshot.docs) {  // use for...of to await username fetching
-            const data = doc.data();
-            const commentId = doc.id;
-            const isCreator = currentUserId && currentUserId === data.userId;
-            const canDelete = isCreator || isAdminOrMod;
-
-            const commentEl = document.createElement('div');
-            commentEl.className = 'comment';
-            const timestamp = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString() : 'Just now';
-            const linkedText = linkify(data.text);
-            const deleteButtonHtml = canDelete ?
-                `<button class="delete-comment-btn" data-comment-id="${commentId}">&times;</button>` : '';
-
-            // Temporary innerHTML with "Loading..." for username
-            commentEl.innerHTML = `
-                <div style="position:relative;">
-                    ${deleteButtonHtml}
-                    <span class="comment-author">Loading...</span>
-                    <span style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
-                </div>
-                <div class="comment-text">${linkedText}</div>
-            `;
-            commentsList.appendChild(commentEl);
-
-            // Fetch and update live username
-            const username = await getUploaderUsername(data.userId);
-            const authorEl = commentEl.querySelector('.comment-author');
-            authorEl.innerHTML = `<a href="../user/?uid=${data.userId}">${username}</a>`;
-
-            // Attach delete handler if allowed
-            if (canDelete) {
-                const btn = commentEl.querySelector('.delete-comment-btn');
-                btn.onclick = async () => {
-                    btn.disabled = true;
-                    try {
-                        await db.collection('items').doc(itemId)
-                            .collection('comments').doc(commentId).delete();
-
-                        // remove from DOM
-                        commentEl.remove();
-
-                        // remove from cache
-                        if (commentsCache[commentsCurrentPage]) {
-                            commentsCache[commentsCurrentPage] = commentsCache[commentsCurrentPage]
-                                .filter(d => d.id !== commentId);
-                        }
-
-                        commentMessage.textContent = 'Comment deleted.';
-                        commentMessage.className = 'form-message success-message';
-                    } catch (error) {
-                        btn.disabled = false;
-                        commentMessage.textContent = `Error deleting comment: ${error.message}`;
-                        commentMessage.className = 'form-message error-message';
-                    }
-                };
-            }
-        }
-
-        prevCommentsBtn.disabled = commentsCurrentPage === 1;
-        nextCommentsBtn.disabled = !pageCursors[commentsCurrentPage];
-        commentPageStatus.textContent = `Page ${commentsCurrentPage}`;
-
-    } catch (error) {
-        console.error(error);
-        commentsList.innerHTML = `<p class="error-message">Failed to load comments.</p>`;
-    }
-}
 
 
 
@@ -1957,14 +1726,169 @@ function updateStatusSelection(userStatus, privateData = {}) {
     }
 }
 
-function deleteComment(itemId, commentId, deleteButtonEl) {
-    if (!auth.currentUser) {
-        commentMessage.textContent = "You must be logged in to delete comments.";
+function linkify(text) {
+    const urlPattern = /(\b(https?:\/\/|www\.)[^\s]+\b)/g;
+
+    return text.replace(urlPattern, function (url) {
+        let fullUrl = url;
+
+        if (url.startsWith('www.')) {
+            fullUrl = 'http://' + url;
+        }
+
+        return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+    });
+}
+
+async function postComment() {
+    if (!auth.currentUser || !itemId) {
+        commentMessage.textContent = "You must be logged in to comment.";
         commentMessage.className = 'form-message error-message';
         return;
     }
 
-    // Disable the button immediately to prevent double-clicks
+    const text = commentInput.value.trim();
+    if (!text) return;
+
+    commentMessage.textContent = 'Posting...';
+    commentMessage.className = 'form-message';
+
+    const userId = auth.currentUser.uid;
+    const newCommentId = db.collection('_').doc().id; // Generate ID
+    const newComment = {
+        userId,
+        text,
+        createdAt: firebase.firestore.Timestamp.now()
+    };
+
+    try {
+        if (activeDocRef && activeDocRef.path.includes('items-')) {
+            // Sharded Update
+            await db.runTransaction(async (transaction) => {
+                const shardDoc = await transaction.get(activeDocRef);
+                if (!shardDoc.exists) throw "Shard missing";
+
+                const items = shardDoc.data().items || [];
+                const index = items.findIndex(i => i.itemId === itemId);
+
+                if (index === -1) throw "Item missing in shard during update";
+
+                const itemData = items[index];
+                if (!itemData.comments) itemData.comments = {};
+                itemData.comments[newCommentId] = newComment;
+
+                items[index] = itemData;
+                transaction.update(activeDocRef, { items: items });
+            });
+        } else {
+            // Legacy/Review Collection Update (Subcollections or Map?)
+            // User requested nested map for items-*, implying logic unification.
+            // If in review, we can also use nested map if structure supports it.
+            // Assuming targetCollection='items' legacy or 'item-review' works as singular doc.
+            // We'll update the 'comments' map field.
+            await db.collection(targetCollection).doc(itemId).update({
+                [`comments.${newCommentId}`]: newComment
+            });
+        }
+
+        commentInput.value = '';
+
+        // Update local cache and re-render
+        if (loadedItemData) {
+            if (!loadedItemData.comments) loadedItemData.comments = {};
+            loadedItemData.comments[newCommentId] = newComment;
+        }
+        renderComments(itemId);
+
+        commentMessage.textContent = 'Comment posted.';
+        commentMessage.className = 'form-message success-message';
+
+    } catch (error) {
+        console.error(error);
+        commentMessage.textContent = `Error: ${error.message}`;
+        commentMessage.className = 'form-message error-message';
+    }
+}
+
+async function renderComments(itemId) {
+    if (!itemId || !commentsList) return;
+    if (!loadedItemData) return; // Should be loaded by fetchItemDetails
+
+    const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
+    const userRole = currentUserId ? await checkUserPermissions(currentUserId) : null;
+    const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
+
+    const commentsMap = loadedItemData.comments || {};
+    let commentsArray = Object.entries(commentsMap).map(([id, data]) => ({ id, ...data }));
+
+    // safe sort
+    commentsArray.sort((a, b) => {
+        const tA = a.createdAt?.seconds || 0;
+        const tB = b.createdAt?.seconds || 0;
+        return tB - tA;
+    });
+
+    // Pagination
+    const totalPages = Math.ceil(commentsArray.length / COMMENTS_PER_PAGE) || 1;
+    if (commentsCurrentPage > totalPages) commentsCurrentPage = totalPages;
+    if (commentsCurrentPage < 1) commentsCurrentPage = 1;
+
+    const start = (commentsCurrentPage - 1) * COMMENTS_PER_PAGE;
+    const pageComments = commentsArray.slice(start, start + COMMENTS_PER_PAGE);
+
+    commentsList.innerHTML = '';
+
+    if (pageComments.length === 0) {
+        commentsList.innerHTML = '<p>No comments yet.</p>';
+        prevCommentsBtn.disabled = true;
+        nextCommentsBtn.disabled = true;
+        commentPageStatus.textContent = `Page 1`;
+        return;
+    }
+
+    for (const data of pageComments) {
+        const commentId = data.id;
+        const isCreator = currentUserId && currentUserId === data.userId;
+        const canDelete = isCreator || isAdminOrMod;
+
+        const commentEl = document.createElement('div');
+        commentEl.className = 'comment';
+        const timestamp = data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleString() : 'Just now';
+        const linkedText = linkify(data.text);
+        const deleteButtonHtml = canDelete ?
+            `<button class="delete-comment-btn" data-comment-id="${commentId}">&times;</button>` : '';
+
+        commentEl.innerHTML = `
+            <div style="position:relative;">
+                ${deleteButtonHtml}
+                <span class="comment-author">Loading...</span>
+                <span style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
+            </div>
+            <div class="comment-text">${linkedText}</div>
+        `;
+        commentsList.appendChild(commentEl);
+
+        // Fetch username
+        getUploaderUsername(data.userId).then(username => {
+            const authorEl = commentEl.querySelector('.comment-author');
+            if (authorEl) authorEl.innerHTML = `<a href="../user/?uid=${data.userId}">${username}</a>`;
+        });
+
+        // Attach delete handler
+        if (canDelete) {
+            const btn = commentEl.querySelector('.delete-comment-btn');
+            btn.onclick = () => deleteComment(itemId, commentId, btn);
+        }
+    }
+
+    prevCommentsBtn.disabled = commentsCurrentPage === 1;
+    nextCommentsBtn.disabled = commentsCurrentPage >= totalPages;
+    commentPageStatus.textContent = `Page ${commentsCurrentPage}`;
+}
+
+async function deleteComment(itemId, commentId, deleteButtonEl) {
+    if (!auth.currentUser) return;
+
     if (deleteButtonEl) {
         deleteButtonEl.disabled = true;
         deleteButtonEl.textContent = '...';
@@ -1976,52 +1900,34 @@ function deleteComment(itemId, commentId, deleteButtonEl) {
             commentMessage.textContent = 'Deleting comment...';
             commentMessage.className = 'form-message';
 
-            const userId = auth.currentUser.uid;
-
             try {
-                const commentRef = db.collection('items').doc(itemId)
-                    .collection('comments').doc(commentId);
-                const commentSnap = await commentRef.get();
+                if (activeDocRef && activeDocRef.path.includes('items-')) {
+                    // Sharded Delete
+                    await db.runTransaction(async (transaction) => {
+                        const shardDoc = await transaction.get(activeDocRef);
+                        const items = shardDoc.data().items || [];
+                        const index = items.findIndex(i => i.itemId === itemId);
 
-                if (!commentSnap.exists) {
-                    commentMessage.textContent = "Error: Comment not found.";
-                    commentMessage.className = 'form-message error-message';
-                    if (deleteButtonEl) {
-                        deleteButtonEl.disabled = false;
-                        deleteButtonEl.textContent = 'Ã—';
-                    }
-                    return;
+                        if (index !== -1 && items[index].comments && items[index].comments[commentId]) {
+                            delete items[index].comments[commentId];
+                            transaction.update(activeDocRef, { items: items });
+                        }
+                    });
+                } else {
+                    // Legacy Delete
+                    await db.collection(targetCollection).doc(itemId).update({
+                        [`comments.${commentId}`]: firebase.firestore.FieldValue.delete()
+                    });
                 }
 
-                const commentData = commentSnap.data();
-                const userRole = await checkUserPermissions(userId);
-                const isCreator = userId === commentData.userId;
-                const isAdminOrMod = userRole === 'admin' || userRole === 'mod';
-
-                if (!(isCreator || isAdminOrMod)) {
-                    commentMessage.textContent = "Permission denied.";
-                    commentMessage.className = 'form-message error-message';
-                    if (deleteButtonEl) {
-                        deleteButtonEl.disabled = false;
-                        deleteButtonEl.textContent = 'Ã—';
-                    }
-                    return;
+                // Update local cache
+                if (loadedItemData && loadedItemData.comments) {
+                    delete loadedItemData.comments[commentId];
                 }
 
-                await commentRef.delete();
-
-                // Remove from DOM immediately
-                const commentEl = deleteButtonEl.closest('.comment');
-                if (commentEl) commentEl.remove();
-
-                commentMessage.textContent = 'Comment deleted successfully.';
+                commentMessage.textContent = 'Comment deleted.';
                 commentMessage.className = 'form-message success-message';
-
-                // Adjust pagination if needed
-                if (commentsList.children.length === 0 && commentsCurrentPage > 1) {
-                    commentsCurrentPage--;
-                    renderComments(itemId);
-                }
+                renderComments(itemId); // Re-render
 
             } catch (error) {
                 console.error("Error deleting comment:", error);
@@ -2029,13 +1935,16 @@ function deleteComment(itemId, commentId, deleteButtonEl) {
                 commentMessage.className = 'form-message error-message';
                 if (deleteButtonEl) {
                     deleteButtonEl.disabled = false;
-                    deleteButtonEl.textContent = 'Ã—';
+                    deleteButtonEl.textContent = 'x';
                 }
             }
         },
         'Delete'
     );
 }
+
+// createCommentElement removed - integrated into renderComments or not needed
+
 
 // --- Lightbox Logic ---
 const lightboxOverlay = document.getElementById('lightboxOverlay');
@@ -2096,11 +2005,8 @@ window.changeMainImage = (thumbnail) => {
 
 // SHOPS //-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-function getShopRef(itemId) {
-    return db.collection('items').doc(itemId)
-        .collection('shops')
-        .orderBy('createdAt', 'desc');
-}
+// getShopRef removed - using nested map
+
 
 async function postShop() {
     if (!auth.currentUser || !itemId) {
@@ -2130,19 +2036,46 @@ async function postShop() {
     ShopMessage.textContent = 'Posting...';
     ShopMessage.className = 'form-message';
 
+    const userId = auth.currentUser.uid;
+    const newShopId = db.collection('_').doc().id;
+    const newShop = {
+        userId,
+        domain,
+        url: text,
+        createdAt: firebase.firestore.Timestamp.now()
+    };
+
     try {
-        const docRef = await db.collection('items').doc(itemId)
-            .collection('shops').add({
-                userId: auth.currentUser.uid,
-                domain,
-                url: text,
-                createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        if (activeDocRef && activeDocRef.path.includes('items-')) {
+            // Sharded Update
+            await db.runTransaction(async (transaction) => {
+                const shardDoc = await transaction.get(activeDocRef);
+                if (!shardDoc.exists) throw "Shard missing";
+                const items = shardDoc.data().items || [];
+                const index = items.findIndex(i => i.itemId === itemId);
+                if (index === -1) throw "Item missing in shard during update";
+
+                const itemData = items[index];
+                if (!itemData.shops) itemData.shops = {};
+                itemData.shops[newShopId] = newShop;
+
+                items[index] = itemData;
+                transaction.update(activeDocRef, { items: items });
             });
+        } else {
+            // Legacy Update (using targetCollection instead of hardcoded 'items')
+            await db.collection(targetCollection).doc(itemId).update({
+                [`shops.${newShopId}`]: newShop
+            });
+        }
 
         ShopInput.value = '';
 
-        const shopEl = createShopElement(docRef.id, auth.currentUser.uid, domain, text, 'Just now');
-        ShopList.prepend(shopEl);
+        if (loadedItemData) {
+            if (!loadedItemData.shops) loadedItemData.shops = {};
+            loadedItemData.shops[newShopId] = newShop;
+        }
+        renderShops(itemId);
 
         ShopMessage.textContent = 'Shop posted.';
         ShopMessage.className = 'form-message success-message';
@@ -2153,151 +2086,62 @@ async function postShop() {
     }
 }
 
-function createShopElement(shopId, userId, domain, url, timestamp) {
-    const ShopEl = document.createElement('div');
-    ShopEl.className = 'shop';
-
-    const deleteButtonHtml = `<button class="delete-shop-btn">&times;</button>`;
-    ShopEl.innerHTML = `
-        <div style="position:relative;">
-            ${deleteButtonHtml}
-            <span class="shop-author"></span>
-            <span class="shop-timestamp" style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
-        </div>
-        <div class="shop-text"><a href="${url}" target="_blank">${domain}</a></div>
-    `;
-
-    ShopEl.querySelector('.delete-shop-btn').onclick = async () => {
-        const btn = ShopEl.querySelector('.delete-shop-btn');
-        btn.disabled = true;
-        try {
-            await db.collection('items').doc(itemId)
-                .collection('shops').doc(shopId).delete();
-            ShopEl.remove();
-            ShopMessage.textContent = 'Shop deleted.';
-            ShopMessage.className = 'form-message success-message';
-        } catch (err) {
-            btn.disabled = false;
-            ShopMessage.textContent = `Error deleting shop: ${err.message}`;
-            ShopMessage.className = 'form-message error-message';
-        }
-    };
-
-    return ShopEl;
-}
-
-
-async function deleteShopByElement(shopEl, shopId) {
-    const btn = shopEl.querySelector('.delete-shop-btn');
-    btn.disabled = true;
-
-    try {
-        await db.collection('items').doc(itemId)
-            .collection('shops').doc(shopId).delete();
-
-        shopEl.remove();
-
-        if (shopsCache[itemId]) {
-            shopsCache[itemId] = shopsCache[itemId].filter(d => d.id !== shopId);
-        }
-
-        ShopMessage.textContent = 'Shop deleted.';
-        ShopMessage.className = 'form-message success-message';
-    } catch (error) {
-        btn.disabled = false;
-        ShopMessage.textContent = `Error deleting shop: ${error.message}`;
-        ShopMessage.className = 'form-message error-message';
-    }
-}
-
-const shopsCache = {};
-
 async function renderShops(itemId) {
     if (!itemId || !ShopList) return;
+    if (!loadedItemData) return;
 
     const currentUserId = auth.currentUser ? auth.currentUser.uid : null;
-    const currentUserRole = currentUserId ? await checkUserPermissions(currentUserId) : null;
-    const isAdminOrModOrShop = ['admin', 'mod', 'shop'].includes(currentUserRole);
+    const userRole = currentUserId ? await checkUserPermissions(currentUserId) : null;
+    const isAdminOrModOrShop = ['admin', 'mod', 'shop'].includes(userRole);
 
-    try {
-        let snapshot;
-        if (!shopsCache[itemId]) {
-            snapshot = await getShopRef(itemId).get();
-            shopsCache[itemId] = snapshot.docs;
-        } else {
-            snapshot = { docs: shopsCache[itemId] };
-        }
+    const shopsMap = loadedItemData.shops || {};
+    let shopsArray = Object.entries(shopsMap).map(([id, data]) => ({ id, ...data }));
 
-        ShopList.innerHTML = '';
+    shopsArray.sort((a, b) => {
+        const tA = a.createdAt?.seconds || 0;
+        const tB = b.createdAt?.seconds || 0;
+        return tB - tA;
+    });
 
-        if (snapshot.docs.length === 0) {
-            ShopList.innerHTML = '<p>No shops linked.</p>';
-            return;
-        }
+    ShopList.innerHTML = '';
 
-        snapshot.docs.forEach(doc => {
-            const data = doc.data();
-            const shopId = doc.id;
-            const isCreator = currentUserId && currentUserId === data.userId;
-            const canDelete = isCreator || isAdminOrModOrShop;
-
-            const ShopEl = document.createElement('div');
-            ShopEl.className = 'shop';
-            const timestamp = data.createdAt ? new Date(data.createdAt.toDate()).toLocaleString() : 'Just now';
-            const deleteButtonHtml = canDelete ?
-                `<button class="delete-shop-btn" data-shop-id="${shopId}">&times;</button>` : '';
-
-            ShopEl.innerHTML = `
-                <div style="position:relative;">
-                    ${deleteButtonHtml}
-                    <span class="shop-author"></span>
-                    <span class="shop-timestamp"style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
-                </div>
-                <div class="shop-text"><a href="${data.url}" target="_blank">${data.domain}</a></div>
-            `;
-            ShopList.appendChild(ShopEl);
-
-            if (canDelete) {
-                const btn = ShopEl.querySelector('.delete-shop-btn');
-                btn.onclick = async () => {
-                    btn.disabled = true;
-                    try {
-                        await db.collection('items').doc(itemId)
-                            .collection('shops').doc(shopId).delete();
-
-                        // remove from DOM
-                        ShopEl.remove();
-
-                        // remove from cache
-                        if (shopsCache[itemId]) {
-                            shopsCache[itemId] = shopsCache[itemId].filter(d => d.id !== shopId);
-                        }
-
-                        ShopMessage.textContent = 'Shop deleted.';
-                        ShopMessage.className = 'form-message success-message';
-                    } catch (error) {
-                        btn.disabled = false;
-                        ShopMessage.textContent = `Error deleting shop: ${error.message}`;
-                        ShopMessage.className = 'form-message error-message';
-                    }
-                };
-            }
-        });
-
-    } catch (error) {
-        console.error(error);
-        ShopList.innerHTML = `<p class="error-message">Failed to load shops.</p>`;
-    }
-}
-
-function deleteShop(itemId, shopId, deleteButtonEl) {
-    if (!auth.currentUser) {
-        ShopMessage.textContent = "You must be logged in to delete shops.";
-        ShopMessage.className = 'form-message error-message';
+    if (shopsArray.length === 0) {
+        ShopList.innerHTML = '<p>No shops linked.</p>';
         return;
     }
 
-    // Disable the button immediately
+    for (const data of shopsArray) {
+        const shopId = data.id;
+        const isCreator = currentUserId && currentUserId === data.userId;
+        const canDelete = isCreator || isAdminOrModOrShop;
+
+        const ShopEl = document.createElement('div');
+        ShopEl.className = 'shop';
+        const timestamp = data.createdAt ? new Date(data.createdAt.seconds * 1000).toLocaleString() : 'Just now';
+        const deleteButtonHtml = canDelete ?
+            `<button class="delete-shop-btn" data-shop-id="${shopId}">&times;</button>` : '';
+
+        ShopEl.innerHTML = `
+            <div style="position:relative;">
+                ${deleteButtonHtml}
+                <span class="shop-author"></span>
+                <span class="shop-timestamp"style="font-size:0.7em; color:#888; float:right;">${timestamp}</span>
+            </div>
+            <div class="shop-text"><a href="${data.url}" target="_blank">${data.domain}</a></div>
+        `;
+        ShopList.appendChild(ShopEl);
+
+        if (canDelete) {
+            const btn = ShopEl.querySelector('.delete-shop-btn');
+            btn.onclick = () => deleteShop(itemId, shopId, btn);
+        }
+    }
+}
+
+
+function deleteShop(itemId, shopId, deleteButtonEl) {
+    if (!auth.currentUser) return;
+
     if (deleteButtonEl) {
         deleteButtonEl.disabled = true;
         deleteButtonEl.textContent = '...';
@@ -2312,50 +2156,32 @@ function deleteShop(itemId, shopId, deleteButtonEl) {
             const userId = auth.currentUser.uid;
 
             try {
-                const shopRef = db.collection('items').doc(itemId)
-                    .collection('shops').doc(shopId);
-                const shopSnap = await shopRef.get();
+                if (activeDocRef && activeDocRef.path.includes('items-')) {
+                    // Sharded Delete
+                    await db.runTransaction(async (transaction) => {
+                        const shardDoc = await transaction.get(activeDocRef);
+                        const items = shardDoc.data().items || [];
+                        const index = items.findIndex(i => i.itemId === itemId);
 
-                if (!shopSnap.exists) {
-                    ShopMessage.textContent = "Error: Shop not found.";
-                    ShopMessage.className = 'form-message error-message';
-                    if (deleteButtonEl) {
-                        deleteButtonEl.disabled = false;
-                        deleteButtonEl.textContent = 'Ã—';
-                    }
-                    return;
+                        if (index !== -1 && items[index].shops && items[index].shops[shopId]) {
+                            delete items[index].shops[shopId];
+                            transaction.update(activeDocRef, { items: items });
+                        }
+                    });
+                } else {
+                    // Legacy Delete
+                    await db.collection(targetCollection).doc(itemId).update({
+                        [`shops.${shopId}`]: firebase.firestore.FieldValue.delete()
+                    });
                 }
 
-                const shopData = shopSnap.data();
-                const userRole = await checkUserPermissions(userId);
-                const isCreator = userId === shopData.userId;
-                const isAdminOrModOrShop =
-                    ['admin', 'mod', 'shop'].includes(userRole);
-
-                if (!(isCreator || isAdminOrModOrShop)) {
-                    ShopMessage.textContent =
-                        "Permission denied.";
-                    ShopMessage.className = 'form-message error-message';
-                    if (deleteButtonEl) {
-                        deleteButtonEl.disabled = false;
-                        deleteButtonEl.textContent = 'Ã—';
-                    }
-                    return;
+                if (loadedItemData && loadedItemData.shops) {
+                    delete loadedItemData.shops[shopId];
                 }
-
-                await shopRef.delete();
-
-                // Remove DOM element immediately
-                const shopEl = deleteButtonEl.closest('.shop');
-                if (shopEl) shopEl.remove();
 
                 ShopMessage.textContent = 'Shop deleted successfully.';
                 ShopMessage.className = 'form-message success-message';
-
-                // Refresh list only if empty
-                if (ShopList.children.length === 0) {
-                    renderShops(itemId);
-                }
+                renderShops(itemId);
 
             } catch (error) {
                 console.error("Error deleting shop:", error);
@@ -2363,7 +2189,7 @@ function deleteShop(itemId, shopId, deleteButtonEl) {
                 ShopMessage.className = 'form-message error-message';
                 if (deleteButtonEl) {
                     deleteButtonEl.disabled = false;
-                    deleteButtonEl.textContent = 'Ã—';
+                    deleteButtonEl.textContent = 'x';
                 }
             }
         },
@@ -3121,6 +2947,80 @@ async function fanOutItemUpdates(itemId, updatedFields) {
         }
     } catch (e) {
         console.error("Error fanning out to public lists:", e);
+    }
+}
+
+/**
+ * Fans out item deletion to all user profiles and public lists that contain the item.
+ * @param {string} itemId - The ID of the item that was deleted.
+ */
+async function fanOutItemDeletion(itemId) {
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+
+    // 1. Remove from User Profiles and Update Counters
+    try {
+        const userItemsSnaps = await db.collectionGroup('items').get();
+        const deletionPromises = [];
+        const affectedUsers = new Set();
+
+        userItemsSnaps.forEach(doc => {
+            const data = doc.data();
+            if (data && data[itemId]) {
+                const userId = doc.ref.parent.parent.id; // artifacts -> user_profiles -> {userId} -> items -> items
+
+                // Firestore FieldValue.delete() to remove the key from the map
+                deletionPromises.push(doc.ref.update({
+                    [itemId]: firebase.firestore.FieldValue.delete()
+                }));
+
+                if (userId) affectedUsers.add(userId);
+            }
+        });
+
+        await Promise.all(deletionPromises);
+
+        // Update counters for all affected users
+        for (const userId of affectedUsers) {
+            await updateProfileCounters(userId);
+        }
+
+        // Also delete from global ratings collection
+        await db.collection('artifacts').doc(appId).collection('ratings').doc(itemId).delete().catch(e => {
+            console.warn("Rating doc might not exist or error deleting it:", e);
+        });
+
+    } catch (e) {
+        console.error("Error fanning out deletion to user profiles:", e);
+    }
+
+    // 2. Remove from Public Lists shards
+    try {
+        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
+        const metaSnap = await metadataRef.get();
+        let maxShard = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 5;
+
+        for (let i = 1; i <= maxShard; i++) {
+            const shardRef = db.collection(`lists-${i}`).doc('lists');
+            const shardSnap = await shardRef.get();
+            if (shardSnap.exists) {
+                const listsMap = shardSnap.data();
+                let shardNeedsUpdate = false;
+                const updatedShardMap = { ...listsMap };
+
+                Object.entries(listsMap).forEach(([listId, listData]) => {
+                    if (listData.items && listData.items[itemId]) {
+                        delete updatedShardMap[listId].items[itemId];
+                        shardNeedsUpdate = true;
+                    }
+                });
+
+                if (shardNeedsUpdate) {
+                    await shardRef.set(updatedShardMap);
+                }
+            }
+        }
+    } catch (e) {
+        console.error("Error fanning out deletion to public lists:", e);
     }
 }
 

@@ -179,24 +179,44 @@ function closeTagEditModal() {
 }
 
 async function saveTags() {
-    if (!itemId) return;
+    if (!itemId || !activeDocRef) return;
 
     tagEditMessage.textContent = 'Saving...';
     tagEditMessage.className = 'form-message';
 
     const tagsString = tagEditInput.value.trim();
-    // Replace '?' with ',' to allow it as a separator
     const newTags = tagsString ? tagsString.replace(/\?/g, ',').split(',').map(tag => tag.trim()).filter(tag => tag !== '') : [];
-
-    // Sort tags alphabetically on save
     newTags.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
     try {
-        await db.collection(targetCollection).doc(itemId).update({
-            tags: newTags
-        });
+        const isSharded = activeDocRef.path.includes('items-');
 
-        tagEditMessage.textContent = 'Tags updated!';
+        if (isSharded) {
+            // Sharded Update: Atomic read-modify-write required (using transaction for safety)
+            await db.runTransaction(async (transaction) => {
+                const shardDoc = await transaction.get(activeDocRef);
+                if (!shardDoc.exists) throw "Shard missing";
+
+                const items = shardDoc.data().items || [];
+                const index = items.findIndex(i => i.itemId === itemId);
+
+                if (index === -1) throw "Item missing in shard during update";
+
+                // Update only the tags in the array
+                items[index].tags = newTags;
+                transaction.update(activeDocRef, { items: items });
+            });
+        } else {
+            // Legacy/Review Collection Update
+            await activeDocRef.update({
+                tags: newTags
+            });
+        }
+
+        // Fan out the tag updates across the platform (profiles + public lists)
+        await fanOutItemUpdates(itemId, { tags: newTags });
+
+        tagEditMessage.textContent = 'Tags updated and synced!';
         tagEditMessage.className = 'form-message success-message';
 
         setTimeout(() => {
@@ -206,7 +226,7 @@ async function saveTags() {
 
     } catch (error) {
         console.error("Error updating tags:", error);
-        tagEditMessage.textContent = 'Error updating tags.';
+        tagEditMessage.textContent = 'Error updating tags: ' + error.message;
         tagEditMessage.className = 'form-message error-message';
     }
 }

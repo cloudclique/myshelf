@@ -3050,17 +3050,20 @@ async function fanOutItemUpdates(itemId, updatedFields) {
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
     // 1. Update User Profiles denormalized data
+    // Optimized to avoid dynamic index requirement for collectionGroup where clause
     try {
-        const userItemsSnaps = await db.collectionGroup('items')
-            .where(`${itemId}.itemId`, '==', itemId)
-            .get();
+        const userItemsSnaps = await db.collectionGroup('items').get();
 
-        const userUpdatePromises = userItemsSnaps.docs.map(doc => {
-            const updateObj = {};
-            for (const [key, value] of Object.entries(updatedFields)) {
-                updateObj[`${itemId}.${key}`] = value;
+        const userUpdatePromises = [];
+        userItemsSnaps.forEach(doc => {
+            const data = doc.data();
+            if (data && data[itemId]) {
+                const updateObj = {};
+                for (const [key, value] of Object.entries(updatedFields)) {
+                    updateObj[`${itemId}.${key}`] = value;
+                }
+                userUpdatePromises.push(doc.ref.update(updateObj));
             }
-            return doc.ref.update(updateObj);
         });
         await Promise.all(userUpdatePromises);
     } catch (e) {

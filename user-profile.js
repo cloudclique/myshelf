@@ -404,56 +404,60 @@ async function fetchUserLists(userId) {
         const favoriteListIds = userDoc.data()?.favoriteLists || [];
         const listMap = new Map(); // dedupe by ID
 
-        // --- NEW: FETCH PUBLIC LISTS FROM SHARDS ---
-        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
-        const metaSnap = await metadataRef.get();
-        let maxShard = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 5;
+        // --- FETCH PUBLIC LISTS ---
+        const publicListsSnapshot = await db.collection('lists')
+            .where('userId', '==', userId)
+            .get();
 
-        const shardPromises = [];
-        for (let i = 1; i <= maxShard; i++) {
-            shardPromises.push(db.collection(`lists-${i}`).doc('lists').get());
-        }
+        publicListsSnapshot.forEach(doc => {
+            const listData = doc.data();
+            const isFavorite = favoriteListIds.includes(doc.id);
+            listMap.set(doc.id, {
+                id: doc.id,
+                type: 'public',
+                isFavorite: isFavorite,
+                ...listData
+            });
+        });
 
-        const shardSnapshots = await Promise.all(shardPromises);
+        // Also fetch favorited public lists by other users
+        if (favoriteListIds.length > 0) {
+            // Firestore 'in' queries are limited to 10 items
+            for (let i = 0; i < favoriteListIds.length; i += 10) {
+                const batch = favoriteListIds.slice(i, i + 10);
+                const favSnapshot = await db.collection('lists')
+                    .where(firebase.firestore.FieldPath.documentId(), 'in', batch)
+                    .get();
 
-        shardSnapshots.forEach(doc => {
-            if (doc.exists) {
-                const listsInShard = doc.data() || {};
-                Object.entries(listsInShard).forEach(([listId, listData]) => {
-                    const isFavorite = favoriteListIds.includes(listId);
-                    const isOwner = listData.userId === userId;
-
-                    if (isFavorite || isOwner) {
-                        listMap.set(listId, {
-                            id: listId,
+                favSnapshot.forEach(doc => {
+                    if (!listMap.has(doc.id)) {
+                        listMap.set(doc.id, {
+                            id: doc.id,
                             type: 'public',
-                            isFavorite: isFavorite,
-                            ...listData
+                            isFavorite: true,
+                            ...doc.data()
                         });
                     }
                 });
             }
-        });
+        }
 
-        // 4. Fetch PRIVATE lists (profile owner only)
+        // Fetch PRIVATE lists (profile owner only)
         if (isProfileOwner) {
-            const privateDoc = await db
+            const privateListsSnapshot = await db
                 .collection('artifacts').doc(appId)
                 .collection('user_profiles').doc(userId)
-                .collection('lists').doc('lists')
+                .collection('lists')
                 .get();
 
-            if (privateDoc.exists) {
-                const privateListsMap = privateDoc.data();
-                Object.entries(privateListsMap).forEach(([id, data]) => {
-                    listMap.set(id, {
-                        id: id,
-                        type: 'private',
-                        isFavorite: false,
-                        ...data
-                    });
+            privateListsSnapshot.forEach(doc => {
+                listMap.set(doc.id, {
+                    id: doc.id,
+                    type: 'private',
+                    isFavorite: false,
+                    ...doc.data()
                 });
-            }
+            });
         }
 
         // 5. Convert map → array + sort
@@ -1704,19 +1708,16 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
     let newId = db.collection('dummy').doc().id; // Generate ID
 
     if (isPublic) {
-        // Public lists: Single doc with map in sharded collections
-        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
-        const metaSnap = await metadataRef.get();
-        const shardId = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 1;
-        ref = db.collection(`lists-${shardId}`).doc('lists');
+        // Public lists: Individual documents in lists collection
+        ref = db.collection('lists').doc(newId);
     } else {
-        // Private lists: Single doc with map
+        // Private lists: Individual documents in user's lists subcollection
         ref = db.collection('artifacts')
             .doc(appId)
             .collection('user_profiles')
             .doc(user.uid)
             .collection('lists')
-            .doc('lists');
+            .doc(newId);
     }
 
     const payload = {
@@ -1739,10 +1740,8 @@ document.getElementById('confirmCreateListBtn').onclick = async () => {
     }
 
     try {
-        // Update the map for both public (sharded) and private
-        await ref.set({
-            [newId]: payload
-        }, { merge: true });
+        // Create the list document
+        await ref.set(payload);
 
         createListModal.style.display = 'none';
         await fetchUserLists(targetUserId);

@@ -828,7 +828,7 @@ async function proceedWithUpload() {
         itemData.itemImageUrls = uploadedImageObjects;
 
         if (!isStaff) {
-            // Non-staff: Review Queue (Unsharded for now)
+            // Non-staff: Review Queue
             await db.collection('item-review').doc(newItemId).set(itemData);
             sendShelfBugNotification(currentUserId, itemData.itemName, newItemId);
 
@@ -838,43 +838,8 @@ async function proceedWithUpload() {
             return;
         }
 
-        // Staff: Write to Global Shards
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('items_sharding');
-
-        await db.runTransaction(async (transaction) => {
-            const metaDoc = await transaction.get(metadataRef);
-            let currentShardId = 1;
-            let currentCount = 0;
-
-            if (metaDoc.exists) {
-                const meta = metaDoc.data();
-                currentShardId = meta.currentShardId || 1;
-                currentCount = meta.count || 0;
-            }
-
-            const MAX_ITEMS_PER_SHARD = 500;
-            let targetShardId = currentShardId;
-
-            if (currentCount >= MAX_ITEMS_PER_SHARD) {
-                targetShardId++;
-                currentCount = 0;
-            }
-
-            const shardRef = db.collection(`items-${targetShardId}`).doc('items');
-            const shardDoc = await transaction.get(shardRef);
-
-            let itemsArray = [];
-            if (shardDoc.exists) {
-                const data = shardDoc.data();
-                itemsArray = data.items || [];
-            }
-
-            itemsArray.push(itemData);
-
-            transaction.set(shardRef, { items: itemsArray });
-            transaction.set(metadataRef, { currentShardId: targetShardId, count: currentCount + 1 }, { merge: true });
-        });
+        // Staff: Write directly to items collection
+        await db.collection('items').doc(newItemId).set(itemData);
 
         uploadStatus.textContent = "Item uploaded successfully!";
         uploadStatus.className = 'form-message success-message';

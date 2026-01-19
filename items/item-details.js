@@ -189,22 +189,12 @@ async function saveTags() {
     newTags.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
 
     try {
-        const isSharded = activeDocRef.path.includes('items-');
+        const isSharded = activeDocRef.path.startsWith('items/');
 
         if (isSharded) {
-            // Sharded Update: Atomic read-modify-write required (using transaction for safety)
-            await db.runTransaction(async (transaction) => {
-                const shardDoc = await transaction.get(activeDocRef);
-                if (!shardDoc.exists) throw "Shard missing";
-
-                const items = shardDoc.data().items || [];
-                const index = items.findIndex(i => i.itemId === itemId);
-
-                if (index === -1) throw "Item missing in shard during update";
-
-                // Update only the tags in the array
-                items[index].tags = newTags;
-                transaction.update(activeDocRef, { items: items });
+            // Direct document update
+            await activeDocRef.update({
+                tags: newTags
             });
         } else {
             // Legacy/Review Collection Update
@@ -852,35 +842,14 @@ async function fetchItemDetails(id) {
             }
         }
 
-        // 2. If trying for Main 'items', SCAN SHARDS
+        // 2. Try main 'items' collection directly
         if (!itemData && (targetCollection === 'items' || !targetCollection)) {
-            // Optimization: Start scanning
-            // This can be slow. A better approach would be an Index, but per structure.txt limit:
-
-            let shardId = 1;
-            let found = false;
-
-            // Loop until found or reasonable limit (e.g., 20 shards seems safe for now)
-            while (!found && shardId < 50) {
-                const shardRef = db.collection(`items-${shardId}`).doc('items');
-                const shardDoc = await shardRef.get();
-
-                if (!shardDoc.exists) {
-                    // End of shards
-                    break;
-                }
-
-                const itemsArray = shardDoc.data().items || [];
-                const match = itemsArray.find(i => i.itemId === id);
-
-                if (match) {
-                    itemData = match;
-                    itemData.id = match.itemId; // Ensure id prop is set
-                    foundInCollection = `items-${shardId}`;
-                    activeDocRef = shardRef; // For shard, ref points to the shard doc. Update logic must handle map.
-                    found = true;
-                }
-                shardId++;
+            const itemDoc = await db.collection('items').doc(id).get();
+            if (itemDoc.exists) {
+                itemData = itemDoc.data();
+                itemData.id = itemDoc.id;
+                foundInCollection = 'items';
+                activeDocRef = db.collection('items').doc(id);
             }
         }
 
@@ -1253,22 +1222,11 @@ editItemForm.addEventListener('submit', async (e) => {
         }
 
         if (!currentItemData) {
-            // Scan shards
-            let shardId = 1;
-            while (shardId < 50) {
-                const shardRef = db.collection(`items-${shardId}`).doc('items');
-                const shardDoc = await shardRef.get();
-                if (!shardDoc.exists) break;
-
-                const itemsArray = shardDoc.data().items || [];
-                const match = itemsArray.find(i => i.itemId === itemId);
-                if (match) {
-                    currentItemData = match;
-                    collectionRef = shardRef; // The shard doc
-                    foundShardId = shardId;
-                    break;
-                }
-                shardId++;
+            // Try main items collection directly
+            const itemDoc = await db.collection('items').doc(itemId).get();
+            if (itemDoc.exists) {
+                currentItemData = itemDoc.data();
+                collectionRef = db.collection('items').doc(itemId);
             }
         }
 
@@ -1414,20 +1372,11 @@ async function handleDeleteItem(itemId) {
             }
         }
         if (!currentItemData) {
-            let shardId = 1;
-            while (shardId < 50) {
-                const shardRef = db.collection(`items-${shardId}`).doc('items');
-                const shardDoc = await shardRef.get();
-                if (shardDoc.exists) {
-                    const match = (shardDoc.data().items || []).find(i => i.itemId === itemId);
-                    if (match) {
-                        currentItemData = match;
-                        collectionRef = shardRef;
-                        foundShardId = shardId;
-                        break;
-                    }
-                }
-                shardId++;
+            // Try main items collection directly
+            const itemDoc = await db.collection('items').doc(itemId).get();
+            if (itemDoc.exists) {
+                currentItemData = itemDoc.data();
+                collectionRef = db.collection('items').doc(itemId);
             }
         }
 
@@ -1439,16 +1388,8 @@ async function handleDeleteItem(itemId) {
 
         if (!(isUploader || isAdminOrMod)) throw new Error("Permission denied");
 
-        if (foundShardId) {
-            await db.runTransaction(async (transaction) => {
-                const shardDoc = await transaction.get(collectionRef);
-                const items = shardDoc.data().items || [];
-                const newItems = items.filter(i => i.itemId !== itemId);
-                transaction.update(collectionRef, { items: newItems });
-            });
-        } else {
-            await collectionRef.delete();
-        }
+        // Delete the item document directly
+        await collectionRef.delete();
 
         // --- Fan-Out Deletion ---
         authMessage.textContent = "Syncing deletion to user profiles...";
@@ -2244,38 +2185,24 @@ async function loadUserLists() {
     try {
         existingListsDropdown.innerHTML = '<option value="">-- Select a List --</option>';
 
-        // 1. Fetch PRIVATE lists (Profile Map)
+        // 1. Fetch PRIVATE lists from user's subcollection
         const privateSnap = await db.collection('artifacts').doc(appId)
             .collection('user_profiles').doc(userId)
-            .collection('lists').doc('lists').get();
+            .collection('lists').get();
 
-        if (privateSnap.exists) {
-            Object.entries(privateSnap.data()).forEach(([id, list]) => {
-                existingListsDropdown.innerHTML += `<option value="private|${id}">${list.name} (Private)</option>`;
-            });
-        }
+        privateSnap.forEach(doc => {
+            const list = doc.data();
+            existingListsDropdown.innerHTML += `<option value="private|${doc.id}">${list.name} (Private)</option>`;
+        });
 
-        // 2. Fetch OWNED public lists from Shards
-        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
-        const metaSnap = await metadataRef.get();
-        let maxShard = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 5;
+        // 2. Fetch OWNED public lists from lists collection
+        const publicSnap = await db.collection('lists')
+            .where('userId', '==', userId)
+            .get();
 
-        const shardPromises = [];
-        for (let i = 1; i <= maxShard; i++) {
-            shardPromises.push(db.collection(`lists-${i}`).doc('lists').get());
-        }
-
-        const shardSnapshots = await Promise.all(shardPromises);
-        shardSnapshots.forEach((doc, index) => {
-            if (doc.exists) {
-                const shardId = index + 1;
-                Object.entries(doc.data()).forEach(([listId, listData]) => {
-                    if (listData.userId === userId) {
-                        // Store shardId in value for easier updates
-                        existingListsDropdown.innerHTML += `<option value="public|${shardId}|${listId}">${listData.name} (Public)</option>`;
-                    }
-                });
-            }
+        publicSnap.forEach(doc => {
+            const list = doc.data();
+            existingListsDropdown.innerHTML += `<option value="public|${doc.id}">${list.name} (Public)</option>`;
         });
 
     } catch (error) {
@@ -2288,32 +2215,27 @@ async function addItemToList(combinedValue) {
 
     const parts = combinedValue.split('|');
     const type = parts[0];
+    const listId = parts[1];
     const userId = auth.currentUser.uid;
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     let listRef;
-    let listId;
 
     if (type === 'public') {
-        const shardId = parts[1];
-        listId = parts[2];
-        listRef = db.collection(`lists-${shardId}`).doc('lists');
+        // Public list: direct document reference
+        listRef = db.collection('lists').doc(listId);
     } else {
-        listId = parts[1];
-        // Private List: List ID is a key in the 'lists' document
+        // Private list: individual document in user's subcollection
         listRef = db.collection('artifacts').doc(appId)
             .collection('user_profiles').doc(userId)
-            .collection('lists').doc('lists');
+            .collection('lists').doc(listId);
     }
 
     try {
-        // Both public (sharded) and private use map-based updates via dot notation or set with merge
-        // To be safe with nested fields, we dot-notation it or set merge
-        await listRef.set({
-            [listId]: {
-                items: firebase.firestore.FieldValue.arrayUnion(itemId),
-                lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
-            }
-        }, { merge: true });
+        // Update the list document directly
+        await listRef.update({
+            items: firebase.firestore.FieldValue.arrayUnion(itemId),
+            lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+        });
 
         listMessage.textContent = "Item added to list!";
         listMessage.className = "form-message success-message";
@@ -2350,14 +2272,13 @@ createNewListBtn.onclick = async () => {
         let newListId = db.collection('dummy').doc().id; // Generate ID
 
         if (privacy === 'public') {
-            const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
-            const metaSnap = await metadataRef.get();
-            const shardId = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 1;
-            newListRef = db.collection(`lists-${shardId}`).doc('lists');
+            // Public list: individual document in lists collection
+            newListRef = db.collection('lists').doc(newListId);
         } else {
+            // Private list: individual document in user's lists subcollection
             newListRef = db.collection('artifacts').doc(appId)
                 .collection('user_profiles').doc(userId)
-                .collection('lists').doc('lists');
+                .collection('lists').doc(newListId);
         }
 
         const payload = {
@@ -2370,10 +2291,8 @@ createNewListBtn.onclick = async () => {
             id: newListId
         };
 
-        // Create the list in the map
-        await newListRef.set({
-            [newListId]: payload
-        }, { merge: true });
+        // Create the list document
+        await newListRef.set(payload);
 
         listMessage.textContent = "List created and item added!";
         listMessage.className = "form-message success-message";
@@ -2454,8 +2373,8 @@ async function fetchAndRenderPublicLists(itemId, providedItemData = null) {
         }
 
         if (!itemData) {
-            // Fallback: This might fail for sharded items if not consistent
-            const itemDoc = await db.collection(targetCollection).doc(itemId).get();
+            // Fallback: Fetch from items collection
+            const itemDoc = await db.collection('items').doc(itemId).get();
             if (itemDoc.exists) {
                 itemData = itemDoc.data();
             }
@@ -2466,37 +2385,23 @@ async function fetchAndRenderPublicLists(itemId, providedItemData = null) {
             return;
         }
 
-        // --- NEW: FETCH PUBLIC LISTS FROM SHARDS ---
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
-        const metaSnap = await metadataRef.get();
-        let maxShard = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 5;
-
-        const shardPromises = [];
-        for (let i = 1; i <= maxShard; i++) {
-            shardPromises.push(db.collection(`lists-${i}`).doc('lists').get());
-        }
-
-        const shardSnapshots = await Promise.all(shardPromises);
+        // Fetch all public lists from the lists collection
+        const listsSnapshot = await db.collection('lists').get();
         let matchedLiveLists = [];
         let staticLists = [];
 
-        shardSnapshots.forEach(doc => {
-            if (doc.exists) {
-                const listsInShard = doc.data() || {};
-                Object.entries(listsInShard).forEach(([listId, listData]) => {
-                    const list = { ...listData, id: listId, type: listData.privacy };
+        listsSnapshot.forEach(doc => {
+            const listData = doc.data();
+            const list = { ...listData, id: doc.id, type: listData.privacy };
 
-                    // 1. Check Static Lists
-                    if (list.items && Array.isArray(list.items) && list.items.includes(itemId)) {
-                        staticLists.push(list);
-                    }
+            // 1. Check Static Lists - if item is in the items array
+            if (list.items && Array.isArray(list.items) && list.items.includes(itemId)) {
+                staticLists.push(list);
+            }
 
-                    // 2. Check Live Lists
-                    if (list.mode === 'live' && itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
-                        matchedLiveLists.push(list);
-                    }
-                });
+            // 2. Check Live Lists - if item matches the live query
+            if (list.mode === 'live' && itemMatchesLiveQuery(itemData, list.liveQuery, list.liveLogic)) {
+                matchedLiveLists.push(list);
             }
         });
 
@@ -2512,7 +2417,7 @@ async function fetchAndRenderPublicLists(itemId, providedItemData = null) {
 
         allPublicListsForThisItem = Array.from(uniqueListsMap.values());
 
-        // 4. Render as usual
+        // Render as usual
         renderListsPage(1);
 
     } catch (error) {

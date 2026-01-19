@@ -197,40 +197,22 @@ async function fetchAllItems() {
     }
 
     try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('items_sharding');
-        const metaSnap = await metadataRef.get();
-        let maxShard = 1;
-        if (metaSnap.exists) {
-            maxShard = metaSnap.data().currentShardId || 1;
-        }
-
         allItems = [];
-        const shardPromises = [];
-        // Fetch all shards in parallel
-        for (let i = 1; i <= maxShard; i++) {
-            shardPromises.push(db.collection(`items-${i}`).doc('items').get());
-        }
 
-        const snapshots = await Promise.all(shardPromises);
+        // Fetch all items from the new structure: items/{itemId}
+        const itemsSnapshot = await db.collection('items').get();
 
-        snapshots.forEach(doc => {
-            if (doc.exists) {
-                const items = doc.data().items || [];
-                items.forEach(item => {
-                    // Normalize data
-                    if (Array.isArray(item.tags)) {
-                        item.tags = item.tags.map(tag => (tag || '').toLowerCase());
-                    }
-                    item.id = item.itemId; // Ensure ID access
-                    allItems.push(item);
-                });
+        itemsSnapshot.forEach(doc => {
+            const item = doc.data();
+            // Normalize data
+            if (Array.isArray(item.tags)) {
+                item.tags = item.tags.map(tag => (tag || '').toLowerCase());
             }
+            item.id = doc.id; // Use document ID
+            allItems.push(item);
         });
 
-        // Also fetch legacy/review items if needed, but assuming migration moved everything to shards.
-
-        // Sort client-side since we lost DB sorting
+        // Sort client-side by creation date
         allItems.sort((a, b) => {
             const dateA = a.createdAt?.seconds || 0;
             const dateB = b.createdAt?.seconds || 0;
@@ -518,39 +500,16 @@ async function fetchPublicLists() {
 
     grid.innerHTML = '<p>Loading lists...</p>';
 
-    // try {  <-- Removing this outer try
     try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
-        const metaSnap = await metadataRef.get();
-        let maxShard = 1;
-
-        if (metaSnap.exists) {
-            maxShard = metaSnap.data().currentShardId || 1;
-        } else {
-            // Fallback: try to scan a few if metadata is missing (e.g. migration validation)
-            maxShard = 5;
-        }
-
         allPublicLists = [];
-        const promises = [];
 
-        // Parallel fetch for speed
-        for (let i = 1; i <= maxShard; i++) {
-            promises.push(db.collection(`lists-${i}`).doc('lists').get().then(doc => ({ doc, shardId: i })));
-        }
+        // Fetch all lists from the new structure: lists/{listId}
+        const listsSnapshot = await db.collection('lists').get();
 
-        const results = await Promise.all(promises);
-
-        results.forEach(({ doc, shardId }) => {
-            if (doc.exists) {
-                const listMap = doc.data();
-                Object.entries(listMap).forEach(([key, list]) => {
-                    list.id = list.id || list.listId || key;
-                    list.shardId = shardId; // Attach shardId
-                    allPublicLists.push(list);
-                });
-            }
+        listsSnapshot.forEach(doc => {
+            const list = doc.data();
+            list.id = doc.id; // Use document ID
+            allPublicLists.push(list);
         });
 
         allPublicLists.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
@@ -598,7 +557,7 @@ function renderPublicLists(page) {
 
     paginatedLists.forEach(list => {
         const card = document.createElement('a');
-        card.href = `../lists/?list=${list.id}&type=public&shard=${list.shardId}`;
+        card.href = `../lists/?list=${list.id}&type=public`;
         card.className = 'item-card-link';
 
         const listIcon = list.mode === 'live' ? 'bi-journal-code' : 'bi-journal-bookmark-fill';

@@ -50,6 +50,7 @@ let listRef = null;
 let listData = null;
 let listOwnerId = null;
 let isNsfwAllowed = false;
+let currentUserRole = null;
 let allFetchedItems = [];
 let currentFilteredItems = []; // Track filtered items for pagination
 const DEFAULT_IMAGE_URL = 'https://placehold.co/150x150/444/eee?text=No+Image';
@@ -108,6 +109,7 @@ auth.onAuthStateChanged(async (user) => {
         try {
             const profileDoc = await db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(user.uid).get();
             isNsfwAllowed = profileDoc.data()?.allowNSFW === true;
+            currentUserRole = profileDoc.data()?.role || null;
             checkFavoriteStatus(user.uid);
         } catch (err) { isNsfwAllowed = false; }
     } else { isNsfwAllowed = false; }
@@ -123,9 +125,6 @@ auth.onAuthStateChanged(async (user) => {
 // =====================================
 // LOAD LIST
 // =====================================
-// =====================================
-// LOAD LIST
-// =====================================
 async function loadList(currentUserId) {
     if (itemsGrid) itemsGrid.innerHTML = '';
     if (listSettingsBtn) listSettingsBtn.style.display = 'none';
@@ -133,53 +132,30 @@ async function loadList(currentUserId) {
 
     try {
         if (listType === 'public') {
-            // New logic: Scan lists-* shards for the listId
-            // Optimization: If we had an index we'd use it. For now, scan.
-            let found = false;
-            let shardId = 1;
-            while (shardId < 20) {
-                const shardDoc = await db.collection(`lists-${shardId}`).doc('lists').get();
-                if (!shardDoc.exists) break;
-
-                const listsMap = shardDoc.data();
-                if (listsMap[listId]) {
-                    listData = listsMap[listId];
-                    listRef = db.collection(`lists-${shardId}`).doc('lists'); // This is a bit weird, as we can't easily update a map inside a doc with a simple ref, but we'll handle updates separately.
-                    found = true;
-                    break;
-                }
-                shardId++;
-            }
-            if (!found) {
-                // Fallback to legacy check just in case
-                const legacySnap = await db.collection('public_lists').doc(listId).get();
-                if (legacySnap.exists) {
-                    listData = legacySnap.data();
-                    listRef = db.collection('public_lists').doc(listId);
-                } else {
-                    listTitle.textContent = "List Not Found";
-                    return;
-                }
-            }
-        } else {
-            // Private lists are still in the user profile structure (unchanged by previous tasks?)
-            // Wait, previous tasks aggregated USER ITEMS. Did we aggregate USER LISTS?
-            // Structure.txt said: "collection: public_lists (Sharded)" but "User Lists: .../lists/{listId}" (Unchanged?).
-            // Let's assume User Lists are still subcollections for now, OR valid if strict structure was applied everywhere.
-            // Migration script migrated PUBLIC lists.
-            // Let's stick to existing path for private lists.
-            // Private lists are in 'user_profiles/{uid}/lists/lists' map
-            listRef = db.collection('artifacts').doc('default-app-id')
-                .collection('user_profiles').doc(currentUserId)
-                .collection('lists').doc('lists');
-
-            const listDoc = await listRef.get();
-            if (!listDoc.exists || !listDoc.data()[listId]) {
+            // Fetch from lists/{listId} directly
+            const listDoc = await db.collection('lists').doc(listId).get();
+            if (!listDoc.exists) {
                 listTitle.textContent = "List Not Found";
+                if (listLoader) listLoader.style.display = 'none';
                 return;
             }
-            listData = listDoc.data()[listId];
-            listData.id = listId; // Ensure ID is present
+            listData = listDoc.data();
+            listData.id = listId;
+            listRef = db.collection('lists').doc(listId);
+        } else {
+            // Private list from user's subcollection
+            listRef = db.collection('artifacts').doc('default-app-id')
+                .collection('user_profiles').doc(currentUserId)
+                .collection('lists').doc(listId);
+
+            const listDoc = await listRef.get();
+            if (!listDoc.exists) {
+                listTitle.textContent = "List Not Found";
+                if (listLoader) listLoader.style.display = 'none';
+                return;
+            }
+            listData = listDoc.data();
+            listData.id = listId;
         }
 
         listOwnerId = listData.userId;
@@ -225,16 +201,8 @@ async function loadList(currentUserId) {
                 const canSync = (currentUserId === listOwnerId) || (listType === 'public');
 
                 if (canSync) {
-                    // Update - Care needed for Public Lists stored in Shards
-                    if (listType === 'public') {
-                        // We need to update the Map in the shard
-                        await updatePublicListInShard(listId, { items: matchedIds });
-                    } else {
-                        // Private Map Update
-                        await listRef.update({
-                            [`${listId}.items`]: matchedIds
-                        });
-                    }
+                    // Update the list - now using direct document reference
+                    await listRef.update({ items: matchedIds });
                     listData.items = matchedIds;
                 }
             }
@@ -261,59 +229,25 @@ async function loadList(currentUserId) {
     checkFavoriteStatus(currentUserId);
 }
 
-// Helper to fetch EVERYTHING (expensive but necessary for sharded no-index architecture)
+// Helper to fetch all items from the items collection
 async function fetchAllGlobalItemsFromShards() {
-    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-    const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('items_sharding');
-    const metaSnap = await metadataRef.get();
-    let maxShard = 1;
-    if (metaSnap.exists) {
-        maxShard = metaSnap.data().currentShardId || 1;
-    }
-
-    const promises = [];
-    for (let i = 1; i <= maxShard; i++) {
-        promises.push(db.collection(`items-${i}`).doc('items').get());
-    }
-
-    // Also try legacy 'items' collection just in case? Or assume migration is done.
-    // Migration is done.
-
-    const snapshots = await Promise.all(promises);
     const results = [];
-    snapshots.forEach(doc => {
-        if (doc.exists) {
-            const data = doc.data().items || [];
-            data.forEach(item => {
-                if (!item.itemId && item.id) item.itemId = item.id; // Normalize
-                results.push(item);
-            });
-        }
+
+    // Fetch all items from the new structure: items/{itemId}
+    const itemsSnapshot = await db.collection('items').get();
+
+    itemsSnapshot.forEach(doc => {
+        const item = doc.data();
+        if (!item.itemId) item.itemId = doc.id; // Normalize
+        results.push(item);
     });
+
     return results;
 }
 
-async function updatePublicListInShard(listId, updateData) {
-    // Find the shard again (or store it in loadList)
-    // To be safe, we scan again or use a known shard ID if we stored it
-    // For now, scan.
-    let shardId = 1;
-    while (shardId < 20) {
-        const shardRef = db.collection(`lists-${shardId}`).doc('lists');
-        const doc = await shardRef.get();
-        if (doc.exists) {
-            const data = doc.data();
-            if (data[listId]) {
-                const currentList = data[listId];
-                const updatedList = { ...currentList, ...updateData };
-                await shardRef.update({
-                    [listId]: updatedList
-                });
-                return;
-            }
-        }
-        shardId++;
-    }
+async function updatePublicList(listId, updateData) {
+    // Update the list document directly
+    await db.collection('lists').doc(listId).update(updateData);
 }
 
 // Deprecated: fetchAllItems(itemIds) replaced by fetchAllGlobalItemsFromShards logic inside loadList
@@ -686,21 +620,10 @@ function goBackToPrevious() {
 async function removeItemFromList(itemId) {
     if (!confirm("Remove this item from the list?")) return;
     try {
-        if (listType === 'public') {
-            // Public list update logic (if needed, though normally handled via shard helper in loadList)
-            // But wait, removeItemFromList checks listRef.
-            // If public, listRef is NOT pointing to the specific doc anymore in the new loadList logic?
-            // Actually in loadList for public: listRef = db.collection(`lists-${shardId}`).doc('lists');
-            // So we need map update here too.
-            await listRef.update({
-                [`${listId}.items`]: firebase.firestore.FieldValue.arrayRemove(itemId)
-            });
-        } else {
-            // Private Map Update
-            await listRef.update({
-                [`${listId}.items`]: firebase.firestore.FieldValue.arrayRemove(itemId)
-            });
-        }
+        // Update items array directly on the list document
+        await listRef.update({
+            items: firebase.firestore.FieldValue.arrayRemove(itemId)
+        });
         allFetchedItems = allFetchedItems.filter(i => i.id !== itemId);
         handleSearch();
     } catch (e) { alert(e.message); }
@@ -709,25 +632,8 @@ async function removeItemFromList(itemId) {
 if (deleteListBtn) {
     deleteListBtn.onclick = async () => {
         if (confirm("Delete this list?")) {
-            if (listType === 'public') {
-                // Should ideally find shard and delete key. 
-                // But strictly speaking deleteListBtn is only shown if currentUserId === listOwnerId.
-                // For public lists, we might need the shard ID if we didn't store it.
-                // Assuming we can find it or stored it. 
-                // For now, let's focus on PRIVATE fix as per request.
-                // But if we want to be safe:
-                // await deletePublicList(listId); 
-                // Let's assume public lists are handled or out of scope for *this* private fix, 
-                // but listRef for public was set to shard doc.
-                await listRef.update({
-                    [listId]: firebase.firestore.FieldValue.delete()
-                });
-            } else {
-                // Private List Map Delete
-                await listRef.update({
-                    [listId]: firebase.firestore.FieldValue.delete()
-                });
-            }
+            // Delete the list document directly
+            await listRef.delete();
             goBackToPrevious();
         }
     };
@@ -792,50 +698,42 @@ if (saveListChangesBtn) {
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
                 if (newPrivacy === 'public') {
-                    // Private -> Public
-                    const metadataRef = db.collection('artifacts').doc(appId).collection('metadata').doc('lists_sharding');
-                    const metaSnap = await metadataRef.get();
-                    const shardId = metaSnap.exists ? (metaSnap.data().currentShardId || 1) : 1;
-                    const publicRef = db.collection(`lists-${shardId}`).doc('lists');
+                    // Private -> Public: Move to lists/{listId}
+                    const publicRef = db.collection('lists').doc(listId);
 
-                    // 1. Write to Public Shard
-                    await publicRef.set({ [listId]: updateData }, { merge: true });
+                    // 1. Write to Public Collection
+                    await publicRef.set(updateData);
 
-                    // 2. Remove from Private Map
+                    // 2. Remove from Private Collection
                     const privateRef = db.collection('artifacts').doc(appId)
                         .collection('user_profiles').doc(listOwnerId)
-                        .collection('lists').doc('lists');
-                    await privateRef.update({ [listId]: firebase.firestore.FieldValue.delete() });
+                        .collection('lists').doc(listId);
+                    await privateRef.delete();
 
                     window.location.href = `?list=${listId}&type=public`;
                 } else {
-                    // Public -> Private
+                    // Public -> Private: Move to user_profiles/{userId}/lists/{listId}
                     const privateRef = db.collection('artifacts').doc(appId)
                         .collection('user_profiles').doc(listOwnerId)
-                        .collection('lists').doc('lists');
+                        .collection('lists').doc(listId);
 
-                    // 1. Write to Private Map
-                    await privateRef.set({ [listId]: updateData }, { merge: true });
+                    // 1. Write to Private Collection
+                    await privateRef.set(updateData);
 
-                    // 2. Remove from Public Shard (listRef was set to the correct shard doc in loadList)
-                    await listRef.update({ [listId]: firebase.firestore.FieldValue.delete() });
+                    // 2. Remove from Public Collection
+                    await listRef.delete();
 
                     window.location.href = `?list=${listId}&type=private`;
                 }
             } else {
-                // Same privacy, just update fields
-                if (listType === 'public') {
-                    await updatePublicListInShard(listId, updateData);
-                } else {
-                    // Private Map Update
-                    await listRef.update({
-                        [`${listId}.name`]: newName,
-                        [`${listId}.mode`]: newMode,
-                        [`${listId}.liveQuery`]: updateData.liveQuery,
-                        [`${listId}.liveLogic`]: updateData.liveLogic,
-                        [`${listId}.items`]: updateData.items
-                    });
-                }
+                // Same privacy, just update the document directly
+                await listRef.update({
+                    name: newName,
+                    mode: newMode,
+                    liveQuery: updateData.liveQuery,
+                    liveLogic: updateData.liveLogic,
+                    items: updateData.items
+                });
                 location.reload();
             }
         } catch (e) {
@@ -1020,7 +918,7 @@ if (saveBioBtn) {
             saveBioBtn.disabled = true;
             saveBioBtn.textContent = "Saving...";
 
-            await listRef.update({ description: newBio });
+            await listRef.update({ [`${listId}.description`]: newBio });
 
             listData.description = newBio;
             listBioText.textContent = newBio || "No description yet.";
@@ -1184,8 +1082,9 @@ async function createCommentElement(commentId, userId, text, timeStr) {
 
     let deleteBtnHtml = '';
     const currentUser = auth.currentUser;
-    // Allow delete if: (1) Creator of comment OR (2) Owner of the list
-    if (currentUser && (currentUser.uid === userId || currentUser.uid === listOwnerId)) {
+    // Allow delete if: (1) Creator of comment OR (2) Owner of the list OR (3) Admin/Mod
+    const isAdminOrMod = ['admin', 'mod'].includes(currentUserRole);
+    if (currentUser && (currentUser.uid === userId || currentUser.uid === listOwnerId || isAdminOrMod)) {
         deleteBtnHtml = `<button class="delete-comment-btn" data-id="${commentId}" title="Delete comment">&times;</button>`;
     }
 

@@ -12,34 +12,35 @@ const headerTools = document.getElementById("headerTools");
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 // --- Local Cache Helpers ---
-const CACHE_DURATION = 2 * 7 * 24 * 60 * 60 * 1000; // 2 weeks cache
+const USERS_COLLECTION = 'users';
+// Using the worker URL with /search endpoint
+const SEARCH_ENDPOINT = 'https://imgbbapi.stanislav-zhukov.workers.dev/search';
 
-function getCachedProfiles() {
+/**
+ * Generic function to query Typesense via Cloudflare Proxy
+ */
+async function queryTypesense(collection, params) {
     try {
-        const cached = localStorage.getItem('user_profiles_search_cache');
-        if (!cached) return null;
-        const { data, timestamp } = JSON.parse(cached);
-        if (Date.now() - timestamp > CACHE_DURATION) {
-            localStorage.removeItem('user_profiles_search_cache');
-            return null;
+        const response = await fetch(SEARCH_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                collection: collection,
+                ...params
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Search failed: ${response.status} ${errText}`);
         }
-        return data;
-    } catch (e) {
-        return null;
+
+        return await response.json();
+    } catch (error) {
+        console.error("Typesense Query Error:", error);
+        return { hits: [], found: 0 };
     }
 }
-
-function setCachedProfiles(data) {
-    try {
-        localStorage.setItem('user_profiles_search_cache', JSON.stringify({
-            data: data,
-            timestamp: Date.now()
-        }));
-    } catch (e) {
-        console.warn("Cache write failed:", e);
-    }
-}
-
 
 /**
  * Render skeleton loaders for user cards
@@ -65,44 +66,39 @@ function renderSkeletonProfiles(container, count = 1) {
 }
 
 /**
- * Fetch all user profiles from Firestore
- */
-async function fetchAllUserProfiles() {
-    // Return cache if valid
-    const cached = getCachedProfiles();
-    if (cached) return cached;
-
-    try {
-        const profilesRef = db.collection('artifacts')
-            .doc(appId)
-            .collection('user_profiles');
-
-        const snap = await profilesRef.get();
-        const profiles = snap.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
-        setCachedProfiles(profiles);
-        return profiles;
-    } catch (e) {
-        console.error("Error fetching all user profiles:", e);
-        return [];
-    }
-}
-
-
-/**
- * Optimized fetch for top users (Firestore side)
+ * Fetch top users using Typesense
  */
 async function fetchTopUsers(limitCount = 10) {
-    try {
-        const profilesRef = db.collection('artifacts')
-            .doc(appId)
-            .collection('user_profiles');
+    const result = await queryTypesense(USERS_COLLECTION, {
+        q: '*',
+        sort_by: 'itemsOwned:desc',
+        per_page: limitCount
+    });
 
-        const snap = await profilesRef.orderBy('itemsOwned', 'desc').limit(limitCount + 1).get();
-        return snap.docs.map(doc => ({ ...doc.data(), uid: doc.id }));
-    } catch (e) {
-        console.error("Error fetching top users:", e);
-        return [];
-    }
+    // Map hits to user objects
+    // Note: Typesense 'document' field contains the indexed data.
+    // We assume the indexed data has the same fields as Firestore: username, uid, itemsOwned, profilePic (or equivalent)
+    return result.hits.map(hit => ({
+        ...hit.document,
+        // Ensure UID is present (it might be 'id' in typesense or 'uid')
+        uid: hit.document.uid || hit.document.id
+    }));
+}
+
+/**
+ * Search users using Typesense
+ */
+async function searchUsers(query) {
+    const result = await queryTypesense(USERS_COLLECTION, {
+        q: query,
+        query_by: 'username,uid', // Search by username and UID
+        per_page: 50 // reasonable limit
+    });
+
+    return result.hits.map(hit => ({
+        ...hit.document,
+        uid: hit.document.uid || hit.document.id
+    }));
 }
 
 /**
@@ -117,9 +113,29 @@ function createUserCard(user, container, isPinned = false) {
     card.className = "user-card";
     if (isPinned) card.classList.add("pinned-user");
 
-    const createdAt = user.createdAt
-        ? new Date(user.createdAt.seconds * 1000).toLocaleDateString()
-        : "Unknown";
+    // Handle createdAt: Firestore Timestamp vs Typesense (likely number or string)
+    let createdAtDisplay = "Unknown";
+    if (user.createdAt) {
+        // If it's a Firestore timestamp object (seconds)
+        if (typeof user.createdAt === 'object' && user.createdAt.seconds) {
+            createdAtDisplay = new Date(user.createdAt.seconds * 1000).toLocaleDateString();
+        }
+        // If it's a number (timestamp)
+        else if (typeof user.createdAt === 'number') {
+            createdAtDisplay = new Date(user.createdAt).toLocaleDateString(); // check if ms or sec? usually fetch returns ms if date.now(), but firestore is sec.
+            // If the number is small (e.g. 1700000000), it's seconds. If huge, ms.
+            // Simple heuristic:
+            if (user.createdAt < 10000000000) { // < 10 billion, likely seconds (valid until year 2286)
+                createdAtDisplay = new Date(user.createdAt * 1000).toLocaleDateString();
+            } else {
+                createdAtDisplay = new Date(user.createdAt).toLocaleDateString();
+            }
+        }
+        // If string
+        else if (typeof user.createdAt === 'string') {
+            createdAtDisplay = new Date(user.createdAt).toLocaleDateString();
+        }
+    }
 
     const ownedCount = user.itemsOwned || 0;
 
@@ -138,7 +154,7 @@ function createUserCard(user, container, isPinned = false) {
                 <strong>${user.username || "Unknown User"}${isPinned ? " (You)" : ""}</strong>
             </p>
             <p class="user-uid"><strong>UID:</strong> <span class="text-xs break-all">${user.uid}</span></p>
-            <p><strong>Joined:</strong> ${createdAt}</p>
+            <p><strong>Joined:</strong> ${createdAtDisplay}</p>
             <p><strong>Owned Items:</strong> ${ownedCount}</p>
         </div>
     `;
@@ -159,6 +175,9 @@ async function showPinnedUser(currentUserUid) {
     renderSkeletonProfiles(pinnedContainer, 1);
     try {
         // Fetch only the specific user doc
+        // We can keep using Firestore for the CURRENT user's profile to ensure it's fresh/permissioned,
+        // OR use Typesense. Firestore is safer for "My Profile" to avoid sync delays.
+        // Keeping Firestore logic for pinned user as it's just one doc read.
         const profileDoc = await db.collection('artifacts')
             .doc(appId)
             .collection('user_profiles')
@@ -191,7 +210,8 @@ async function showTopUsers(excludeUid = null) {
     searchMessage.classList.remove("hidden");
 
     try {
-        const topUsers = await fetchTopUsers(TOP_USERS);
+        // Use Typesense fetch
+        const topUsers = await fetchTopUsers(TOP_USERS + 1); // Fetch slightly more to handle exclusion
 
         const filtered = excludeUid
             ? topUsers.filter(u => u.uid !== excludeUid)
@@ -201,6 +221,7 @@ async function showTopUsers(excludeUid = null) {
 
         if (sorted.length === 0) {
             searchMessage.textContent = "No users found.";
+            searchResults.innerHTML = ""; // Clear skeletons
             return;
         }
 
@@ -211,6 +232,7 @@ async function showTopUsers(excludeUid = null) {
     } catch (error) {
         console.error(error);
         searchMessage.textContent = "An error occurred while loading top users.";
+        searchResults.innerHTML = "";
     }
 }
 
@@ -223,38 +245,30 @@ searchForm.addEventListener("submit", async (e) => {
 
     if (!inputRaw) return;
 
-    const input = inputRaw.toLowerCase();
     renderSkeletonProfiles(searchResults, 3);
     searchMessage.textContent = "Searching...";
     searchMessage.classList.remove("hidden");
 
     try {
-        const allProfiles = await fetchAllUserProfiles();
+        // Use Typesense search
+        const users = await searchUsers(inputRaw);
 
-        const uidMatch = allProfiles.find(p => p.uid === inputRaw);
-        if (uidMatch) {
-            searchMessage.textContent = "1 user found.";
-            searchResults.innerHTML = "";
-            createUserCard(uidMatch, searchResults);
-            return;
-        }
-
-        const usernameMatches = allProfiles.filter(p =>
-            p.username && p.username.toLowerCase().includes(input)
-        );
-
-        if (usernameMatches.length === 0) {
+        if (users.length === 0) {
             searchMessage.textContent = `No user found matching "${inputRaw}".`;
             searchResults.innerHTML = "";
             return;
         }
 
-        searchMessage.textContent = `${usernameMatches.length} user(s) found.`;
+        // Check for exact UID match if applicable (Typesense relevance usually puts exact match first, 
+        // but we can manually check if it looks like a UID and is in the list)
+
+        searchMessage.textContent = `${users.length} user(s) found.`;
         searchResults.innerHTML = "";
-        usernameMatches.forEach(user => createUserCard(user, searchResults));
+        users.forEach(user => createUserCard(user, searchResults));
     } catch (error) {
         console.error("Search error:", error);
         searchMessage.textContent = "An error occurred during search.";
+        searchResults.innerHTML = "";
     }
 });
 

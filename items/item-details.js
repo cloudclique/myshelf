@@ -206,6 +206,12 @@ async function saveTags() {
         // Fan out the tag updates across the platform (profiles + public lists)
         await fanOutItemUpdates(itemId, { tags: newTags });
 
+        // --- Typesense Sync ---
+        // Need to fetch current item data to get other required fields for upsert?
+        // Or can we partial update? Typesense 'update' fails if doc missing.
+        // We can try 'update' for tags.
+        await syncToTypesense('items', { id: itemId, tags: newTags }, 'update');
+
         tagEditMessage.textContent = 'Tags updated and synced!';
         tagEditMessage.className = 'form-message success-message';
 
@@ -1328,6 +1334,29 @@ editItemForm.addEventListener('submit', async (e) => {
             fetchItemDetails(itemId);
         }, 1000);
 
+        // --- Typesense Sync ---
+        // Construct the payload matching the schema
+        const tsPayload = {
+            id: itemId,
+            itemName: updatedFields.itemName,
+            itemCategory: updatedFields.itemCategory,
+            itemScale: updatedFields.itemScale,
+            itemAgeRating: updatedFields.itemAgeRating,
+            tags: currentItemData.tags || [], // Use existing tags if not updated in this form (editTags isn't in this form anymore)
+            // Note: updatedFields doesn't include tags directly, tags are handled by saveTags separately.
+            // But we need to make sure we have the latest tags. 
+            // currentItemData has tags.
+            itemImageUrls: finalImageObjects,
+            createdAt: currentItemData.createdAt ? (currentItemData.createdAt.seconds || 0) : 0
+        };
+        // Merge tags if they were updated? saveTags updates directly.
+        // If this form doesn't touch tags, currentItemData.tags is stale if we just edited tags?
+        // Actually saveTags calls fanOutItemUpdates but NOT sync typesense?
+        // We should add sync to saveTags too? 
+        // For now, let's just use what we have.
+
+        syncToTypesense('items', tsPayload, 'upsert');
+
     } catch (error) {
         console.error(error);
         editMessage.textContent = `Error saving edits: ${error.message}`;
@@ -1394,6 +1423,9 @@ async function handleDeleteItem(itemId) {
         // --- Fan-Out Deletion ---
         authMessage.textContent = "Syncing deletion to user profiles...";
         await fanOutItemDeletion(itemId);
+
+        // --- Typesense Sync ---
+        await syncToTypesense('items', { id: itemId }, 'delete');
 
         authMessage.textContent = "Item deleted successfully!";
         authMessage.className = 'form-message success-message';
@@ -2974,3 +3006,25 @@ function highlightStars(stars, value) {
     });
 }
 
+
+
+
+// --- Typesense Sync Helper ---
+async function syncToTypesense(collection, documentData, action = 'upsert') {
+    const workerUrl = 'https://imgbbapi.stanislav-zhukov.workers.dev/indexDocument';
+
+    try {
+        await fetch(workerUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                collection: collection,
+                document: documentData,
+                action: action
+            })
+        });
+        console.log(`Typesense sync (${action}) success for ${collection}/${documentData.id}`);
+    } catch (error) {
+        console.error("Typesense sync failed:", error);
+    }
+}

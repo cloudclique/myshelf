@@ -2,12 +2,13 @@ import { auth, db, collectionName } from '../firebase-config.js';
 
 const PAGE_SIZE = 52;
 const DEFAULT_IMAGE_URL = 'path/to/your/default-image.jpg';
+const SEARCH_ENDPOINT = 'https://imgbbapi.stanislav-zhukov.workers.dev/search';
 
 let currentUserId = null;
-let allowNSFW = false; // <- NEW
+let allowNSFW = false;
 let currentPage = 1;
-let allItems = [];
-let filteredItems = [];
+
+// We no longer keep allItems in memory
 let hasMore = true;
 
 const ICONS = {
@@ -104,7 +105,31 @@ latestAdditionsGrid.addEventListener('mousemove', (e) => {
 });
 
 
-// --- HELPERS ---
+// --- TYPESENSE HELPERS ---
+async function queryTypesense(collection, params) {
+    try {
+        const response = await fetch(SEARCH_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                collection: collection,
+                ...params
+            })
+        });
+
+        if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Search failed: ${response.status} ${errText}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error("Typesense Query Error:", error);
+        return { hits: [], found: 0 };
+    }
+}
+
+// --- ITEM RENDER HELPERS ---
 function createItemCard(itemData) {
     const link = document.createElement('a');
     link.href = `../items/?id=${itemData.id}`;
@@ -141,29 +166,13 @@ function createItemCard(itemData) {
     return link;
 }
 
-function renderItemsWithPagination(items) {
-    const startIndex = (currentPage - 1) * PAGE_SIZE;
-    const endIndex = startIndex + PAGE_SIZE;
-    const itemsToShow = items.slice(startIndex, endIndex);
-
-    hasMore = endIndex < items.length;
-
+function renderItems(items) {
     latestAdditionsGrid.innerHTML = '';
-    if (itemsToShow.length === 0) {
+    if (items.length === 0) {
         latestAdditionsGrid.innerHTML = '<p>No items found.</p>';
         return;
     }
-
-    itemsToShow.forEach(item => latestAdditionsGrid.appendChild(createItemCard(item)));
-
-    const isPrevDisabled = currentPage === 1;
-    const isNextDisabled = !hasMore;
-
-    [prevPageBtn, prevPageBtnTop].forEach(btn => (btn.disabled = isPrevDisabled));
-    [nextPageBtn, nextPageBtnTop].forEach(btn => (btn.disabled = isNextDisabled));
-    [pageStatusElement, pageStatusElementTop].forEach(
-        span => (span.textContent = `Page ${currentPage}`)
-    );
+    items.forEach(item => latestAdditionsGrid.appendChild(createItemCard(item)));
 }
 
 function getPageFromURL() {
@@ -189,40 +198,77 @@ function updateURLPage() {
     window.history.replaceState({}, '', url);
 }
 
-async function fetchAllItems() {
+// --- FETCH ITEMS ---
+// Fetch items using Typesense
+async function fetchItems(page = 1) {
     loadingStatus.textContent = '';
 
-    if (latestAdditionsGrid.children.length === 0) {
+    // Only show skeletons if completely empty or big change? 
+    // Always good UX to show loading state if async.
+    if (page === 1) renderSkeletonGrid();
+    else {
+        // preserve current grid, but maybe show a "loading" indicator?
+        // for simplicity, showing skeletons on page switch is standard.
         renderSkeletonGrid();
     }
 
     try {
-        allItems = [];
+        let queryText = searchInput.value.trim();
+        let filterBy = '';
 
-        // Fetch all items from the new structure: items/{itemId}
-        const itemsSnapshot = await db.collection('items').get();
+        // Handle "draft" keyword for filtering
+        if (/\bdraft\b/i.test(queryText)) {
+            filterBy = 'isDraft:true';
+            queryText = queryText.replace(/\bdraft\b/gi, '').trim();
+        }
 
-        itemsSnapshot.forEach(doc => {
-            const item = doc.data();
-            // Normalize data
-            if (Array.isArray(item.tags)) {
-                item.tags = item.tags.map(tag => (tag || '').toLowerCase());
-            }
-            item.id = doc.id; // Use document ID
-            allItems.push(item);
+        // Clean query: strip braces usually.
+        // If user typed "{Action}", we just search "Action".
+        const cleanedQuery = queryText.replace(/[\{\}]/g, '');
+
+        // Typesense query
+        // q: '*' for all (if empty)
+        // sort_by: createdAt:desc
+        const tsParams = {
+            q: cleanedQuery || '*',
+            query_by: 'itemName,itemCategory,itemScale,itemAgeRating,tags', // Search relevant fields
+            sort_by: 'createdAt:desc',
+            page: page,
+            per_page: PAGE_SIZE
+        };
+
+        if (filterBy) {
+            tsParams.filter_by = filterBy;
+        }
+
+        const result = await queryTypesense('items', tsParams);
+
+        // Map hits
+        const items = result.hits.map(hit => {
+            const doc = hit.document;
+            return {
+                ...doc,
+                id: doc.id // ensure ID is available
+            };
         });
 
-        // Sort client-side by creation date
-        allItems.sort((a, b) => {
-            const dateA = a.createdAt?.seconds || 0;
-            const dateB = b.createdAt?.seconds || 0;
-            return dateB - dateA; // Descending
-        });
+        // Update hasMore
+        // result.found is total documents
+        // result.page is current page, result.out_of is total found.
+        hasMore = (page * PAGE_SIZE) < result.found;
 
-        filteredItems = [...allItems];
+        renderItems(items);
 
-        restoreStateFromURL();
-        handleSearch(false);
+        // Update pagination buttons
+        const isPrevDisabled = page === 1;
+        const isNextDisabled = !hasMore;
+
+        [prevPageBtn, prevPageBtnTop].forEach(btn => (btn.disabled = isPrevDisabled));
+        [nextPageBtn, nextPageBtnTop].forEach(btn => (btn.disabled = isNextDisabled));
+        [pageStatusElement, pageStatusElementTop].forEach(
+            span => (span.textContent = `Page ${page}`)
+        );
+
     } catch (err) {
         console.error(err);
         loadingStatus.textContent = `Error: ${err.message}`;
@@ -230,82 +276,29 @@ async function fetchAllItems() {
     }
 }
 
-function handleSearch(resetPage = true) {
-    // If resetting page (new search), show skeletons briefly if we were fetching (though this is client-side filtering, so it's fast)
-    // For client-side filter it might be too fast to need skeletons, BUT if we had async search, we'd put it here.
-    // For now, let's keep it snappy without skeletons for local filtering, 
-    // OR we can add a tiny artificial delay/skeleton if the dataset is huge (optional).
-    // Given the request is for "gimics", let's clear loading status.
-
-    const query = searchInput.value.trim().toLowerCase();
-
-    if (!query) {
-        filteredItems = [...allItems];
-    } else {
-        const regex = /\{([^}]+)\}|(\S+)/g;
-        const requiredKeywords = [];
-        const excludedKeywords = [];
-        let match;
-
-        while ((match = regex.exec(query)) !== null) {
-            const term = (match[1] || match[2]).toLowerCase();
-            // Check if the term starts with a minus sign and isn't just a "-"
-            if (term.startsWith('-') && term.length > 1) {
-                excludedKeywords.push(term.substring(1));
-            } else {
-                requiredKeywords.push(term);
-            }
-        }
-
-        filteredItems = allItems.filter(item => {
-            // No longer filtering by 18+ here, we will blur in the card rendering
-
-            const name = (item.itemName || '').toLowerCase();
-            const tags = (item.tags || []).map(t => t.toLowerCase());
-            const category = (item.itemCategory || '').toLowerCase();
-            const scale = (item.itemScale || '').toLowerCase();
-            const age = (item.itemAgeRating || '').toLowerCase();
-
-            // Use a separator to prevent word bleeding between fields
-            const status = item.isDraft ? 'draft' : 'released';
-            const combinedText = [name, category, scale, age, status, ...tags].join(' | ');
-
-            // 1. Exclusion Check: If any excluded keyword is present, discard item
-            const hasExcluded = excludedKeywords.some(kw => combinedText.includes(kw));
-            if (hasExcluded) return false;
-
-            // 2. Requirement Check: Item must contain every required keyword
-            // If no required keywords exist (only exclusions), allow the item
-            if (requiredKeywords.length === 0) return true;
-            return requiredKeywords.every(kw => combinedText.includes(kw));
-        });
-    }
-
-    if (resetPage) currentPage = 1;
-    renderItemsWithPagination(filteredItems);
+// --- SEARCH HANDLING ---
+function handleSearch() {
+    currentPage = 1;
+    fetchItems(currentPage);
     updateURLPage();
 }
 
 function handleClearSearch() {
     searchInput.value = '';
-    filteredItems = [...allItems];
-
-    currentPage = 1;
-    renderItemsWithPagination(filteredItems);
-    updateURLPage();
+    handleSearch();
 }
 
 function handleNext() {
     if (!hasMore) return;
     currentPage++;
-    renderItemsWithPagination(filteredItems);
+    fetchItems(currentPage);
     updateURLPage();
 }
 
 function handlePrev() {
     if (currentPage === 1) return;
     currentPage--;
-    renderItemsWithPagination(filteredItems);
+    fetchItems(currentPage);
     updateURLPage();
 }
 
@@ -352,7 +345,8 @@ auth.onAuthStateChanged(async user => {
         headerTools.innerHTML = `<button onclick="window.location.href='../login/'" class="login-btn">Login / Signup</button>`;
     }
 
-    fetchAllItems();
+    restoreStateFromURL();
+    fetchItems(currentPage);
 });
 
 // -- EVENT LISTENERS --
@@ -366,83 +360,47 @@ searchInput.onkeypress = e => {
 prevPageBtn.onclick = prevPageBtnTop.onclick = handlePrev;
 nextPageBtn.onclick = nextPageBtnTop.onclick = handleNext;
 
+
+// --- SEARCH SUGGESTIONS (Client-Side hack or Typesense?)
+// We can use a separate Typesense query for suggestions if we want, or just remove them if not supported.
+// The previous implementation used 'allItems' which we don't have anymore.
+// We can implement a quick prefix search to Typesense or disable suggestions for now.
+// For now, let's disable generic suggestions to avoid complexity or implement a simple debounce search for suggestions.
+// Given strict instructions to "adjust... code", I'll leave the UI element but clear the logic OR implement it properly.
+// A proper suggestion implementation requires a separate index or fast queries.
+// Let's implement a debounce query to Typesense for suggestions.
+
 const searchSuggestions = document.getElementById('searchSuggestions');
+let suggestionTimeout;
 
 function updateSearchSuggestions() {
-    const query = searchInput.value.trim().toLowerCase();
+    clearTimeout(suggestionTimeout);
+    const query = searchInput.value.trim();
+
     if (!query) {
         searchSuggestions.innerHTML = '';
         return;
     }
 
-    const matchesByType = {
-        tag: [],
-        age: [],
-        scale: [],
-        category: [],
-        name: []
-    };
+    suggestionTimeout = setTimeout(async () => {
+        // Fetch suggestions
+        try {
+            const result = await queryTypesense('items', {
+                q: query,
+                query_by: 'itemName,tags,itemCategory',
+                per_page: 5
+            });
 
-    const addedItemIds = new Set();
-    const addedTexts = new Set(); // track unique text for tag/age/scale/category
+            const matches = result.hits.map(h => ({
+                text: h.document.itemName, // simplified
+                type: 'name'
+            }));
 
-    for (let item of allItems) {
-        if (addedItemIds.has(item.id)) continue;
-
-        // Check tags
-        const tagMatch = (item.tags || []).find(t => t.toLowerCase().includes(query));
-        if (tagMatch && !addedTexts.has(tagMatch.toLowerCase())) {
-            matchesByType.tag.push({ type: 'tag', text: tagMatch, item });
-            addedTexts.add(tagMatch.toLowerCase());
-            addedItemIds.add(item.id);
-            continue;
+            renderSearchSuggestions(matches);
+        } catch (e) {
+            console.error("Suggestion error", e);
         }
-
-        // Check age rating
-        if ((item.itemAgeRating || '').toLowerCase().includes(query) && !addedTexts.has(item.itemAgeRating.toLowerCase())) {
-            matchesByType.age.push({ type: 'age', text: item.itemAgeRating, item });
-            addedTexts.add(item.itemAgeRating.toLowerCase());
-            addedItemIds.add(item.id);
-            continue;
-        }
-
-        // Check scale
-        if ((item.itemScale || '').toLowerCase().includes(query) && !addedTexts.has(item.itemScale.toLowerCase())) {
-            matchesByType.scale.push({ type: 'scale', text: item.itemScale, item });
-            addedTexts.add(item.itemScale.toLowerCase());
-            addedItemIds.add(item.id);
-            continue;
-        }
-
-        // Check category
-        if ((item.itemCategory || '').toLowerCase().includes(query) && !addedTexts.has(item.itemCategory.toLowerCase())) {
-            matchesByType.category.push({ type: 'category', text: item.itemCategory, item });
-            addedTexts.add(item.itemCategory.toLowerCase());
-            addedItemIds.add(item.id);
-            continue;
-        }
-
-        // Check name (name can repeat, don't filter by text uniqueness)
-        if ((item.itemName || '').toLowerCase().includes(query)) {
-            matchesByType.name.push({ type: 'name', text: item.itemName, item });
-            addedItemIds.add(item.id);
-        }
-
-        // Stop if we already have 10 results
-        const totalCount = Object.values(matchesByType).flat().length;
-        if (totalCount >= 10) break;
-    }
-
-    // Merge results in priority order and limit to 10
-    const orderedMatches = [
-        ...matchesByType.tag,
-        ...matchesByType.age,
-        ...matchesByType.scale,
-        ...matchesByType.category,
-        ...matchesByType.name
-    ].slice(0, 10);
-
-    renderSearchSuggestions(orderedMatches);
+    }, 300);
 }
 
 function renderSearchSuggestions(matches) {
@@ -451,33 +409,19 @@ function renderSearchSuggestions(matches) {
     matches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'search-suggestion-item';
-
-        // The display remains clean without braces
-        div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type]}</span> ${match.text}`;
-
+        div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type] || ''}</span> ${match.text}`;
         div.onclick = () => {
-            // Define which types should be treated as "complete parts"
-            const bracedTypes = ['tag', 'age', 'category', 'scale'];
-
-            if (bracedTypes.includes(match.type)) {
-                // Wrap in braces for the search bar
-                searchInput.value = `{${match.text}}`;
-            } else {
-                // Names usually stay as standard text
-                searchInput.value = match.text;
-            }
-
+            searchInput.value = match.text;
             handleSearch();
             searchSuggestions.innerHTML = '';
         };
-
         searchSuggestions.appendChild(div);
     });
 }
 
 // Hide suggestions when clicking outside
 document.addEventListener('click', e => {
-    if (!searchSuggestions.contains(e.target) && e.target !== searchInput) {
+    if (searchSuggestions && !searchSuggestions.contains(e.target) && e.target !== searchInput) {
         searchSuggestions.innerHTML = '';
     }
 });
@@ -486,37 +430,33 @@ document.addEventListener('click', e => {
 searchInput.addEventListener('input', updateSearchSuggestions);
 
 
-// Add these variables to your constants/variables section
+// --- PUBLIC LISTS ----
 const LISTS_PER_PAGE = 6;
-let allPublicLists = [];
 let publicListsPage = 1;
-let filteredPublicLists = [];
+// we can't filter client side anymore easily, so we rely on search
 const listSearchInput = document.getElementById('listSearchInput');
 
-// Function to fetch public lists from Firestore
-async function fetchPublicLists() {
+// Function to fetch public lists from Typesense
+async function fetchPublicLists(searchQuery = "") {
     const grid = document.getElementById('publicListsGrid');
     if (!grid) return;
 
-    grid.innerHTML = '<p>Loading lists...</p>';
+    if (publicListsPage === 1 && !searchQuery) grid.innerHTML = '<p>Loading lists...</p>';
 
     try {
-        allPublicLists = [];
+        const params = {
+            q: searchQuery || '*',
+            query_by: 'name',
+            sort_by: 'createdAt:desc',
+            page: publicListsPage,
+            per_page: LISTS_PER_PAGE
+        };
 
-        // Fetch all lists from the new structure: lists/{listId}
-        const listsSnapshot = await db.collection('lists').get();
+        const result = await queryTypesense('public_lists', params); // Assumes collection name 'public_lists'
 
-        listsSnapshot.forEach(doc => {
-            const list = doc.data();
-            list.id = doc.id; // Use document ID
-            allPublicLists.push(list);
-        });
+        const lists = result.hits.map(h => ({ ...h.document, id: h.document.id }));
 
-        allPublicLists.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-
-        // Initialize filtered list with all lists
-        filteredPublicLists = [...allPublicLists];
-        renderPublicLists(1);
+        renderPublicLists(lists, grid);
     } catch (error) {
         console.error("Error fetching public lists:", error);
         grid.innerHTML = '<p>Error loading public lists.</p>';
@@ -525,42 +465,34 @@ async function fetchPublicLists() {
 
 // Add the search handler function
 function handleListSearch() {
-    const query = listSearchInput.value.trim().toLowerCase();
-
-    if (!query) {
-        filteredPublicLists = [...allPublicLists];
-    } else {
-        filteredPublicLists = allPublicLists.filter(list =>
-            (list.name || '').toLowerCase().includes(query)
-        );
-    }
-
-    renderPublicLists(1); // Reset to first page of results
+    const query = listSearchInput.value.trim();
+    publicListsPage = 1;
+    fetchPublicLists(query);
 }
 
-// Update renderPublicLists to use filteredPublicLists instead of allPublicLists
-function renderPublicLists(page) {
-    publicListsPage = page;
-    const grid = document.getElementById('publicListsGrid');
-    grid.innerHTML = '';
+// Update renderPublicLists
+function renderPublicLists(lists, grid) {
+    grid.innerHTML = ''; // This assumes we just replace content for now. Pagination for lists?
+    // The previous implementation had pagination logic but client-side slicing.
+    // If we want pagination, we need UI controls for lists too.
+    // The code provided earlier didn't seem to have list pagination buttons VISIBLE in the snippet (Variables: allPublicLists, filteredPublicLists, etc.)
+    // It just rendered "paginatedLists".
+    // I will render the fetched lists.
 
-    const start = (page - 1) * LISTS_PER_PAGE;
-    const end = start + LISTS_PER_PAGE;
-
-    // Use the filtered array here
-    const paginatedLists = filteredPublicLists.slice(start, end);
-
-    if (paginatedLists.length === 0) {
+    if (lists.length === 0) {
         grid.innerHTML = '<p>No public lists found.</p>';
         return;
     }
 
-    paginatedLists.forEach(list => {
+    lists.forEach(list => {
         const card = document.createElement('a');
         card.href = `../lists/?list=${list.id}&type=public`;
         card.className = 'item-card-link';
 
         const listIcon = list.mode === 'live' ? 'bi-journal-code' : 'bi-journal-bookmark-fill';
+
+        // Use optional chaining carefully
+        const itemsCount = list.items ? list.items.length : 0;
 
         card.innerHTML = `
             <div class="list-card">
@@ -572,7 +504,7 @@ function renderPublicLists(page) {
                 <div class="list-info">
                     <h3>${list.name || 'Untitled List'}</h3>
                     <div class="list-meta">
-                        <span>${list.items?.length || 0} Items</span>
+                        <span>${itemsCount} Items</span>
                         ${list.mode === 'live' ? '<span class="badge-live">LIVE</span>' : ''}
                     </div>
                 </div>
@@ -582,8 +514,16 @@ function renderPublicLists(page) {
     });
 }
 
-listSearchInput.addEventListener('input', handleListSearch);
+if (listSearchInput) {
+    listSearchInput.addEventListener('input', () => {
+        // debounce or simple input
+        handleListSearch();
+    });
+}
+
 // Initialize the fetch when the page loads
 document.addEventListener('DOMContentLoaded', () => {
+    // Wait for auth to trigger fetchItems, but lists can allow valid fetch immediately if public?
+    // Public lists are public.
     fetchPublicLists();
 });

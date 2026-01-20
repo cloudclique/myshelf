@@ -562,7 +562,8 @@ body {
     cursor: pointer;
     font-weight: bold;
     transition: background-color 0.3s, transform 0.1s;
-    background-color: var(--accent-color);
+    backdrop-filter: blur(4px);
+    background: #e69700ad;
     color: white;
 }
 
@@ -591,6 +592,8 @@ body {
     display: inline-block;
     transition: background-color 0.3s;
     text-align: center;
+    backdrop-filter: blur(4px);
+    background: #e69700ad;
 }
 
 .secondary-btn {

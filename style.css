@@ -562,14 +562,12 @@ body {
     cursor: pointer;
     font-weight: bold;
     transition: background-color 0.3s, transform 0.1s;
-    backdrop-filter: blur(4px);
-    background: #e69700ad;
     color: white;
 }
 
 .action-btn:hover {
-    background-color: #ff5100;
-    /*transform: translateY(-1px);*/
+    background-color: #c2830eb9;
+    backdrop-filter: blur(8px);
 }
 
 .action-btn:disabled {
@@ -590,7 +588,7 @@ body {
     text-decoration: none;
     /* Make sure it styles anchor tags too */
     display: inline-block;
-    transition: background-color 0.3s;
+    transition: background-color 0.3s, backdrop-filter 0,3s;
     text-align: center;
     backdrop-filter: blur(4px);
     background: #e69700ad;

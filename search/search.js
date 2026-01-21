@@ -497,7 +497,7 @@ function renderPublicLists(lists, grid) {
         grid.appendChild(card);
     });
 }
-}
+
 
 if (listSearchInput) {
     listSearchInput.addEventListener('input', () => {

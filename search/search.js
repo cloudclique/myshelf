@@ -346,15 +346,23 @@ searchInput.onkeypress = e => {
 prevPageBtn.onclick = prevPageBtnTop.onclick = handlePrev;
 nextPageBtn.onclick = nextPageBtnTop.onclick = handleNext;
 
+// --- DYNAMIC OPTIONS LOGIC ---
+const optionButtons = document.querySelectorAll('.opt-btn');
 
-// --- SEARCH SUGGESTIONS (Client-Side hack or Typesense?)
-// We can use a separate Typesense query for suggestions if we want, or just remove them if not supported.
-// The previous implementation used 'allItems' which we don't have anymore.
-// We can implement a quick prefix search to Typesense or disable suggestions for now.
-// For now, let's disable generic suggestions to avoid complexity or implement a simple debounce search for suggestions.
-// Given strict instructions to "adjust... code", I'll leave the UI element but clear the logic OR implement it properly.
-// A proper suggestion implementation requires a separate index or fast queries.
-// Let's implement a debounce query to Typesense for suggestions.
+optionButtons.forEach(btn => {
+    btn.onclick = () => {
+        btn.classList.toggle('active');
+    };
+});
+
+function getSelectedFields() {
+    const active = Array.from(optionButtons)
+        .filter(btn => btn.classList.contains('active'))
+        .map(btn => btn.getAttribute('data-field'));
+    
+    // Fallback to itemName if nothing is selected to prevent errors
+    return active.length > 0 ? active.join(',') : 'itemName';
+}
 
 const searchSuggestions = document.getElementById('searchSuggestions');
 let suggestionTimeout;
@@ -369,18 +377,21 @@ function updateSearchSuggestions() {
     }
 
     suggestionTimeout = setTimeout(async () => {
-        // Fetch suggestions
         try {
+            // Get the fields selected via the icon buttons
+            const selectedFields = getSelectedFields(); 
+
             const result = await queryTypesense('items', {
                 q: query,
-                query_by: 'itemName,tags,itemCategory',
+                // Only search within fields the user has enabled via icons
+                query_by: selectedFields, 
                 per_page: 3,
-                // Only return these fields to save bandwidth
-                include_fields: 'itemName,tags'
+                // Bandwidth Optimization: Only return the item name and tags for the dropdown
+                include_fields: selectedFields
             });
 
             const matches = result.hits.map(h => ({
-                text: h.document.itemName, 
+                text: h.document.itemName,
                 type: 'name'
             }));
 

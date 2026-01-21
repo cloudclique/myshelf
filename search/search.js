@@ -198,17 +198,12 @@ function updateURLPage() {
     window.history.replaceState({}, '', url);
 }
 
-// --- FETCH ITEMS ---
 // Fetch items using Typesense
 async function fetchItems(page = 1) {
     loadingStatus.textContent = '';
 
-    // Only show skeletons if completely empty or big change? 
-    // Always good UX to show loading state if async.
     if (page === 1) renderSkeletonGrid();
     else {
-        // preserve current grid, but maybe show a "loading" indicator?
-        // for simplicity, showing skeletons on page switch is standard.
         renderSkeletonGrid();
     }
 
@@ -216,25 +211,21 @@ async function fetchItems(page = 1) {
         let queryText = searchInput.value.trim();
         let filterBy = '';
 
-        // Handle "draft" keyword for filtering
         if (/\bdraft\b/i.test(queryText)) {
             filterBy = 'isDraft:true';
             queryText = queryText.replace(/\bdraft\b/gi, '').trim();
         }
 
-        // Clean query: strip braces usually.
-        // If user typed "{Action}", we just search "Action".
         const cleanedQuery = queryText.replace(/[\{\}]/g, '');
 
-        // Typesense query
-        // q: '*' for all (if empty)
-        // sort_by: createdAt:desc
         const tsParams = {
             q: cleanedQuery || '*',
-            query_by: 'itemName,itemCategory,itemScale,itemAgeRating,tags', // Search relevant fields
+            query_by: 'itemName,itemCategory,itemScale,itemAgeRating,tags',
             sort_by: 'createdAt:desc',
             page: page,
-            per_page: PAGE_SIZE
+            per_page: PAGE_SIZE, // Ensures hits match visibility
+            // Bandwidth Optimization: Only fetch what is needed for the card UI
+            include_fields: 'itemName,itemImageUrls,id,itemAgeRating,isDraft' 
         };
 
         if (filterBy) {
@@ -243,23 +234,18 @@ async function fetchItems(page = 1) {
 
         const result = await queryTypesense('items', tsParams);
 
-        // Map hits
         const items = result.hits.map(hit => {
             const doc = hit.document;
             return {
                 ...doc,
-                id: doc.id // ensure ID is available
+                id: doc.id 
             };
         });
 
-        // Update hasMore
-        // result.found is total documents
-        // result.page is current page, result.out_of is total found.
         hasMore = (page * PAGE_SIZE) < result.found;
 
         renderItems(items);
 
-        // Update pagination buttons
         const isPrevDisabled = page === 1;
         const isNextDisabled = !hasMore;
 
@@ -388,11 +374,13 @@ function updateSearchSuggestions() {
             const result = await queryTypesense('items', {
                 q: query,
                 query_by: 'itemName,tags,itemCategory',
-                per_page: 5
+                per_page: 3,
+                // Only return these fields to save bandwidth
+                include_fields: 'itemName,tags'
             });
 
             const matches = result.hits.map(h => ({
-                text: h.document.itemName, // simplified
+                text: h.document.itemName, 
                 type: 'name'
             }));
 
@@ -400,7 +388,7 @@ function updateSearchSuggestions() {
         } catch (e) {
             console.error("Suggestion error", e);
         }
-    }, 300);
+    }, 500);
 }
 
 function renderSearchSuggestions(matches) {
@@ -436,6 +424,7 @@ let publicListsPage = 1;
 // we can't filter client side anymore easily, so we rely on search
 const listSearchInput = document.getElementById('listSearchInput');
 
+
 // Function to fetch public lists from Typesense
 async function fetchPublicLists(searchQuery = "") {
     const grid = document.getElementById('publicListsGrid');
@@ -449,10 +438,12 @@ async function fetchPublicLists(searchQuery = "") {
             query_by: 'name',
             sort_by: 'createdAt:desc',
             page: publicListsPage,
-            per_page: LISTS_PER_PAGE
+            per_page: LISTS_PER_PAGE,
+            // Bandwidth Optimization: Only return name, id, and mode
+            include_fields: 'name,id,mode' 
         };
 
-        const result = await queryTypesense('public_lists', params); // Assumes collection name 'public_lists'
+        const result = await queryTypesense('public_lists', params); 
 
         const lists = result.hits.map(h => ({ ...h.document, id: h.document.id }));
 
@@ -472,12 +463,7 @@ function handleListSearch() {
 
 // Update renderPublicLists
 function renderPublicLists(lists, grid) {
-    grid.innerHTML = ''; // This assumes we just replace content for now. Pagination for lists?
-    // The previous implementation had pagination logic but client-side slicing.
-    // If we want pagination, we need UI controls for lists too.
-    // The code provided earlier didn't seem to have list pagination buttons VISIBLE in the snippet (Variables: allPublicLists, filteredPublicLists, etc.)
-    // It just rendered "paginatedLists".
-    // I will render the fetched lists.
+    grid.innerHTML = ''; 
 
     if (lists.length === 0) {
         grid.innerHTML = '<p>No public lists found.</p>';
@@ -491,8 +477,7 @@ function renderPublicLists(lists, grid) {
 
         const listIcon = list.mode === 'live' ? 'bi-journal-code' : 'bi-journal-bookmark-fill';
 
-        // Use optional chaining carefully
-        const itemsCount = list.items ? list.items.length : 0;
+        // Removed the itemsCount calculation logic
 
         card.innerHTML = `
             <div class="list-card">
@@ -504,7 +489,6 @@ function renderPublicLists(lists, grid) {
                 <div class="list-info">
                     <h3>${list.name || 'Untitled List'}</h3>
                     <div class="list-meta">
-                        <span>${itemsCount} Items</span>
                         ${list.mode === 'live' ? '<span class="badge-live">LIVE</span>' : ''}
                     </div>
                 </div>
@@ -512,6 +496,7 @@ function renderPublicLists(lists, grid) {
         `;
         grid.appendChild(card);
     });
+}
 }
 
 if (listSearchInput) {

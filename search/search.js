@@ -352,6 +352,8 @@ const optionButtons = document.querySelectorAll('.opt-btn');
 optionButtons.forEach(btn => {
     btn.onclick = () => {
         btn.classList.toggle('active');
+        currentPage = 1; // Reset to page 1 on filter change
+        fetchItems(currentPage);
     };
 });
 
@@ -377,29 +379,20 @@ function updateSearchSuggestions() {
     }
 
     suggestionTimeout = setTimeout(async () => {
+        // Fetch suggestions
         try {
-            const selectedFields = getSelectedFields(); 
-
             const result = await queryTypesense('items', {
                 q: query,
-                query_by: selectedFields, 
-                per_page: 5,
-                include_fields: selectedFields
+                query_by: 'itemName,tags,itemCategory',
+                per_page: 3,
+                // Only return these fields to save bandwidth
+                include_fields: 'itemName,tags'
             });
 
-            const matches = result.hits.map(h => {
-                const doc = h.document;
-                const fieldsArray = selectedFields.split(',');
-                
-                // Find the first selected field that actually contains data
-                // This identifies if we are displaying a "Tag", "Category", etc.
-                const activeField = fieldsArray.find(f => doc[f]) || 'itemName';
-                
-                return {
-                    text: doc[activeField] || doc.id,
-                    type: activeField // This tells the renderer what label/icon to show
-                };
-            });
+            const matches = result.hits.map(h => ({
+                text: h.document.itemName, 
+                type: 'name'
+            }));
 
             renderSearchSuggestions(matches);
         } catch (e) {
@@ -411,30 +404,10 @@ function updateSearchSuggestions() {
 function renderSearchSuggestions(matches) {
     searchSuggestions.innerHTML = '';
 
-    // Map technical field names to friendly labels
-    const fieldLabels = {
-        itemName: 'Name',
-        itemCategory: 'Category',
-        itemScale: 'Scale',
-        itemAgeRating: 'Age',
-        tags: 'Tag'
-    };
-
     matches.forEach(match => {
         const div = document.createElement('div');
         div.className = 'search-suggestion-item';
-        
-        // Map field name to icon key (tags -> tag, itemName -> name, etc.)
-        const iconKey = match.type.replace('item', '').toLowerCase().replace('rating', '');
-        const iconHtml = ICONS[iconKey] || '';
-        const label = fieldLabels[match.type] || 'Result';
-
-        div.innerHTML = `
-            <span class="search-suggestion-icon">${iconHtml}</span>
-            <span class="search-suggestion-text">${match.text}</span>
-            <span class="search-suggestion-type">${label}</span>
-        `;
-
+        div.innerHTML = `<span class="search-suggestion-icon">${ICONS[match.type] || ''}</span> ${match.text}`;
         div.onclick = () => {
             searchInput.value = match.text;
             handleSearch();

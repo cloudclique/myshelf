@@ -225,7 +225,7 @@ async function fetchItems(page = 1) {
             page: page,
             per_page: PAGE_SIZE, // Ensures hits match visibility
             // Bandwidth Optimization: Only fetch what is needed for the card UI
-            include_fields: 'itemName,itemImageUrls,id,itemAgeRating,isDraft' 
+            include_fields: 'itemName,id,itemAgeRating,isDraft' 
         };
 
         if (filterBy) {

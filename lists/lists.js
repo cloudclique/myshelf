@@ -229,20 +229,22 @@ async function loadList(currentUserId) {
     checkFavoriteStatus(currentUserId);
 }
 
-// Helper to fetch all items from the items collection
+// Helper to fetch all items from the denormalized_data collection
 async function fetchAllGlobalItemsFromShards() {
-    const results = [];
-
-    // Fetch all items from the new structure: items/{itemId}
-    const itemsSnapshot = await db.collection('items').get();
-
-    itemsSnapshot.forEach(doc => {
-        const item = doc.data();
-        if (!item.itemId) item.itemId = doc.id; // Normalize
-        results.push(item);
-    });
-
-    return results;
+    try {
+        const itemsDoc = await db.collection('denormalized_data').doc('items').get();
+        if (itemsDoc.exists) {
+            const data = itemsDoc.data();
+            return Object.entries(data).map(([id, item]) => ({
+                itemId: id,
+                ...item
+            }));
+        }
+        return [];
+    } catch (e) {
+        console.error("Error fetching denormalized data:", e);
+        return [];
+    }
 }
 
 async function updatePublicList(listId, updateData) {
@@ -335,7 +337,8 @@ function createItemCard(id, item) {
     if (shouldBlur) imageWrapper.classList.add('nsfw-blur');
 
     const img = document.createElement('img');
-    img.src = (item.itemImageUrls && item.itemImageUrls[0]?.url) || DEFAULT_IMAGE_URL;
+    // detailed items have itemImageUrls, denormalized has thumbnail
+    img.src = item.thumbnail || (item.itemImageUrls && item.itemImageUrls[0]?.url) || DEFAULT_IMAGE_URL;
     img.className = 'item-image';
 
 
@@ -634,6 +637,16 @@ if (deleteListBtn) {
         if (confirm("Delete this list?")) {
             // Delete the list document directly
             await listRef.delete();
+
+            // Sync: Remove from denormalized_data/lists
+            try {
+                await db.collection('denormalized_data').doc('lists').update({
+                    [`${listOwnerId}.${listId}`]: firebase.firestore.FieldValue.delete()
+                });
+            } catch (err) {
+                console.error("Error syncing delete to denormalized data:", err);
+            }
+
             goBackToPrevious();
         }
     };
@@ -735,6 +748,24 @@ if (saveListChangesBtn) {
                     items: updateData.items
                 });
                 location.reload();
+            }
+
+            // Sync to denormalized_data/lists
+            try {
+                await db.collection('denormalized_data').doc('lists').set({
+                    [listOwnerId]: {
+                        [listId]: {
+                            name: newName,
+                            mode: newMode,
+                            privacy: newPrivacy,
+                            createdAt: listData.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+                            liveLogic: newMode === 'live' ? (updateData.liveLogic || "AND") : "AND",
+                            liveQuery: newMode === 'live' ? (updateData.liveQuery || "") : ""
+                        }
+                    }
+                }, { merge: true });
+            } catch (err) {
+                console.error("Error syncing update to denormalized data:", err);
             }
         } catch (e) {
             alert("Save failed: " + e.message);

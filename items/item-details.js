@@ -407,6 +407,7 @@ cancelCropBtn.onclick = () => { cropperModal.style.display = 'none'; };
 async function updateProfileCounters(userId) {
     const userItemsRef = getUserCollectionRef(db, userId);
     const profileRef = db.collection('artifacts').doc('default-app-id').collection('user_profiles').doc(userId);
+    const denormalizedUsersRef = db.collection('denormalized_data').doc('users');
 
     try {
         const itemsDoc = await userItemsRef.doc('items').get();
@@ -427,6 +428,12 @@ async function updateProfileCounters(userId) {
             itemsWished,
             itemsOrdered
         });
+
+        // Sync to denormalized global list
+        await denormalizedUsersRef.update({
+            [`${userId}.itemsOwned`]: itemsOwned
+        });
+
     } catch (error) {
         console.error("Error updating profile counters:", error);
     }
@@ -1259,7 +1266,7 @@ editItemForm.addEventListener('submit', async (e) => {
             itemScale: editScaleSelect.value,
             itemReleaseDate: editReleaseDateInput.value,
             isDraft: editDraftInput ? editDraftInput.checked : false,
-            lastEdited: firebase.firestore.Timestamp.now() // Use helper or Timestamp directly
+            lastEdited: firebase.firestore.FieldValue.serverTimestamp() // Use helper or Timestamp directly
         };
 
         // --- Multi-Image Logic ---
@@ -1508,8 +1515,8 @@ async function handleStatusUpdate(e) {
             ...currentData,
             itemId: itemId,
             status: newStatus,
-            updatedAt: firebase.firestore.Timestamp.now(),
-            addedDate: currentData.addedDate || firebase.firestore.Timestamp.now(), // Preserve addedDate
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            addedDate: currentData.addedDate || firebase.firestore.FieldValue.serverTimestamp(), // Preserve addedDate
             privateNotes: privateData,
             ...denormalizedData
         };
@@ -2326,6 +2333,22 @@ createNewListBtn.onclick = async () => {
         // Create the list document
         await newListRef.set(payload);
 
+        // Sync to denormalized_data/lists
+        try {
+            await db.collection('denormalized_data').doc('lists').set({
+                [`${userId}.${newListId}`]: {
+                    name: payload.name,
+                    mode: payload.mode,
+                    privacy: payload.privacy,
+                    createdAt: payload.createdAt || firebase.firestore.FieldValue.serverTimestamp(),
+                    liveLogic: "AND",
+                    liveQuery: ""
+                }
+            }, { merge: true });
+        } catch (err) {
+            console.error("Error syncing new list to denormalized data:", err);
+        }
+
         listMessage.textContent = "List created and item added!";
         listMessage.className = "form-message success-message";
 
@@ -3011,20 +3034,51 @@ function highlightStars(stars, value) {
 
 // --- Typesense Sync Helper ---
 async function syncToTypesense(collection, documentData, action = 'upsert') {
-    const workerUrl = 'https://imgbbapi.stanislav-zhukov.workers.dev/indexDocument';
+    if (collection !== 'items') return;
+
+    // We are now syncing to Firestore denormalized_data/items directly
+    const denormRef = db.collection('denormalized_data').doc('items');
+    const itemId = documentData.id;
+    if (!itemId) return;
 
     try {
-        await fetch(workerUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                collection: collection,
-                document: documentData,
-                action: action
-            })
+        if (action === 'delete') {
+            await denormRef.update({
+                [itemId]: firebase.firestore.FieldValue.delete()
+            });
+            console.log(`Denormalized delete success for ${itemId}`);
+            return;
+        }
+
+        // Prepare partial updates using dot notation
+        const updates = {};
+
+        // Fields to sync
+        const fieldsToSync = [
+            'itemName', 'itemCategory', 'itemScale', 'itemAgeRating',
+            'itemReleaseDate', 'tags', 'isDraft', 'createdAt'
+        ];
+
+        fieldsToSync.forEach(field => {
+            if (documentData[field] !== undefined) {
+                updates[`${itemId}.${field}`] = documentData[field];
+            }
         });
-        console.log(`Typesense sync (${action}) success for ${collection}/${documentData.id}`);
+
+        // Handle Thumbnail
+        if (documentData.itemImageUrls && Array.isArray(documentData.itemImageUrls)) {
+            const thumb = (documentData.itemImageUrls[0] && documentData.itemImageUrls[0].url)
+                ? documentData.itemImageUrls[0].url
+                : '';
+            updates[`${itemId}.thumbnail`] = thumb;
+        }
+
+        if (Object.keys(updates).length > 0) {
+            await denormRef.update(updates);
+            console.log(`Denormalized sync (${action}) success for ${itemId}`);
+        }
+
     } catch (error) {
-        console.error("Typesense sync failed:", error);
+        console.error("Denormalized sync failed:", error);
     }
 }

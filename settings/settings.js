@@ -34,16 +34,6 @@ function getProfileRef(userId) {
     .collection('user_profiles').doc(userId);
 }
 
-// --- Convert file → Base64 ---
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-}
-
 // --- Load current user info ---
 auth.onAuthStateChanged(async (user) => {
   if (!user) {
@@ -52,7 +42,6 @@ auth.onAuthStateChanged(async (user) => {
   }
 
   const userId = user.uid;
-
   currentEmailSpan.textContent = user.email || 'Not set';
 
   try {
@@ -67,7 +56,6 @@ auth.onAuthStateChanged(async (user) => {
       profilePicPreview.src = data.profilePic;
     }
 
-    // Set NSFW checkbox
     allowNsfwCheckbox.checked = !!data.allowNSFW;
 
   } catch (err) {
@@ -97,6 +85,11 @@ usernameForm.addEventListener('submit', async (e) => {
     await user.updateProfile({ displayName: newUsername });
     await getProfileRef(user.uid).set({ username: newUsername }, { merge: true });
 
+    // Update denormalized data
+    await db.collection('denormalized_data').doc('users').set({
+      [user.uid]: { username: newUsername }
+    }, { merge: true });
+
     usernameMessage.textContent = "Username updated successfully!";
     usernameMessage.className = "form-message success-message";
     currentUsernameSpan.textContent = newUsername;
@@ -106,8 +99,6 @@ usernameForm.addEventListener('submit', async (e) => {
     usernameMessage.className = "form-message error-message";
   }
 });
-
-
 
 // --- Update password ---
 passwordForm.addEventListener('submit', async (e) => {
@@ -134,11 +125,8 @@ passwordForm.addEventListener('submit', async (e) => {
   passwordMessage.className = "form-message";
 
   try {
-    // Re-authenticate user before sensitive action
     const credential = firebase.auth.EmailAuthProvider.credential(user.email, oldPassword);
     await user.reauthenticateWithCredential(credential);
-
-    // After re-auth, update password
     await user.updatePassword(newPassword);
 
     passwordMessage.textContent = "Password updated successfully!";
@@ -151,6 +139,52 @@ passwordForm.addEventListener('submit', async (e) => {
     passwordMessage.className = "form-message error-message";
   }
 });
+
+// --- NEW: ImgBB Upload config ---
+const IMGBB_UPLOAD_URL = 'https://imgbbapi.stanislav-zhukov.workers.dev/';
+
+// --- Process Image: Crop to Square + Resize to 70x70 WebP ---
+function processProfileImage(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Target dimensions
+      const size = 70;
+      canvas.width = size;
+      canvas.height = size;
+
+      // Calculate "Center Crop" (Object-Fit: Cover)
+      let sourceX = 0, sourceY = 0, sourceWidth = img.width, sourceHeight = img.height;
+
+      const aspect = img.width / img.height;
+
+      if (aspect > 1) {
+        // Landscape: Height is the constraint
+        sourceHeight = img.height;
+        sourceWidth = img.height; // Make it square
+        sourceX = (img.width - img.height) / 2;
+      } else {
+        // Portrait: Width is the constraint
+        sourceWidth = img.width;
+        sourceHeight = img.width; // Make it square
+        sourceY = (img.height - img.width) / 2;
+      }
+
+      // Draw cropped image resized to 70x70
+      ctx.drawImage(img, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, size, size);
+
+      canvas.toBlob((blob) => {
+        if (!blob) return reject(new Error("Image processing failed"));
+        resolve(blob);
+      }, 'image/webp', 0.9);
+    };
+    img.onerror = reject;
+  });
+}
 
 // --- Click avatar opens file picker ---
 profilePicPreview.addEventListener('click', () => {
@@ -180,20 +214,46 @@ profilePicForm.addEventListener('submit', async (e) => {
   const user = auth.currentUser;
   if (!user) return;
 
-  profilePicMessage.textContent = "Uploading...";
+  profilePicMessage.textContent = "Processing & Uploading...";
   profilePicMessage.className = "form-message";
 
   try {
-    const base64 = await fileToBase64(selectedFile);
-    await getProfileRef(user.uid).set({ profilePic: base64 }, { merge: true });
+    // 1. Process Image (70x70 WebP)
+    const processedBlob = await processProfileImage(selectedFile);
 
-    profilePicPreview.src = base64;
+    // 2. Upload to ImgBB
+    const formData = new FormData();
+    formData.append('image', processedBlob, 'profile.webp');
+
+    const response = await fetch(IMGBB_UPLOAD_URL, {
+      method: 'POST',
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error?.message || "Upload failed");
+    }
+
+    const imageUrl = result.data.url;
+
+    // 3. Save URL to Firestore
+    await getProfileRef(user.uid).set({ profilePic: imageUrl }, { merge: true });
+
+    // Update denormalized data
+    await db.collection('denormalized_data').doc('users').set({
+      [user.uid]: { profilePic: imageUrl }
+    }, { merge: true });
+
+    profilePicPreview.src = imageUrl;
     profilePicMessage.textContent = "Profile picture updated!";
     profilePicMessage.className = "form-message success-message";
 
     selectedFile = null;
     profilePicInput.value = '';
   } catch (err) {
+    console.error(err);
     profilePicMessage.textContent = `Error: ${err.message}`;
     profilePicMessage.className = "form-message error-message";
   }

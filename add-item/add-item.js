@@ -841,6 +841,20 @@ async function proceedWithUpload() {
         // Staff: Write directly to items collection
         await db.collection('items').doc(newItemId).set(itemData);
 
+        // Update denormalized data (Staff direct upload)
+        await db.collection('denormalized_data').doc('items').set({
+            [newItemId]: {
+                itemName: itemData.itemName,
+                itemAgeRating: itemData.itemAgeRating,
+                itemCategory: itemData.itemCategory,
+                itemScale: itemData.itemScale,
+                isDraft: itemData.isDraft,
+                createdAt: itemData.createdAt,
+                thumbnail: (itemData.itemImageUrls && itemData.itemImageUrls[0]) ? itemData.itemImageUrls[0].url : "",
+                tags: itemData.tags || []
+            }
+        }, { merge: true });
+
         uploadStatus.textContent = "Item uploaded successfully!";
         uploadStatus.className = 'form-message success-message';
         setTimeout(() => {

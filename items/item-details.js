@@ -1216,6 +1216,13 @@ editItemForm.addEventListener('submit', async (e) => {
     editMessage.textContent = 'Saving...';
     editMessage.className = 'form-message';
 
+    // Manual Validation for Title (since novalidate is on)
+    if (!editTitleInput.value.trim()) {
+        editMessage.textContent = 'Please enter a title.';
+        editMessage.className = 'form-message error-message';
+        return;
+    }
+
     const userId = auth.currentUser.uid;
 
     // 1. Find the item in Shards or Review

@@ -1356,6 +1356,7 @@ editItemForm.addEventListener('submit', async (e) => {
             itemAgeRating: updatedFields.itemAgeRating,
             tags: currentItemData.tags || [],
             itemImageUrls: finalImageObjects,
+            isDraft: updatedFields.isDraft,
             createdAt: currentItemData.createdAt ? (currentItemData.createdAt.seconds || 0) : 0
         };
 

@@ -219,6 +219,7 @@ function renderItems(items) {
                 <div class="item-image-wrapper ${blurClass}">
                     <img src="${imageSrc}" alt="${item.itemName}" class="item-image" loading="lazy">
                     ${nsfwOverlay}
+                    ${item.isDraft ? '<div class="draft-overlay">Draft</div>' : ''}
                 </div>
                 <div class="item-info">
                     <h3>${item.itemName}</h3>
@@ -229,6 +230,54 @@ function renderItems(items) {
         latestAdditionsGrid.appendChild(card);
     });
 }
+
+// --- HOVER TOOLTIP LOGIC ---
+const hoverTooltip = document.createElement('div');
+hoverTooltip.className = 'hover-tooltip';
+document.body.appendChild(hoverTooltip);
+let hoverTimeout = null;
+
+if (latestAdditionsGrid) {
+    latestAdditionsGrid.addEventListener('mouseover', (e) => {
+        const cardLink = e.target.closest('.item-card-link');
+        if (!cardLink) return;
+
+        const itemName = cardLink.querySelector('h3')?.textContent || 'No Title';
+        const displayTitle = itemName.length > 50 ? itemName.substring(0, 50) + '...' : itemName;
+
+        hoverTimeout = setTimeout(() => {
+            hoverTooltip.textContent = displayTitle;
+            hoverTooltip.classList.add('visible');
+        }, 400);
+    });
+
+    latestAdditionsGrid.addEventListener('mouseout', (e) => {
+        const cardLink = e.target.closest('.item-card-link');
+        if (!cardLink) return;
+
+        clearTimeout(hoverTimeout);
+        hoverTooltip.classList.remove('visible');
+    });
+
+    latestAdditionsGrid.addEventListener('mousemove', (e) => {
+        if (hoverTooltip.classList.contains('visible') || hoverTimeout) {
+            const tooltipWidth = hoverTooltip.offsetWidth;
+            const tooltipHeight = hoverTooltip.offsetHeight;
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+
+            let left = e.clientX + 15;
+            let top = e.clientY + 15;
+
+            if (left + tooltipWidth > viewportWidth) left = e.clientX - tooltipWidth - 15;
+            if (top + tooltipHeight > viewportHeight) top = e.clientY - tooltipHeight - 15;
+
+            hoverTooltip.style.left = left + 'px';
+            hoverTooltip.style.top = top + 'px';
+        }
+    });
+}
+
 
 function renderLists(lists) {
     const listGrid = document.getElementById('publicListsGrid');
@@ -483,6 +532,26 @@ if (importListBtn) {
 
 
 
+
+// --- Lightbox Logic ---
+const lightbox = document.createElement('div');
+lightbox.className = 'lightbox';
+lightbox.innerHTML = '<img class="lightbox-content" src="" alt="Lightbox Image">';
+document.body.appendChild(lightbox);
+
+const lightboxImg = lightbox.querySelector('.lightbox-content');
+
+lightbox.addEventListener('click', () => {
+    lightbox.classList.remove('visible');
+});
+
+
+function openLightbox(url) {
+    console.log("Opening lightbox for:", url);
+    lightboxImg.src = url;
+    lightbox.classList.add('visible');
+}
+
 // --- Images OTW Logic ---
 function renderImagesOTW(images) {
     const grid = document.getElementById('imagesOTWGrid');
@@ -496,6 +565,13 @@ function renderImagesOTW(images) {
         const card = document.createElement('div');
         card.className = 'otw-card';
         card.innerHTML = `<img src="${img.url}" alt="Image">`;
+
+        // Click to open lightbox
+        const imgEl = card.querySelector('img');
+        imgEl.onclick = () => {
+            console.log("Image clicked:", img.url);
+            openLightbox(img.url);
+        };
 
         if (canManageHomeLists) {
             card.addEventListener('contextmenu', (e) => {

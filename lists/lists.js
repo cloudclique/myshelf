@@ -230,11 +230,47 @@ async function loadList(currentUserId) {
 }
 
 // Helper to fetch all items from the denormalized_data collection
+// Added caching with 30-minute TTL
 async function fetchAllGlobalItemsFromShards() {
+    const CACHE_KEY = 'myshelf_global_items_cache';
+    const TIMESTAMP_KEY = 'myshelf_global_items_timestamp';
+    const CACHE_TTL = 30 * 60 * 1000; // 30 minutes in milliseconds
+
     try {
+        // 1. Check Cache
+        const cachedData = localStorage.getItem(CACHE_KEY);
+        const cachedTimestamp = localStorage.getItem(TIMESTAMP_KEY);
+
+        if (cachedData && cachedTimestamp) {
+            const now = Date.now();
+            const age = now - parseInt(cachedTimestamp, 10);
+
+            if (age < CACHE_TTL) {
+                console.log("Serving items from cache");
+                // Cache is valid
+                const data = JSON.parse(cachedData);
+                return Object.entries(data).map(([id, item]) => ({
+                    itemId: id,
+                    ...item
+                }));
+            }
+        }
+
+        // 2. Fetch from Network if cache is missing or stale
+        console.log("Fetching items from Firestore (Cache miss or stale)");
         const itemsDoc = await db.collection('denormalized_data').doc('items').get();
+
         if (itemsDoc.exists) {
             const data = itemsDoc.data();
+
+            // 3. Update Cache
+            try {
+                localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+                localStorage.setItem(TIMESTAMP_KEY, Date.now().toString());
+            } catch (storageError) {
+                console.warn("Failed to cache items (likely quota exceeded):", storageError);
+            }
+
             return Object.entries(data).map(([id, item]) => ({
                 itemId: id,
                 ...item
@@ -243,6 +279,20 @@ async function fetchAllGlobalItemsFromShards() {
         return [];
     } catch (e) {
         console.error("Error fetching denormalized data:", e);
+        // Fallback: Try to serve stale cache if available
+        try {
+            const cachedData = localStorage.getItem(CACHE_KEY);
+            if (cachedData) {
+                console.warn("Serving stale cache due to fetch error");
+                const data = JSON.parse(cachedData);
+                return Object.entries(data).map(([id, item]) => ({
+                    itemId: id,
+                    ...item
+                }));
+            }
+        } catch (cacheErr) {
+            console.error("Error accessing stale cache:", cacheErr);
+        }
         return [];
     }
 }

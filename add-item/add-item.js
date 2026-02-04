@@ -1,4 +1,4 @@
-import { auth, db, collectionName } from '../firebase-config.js';
+import { auth, db, collectionName, onAuthReady } from '../firebase-config.js';
 import { populateDropdown, AGERATING_OPTIONS, CATEGORY_OPTIONS, SCALE_OPTIONS, toBase64, processImageForUpload } from '../utils.js';
 
 // --- 1. Constants & DOM ---
@@ -93,29 +93,17 @@ function getUserCollectionRef(db, userId) {
     return db.collection('artifacts').doc(appId).collection('user_profiles').doc(userId).collection('items');
 }
 
-async function fetchUserProfile(userId) {
-    try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const profileRef = db.collection('artifacts').doc(appId)
-            .collection('user_profiles').doc(userId);
-        const profileSnap = await profileRef.get();
-        return (profileSnap.exists && profileSnap.data().username) ? profileSnap.data().username : "Anonymous";
-    } catch (e) {
-        console.error("Error fetching user profile:", e);
-        return "Anonymous";
-    }
-}
-
 // --- 3. Auth Setup ---
 populateDropdown('itemCategory', CATEGORY_OPTIONS);
 populateDropdown('itemAgeRating', AGERATING_OPTIONS);
 populateDropdown('itemScale', SCALE_OPTIONS);
 
-auth.onAuthStateChanged(async (user) => {
+onAuthReady((userState) => {
     headerTools.innerHTML = '';
-    if (user) {
-        currentUserId = user.uid;
-        currentUserName = await fetchUserProfile(currentUserId);
+
+    if (userState.isLoggedIn) {
+        currentUserId = userState.uid;
+        currentUserName = userState.username;
 
         const logoutBtn = document.createElement('button');
         logoutBtn.id = 'logoutBtn';
@@ -129,23 +117,16 @@ auth.onAuthStateChanged(async (user) => {
         headerTools.innerHTML = '<p class="login-prompt">Please log in to manage your collection.</p>';
     }
 
-    [addItemForm, importMfcBtn].forEach(form => { if (form) form.disabled = !user; });
+    [addItemForm, importMfcBtn].forEach(form => { if (form) form.disabled = !userState.isLoggedIn; });
 });
 
 // convertFileToWebp removed - using processImageForUpload from utils.js
 
+// Replaced with direct userState access where needed, or simple helper if used dynamically outside this scope
+// But since this file only checked role locally, we can assume userState availability
 async function checkUserRole(userId) {
-    if (!userId) return 'user';
-    try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const profileRef = db.collection('artifacts').doc(appId).collection('user_profiles').doc(userId);
-        const snap = await profileRef.get();
-        if (snap.exists) return snap.data().role || 'user';
-        return 'user';
-    } catch (error) {
-        console.error("Error fetching user role:", error);
-        return 'user';
-    }
+    // Legacy support or fallback
+    return window.shelfAuth ? window.shelfAuth.role : 'user';
 }
 
 
@@ -854,6 +835,46 @@ async function proceedWithUpload() {
                 tags: itemData.tags || []
             }
         }, { merge: true });
+
+        // --- NEW: Update Home Page Artifact ---
+        try {
+            const homeRef = db.collection('artifacts').doc('home');
+            const homeDoc = await homeRef.get();
+
+            if (homeDoc.exists) {
+                const homeData = homeDoc.data();
+                let currentItems = homeData.items || [];
+
+                // Create summary object for home page
+                const newItemSummary = {
+                    itemId: newItemId,
+                    itemName: itemData.itemName,
+                    itemCategory: itemData.itemCategory,
+                    itemAgeRating: itemData.itemAgeRating,
+                    createdAt: itemData.createdAt,
+                    itemImageUrls: itemData.itemImageUrls || []
+                };
+
+                // Add to front
+                currentItems.unshift(newItemSummary);
+
+                // Limit to 32 items (same as home.js limit)
+                if (currentItems.length > 32) {
+                    currentItems = currentItems.slice(0, 32);
+                }
+
+                await homeRef.update({ items: currentItems });
+
+                // Clear local cache so home page refreshes
+                localStorage.removeItem('home_data_cache');
+
+                console.log("Home artifact updated successfully.");
+            }
+        } catch (homeError) {
+            console.error("Error updating home artifact:", homeError);
+            // Don't block the success flow if this fails
+        }
+
 
         uploadStatus.textContent = "Item uploaded successfully!";
         uploadStatus.className = 'form-message success-message';

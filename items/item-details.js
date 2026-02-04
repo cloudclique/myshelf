@@ -14,6 +14,7 @@ let listsCurrentPage = 1;
 let currentPrivateData = {};
 let loadedItemData = null; // NEW: Cache to store item data for status updates
 let activeDocRef = null; // Store reference for updates (Related Items etc)
+let allDenormalizedItems = null; // Cache for related item lookups
 
 
 
@@ -206,11 +207,8 @@ async function saveTags() {
         // Fan out the tag updates across the platform (profiles + public lists)
         await fanOutItemUpdates(itemId, { tags: newTags });
 
-        // --- Typesense Sync ---
-        // Need to fetch current item data to get other required fields for upsert?
-        // Or can we partial update? Typesense 'update' fails if doc missing.
-        // We can try 'update' for tags.
-        await syncToTypesense('items', { id: itemId, tags: newTags }, 'update');
+        // --- Denormalized Sync ---
+        await syncItemToDenormalized('items', { id: itemId, tags: newTags }, 'update');
 
         tagEditMessage.textContent = 'Tags updated and synced!';
         tagEditMessage.className = 'form-message success-message';
@@ -1341,28 +1339,20 @@ editItemForm.addEventListener('submit', async (e) => {
             fetchItemDetails(itemId);
         }, 1000);
 
-        // --- Typesense Sync ---
+        // --- Denormalized Data Sync ---
         // Construct the payload matching the schema
-        const tsPayload = {
+        const denormPayload = {
             id: itemId,
             itemName: updatedFields.itemName,
             itemCategory: updatedFields.itemCategory,
             itemScale: updatedFields.itemScale,
             itemAgeRating: updatedFields.itemAgeRating,
-            tags: currentItemData.tags || [], // Use existing tags if not updated in this form (editTags isn't in this form anymore)
-            // Note: updatedFields doesn't include tags directly, tags are handled by saveTags separately.
-            // But we need to make sure we have the latest tags. 
-            // currentItemData has tags.
+            tags: currentItemData.tags || [],
             itemImageUrls: finalImageObjects,
             createdAt: currentItemData.createdAt ? (currentItemData.createdAt.seconds || 0) : 0
         };
-        // Merge tags if they were updated? saveTags updates directly.
-        // If this form doesn't touch tags, currentItemData.tags is stale if we just edited tags?
-        // Actually saveTags calls fanOutItemUpdates but NOT sync typesense?
-        // We should add sync to saveTags too? 
-        // For now, let's just use what we have.
 
-        syncToTypesense('items', tsPayload, 'upsert');
+        syncItemToDenormalized('items', denormPayload, 'upsert');
 
     } catch (error) {
         console.error(error);
@@ -1431,8 +1421,8 @@ async function handleDeleteItem(itemId) {
         authMessage.textContent = "Syncing deletion to user profiles...";
         await fanOutItemDeletion(itemId);
 
-        // --- Typesense Sync ---
-        await syncToTypesense('items', { id: itemId }, 'delete');
+        // --- Denormalized Sync ---
+        await syncItemToDenormalized('items', { id: itemId }, 'delete');
 
         authMessage.textContent = "Item deleted successfully!";
         authMessage.className = 'form-message success-message';
@@ -2629,40 +2619,47 @@ const relatedMessage = document.getElementById('relatedMessage');
 
 let currentRelatedUrls = [];
 
-// --- Helper: Fetch Item by ID (Cross-Shard) ---
+// --- Helper: Fetch Item by ID (Denormalized Lookup) ---
 async function fetchItemById(id) {
     if (!id) return null;
 
-    // 1. Try Cache
+    // 1. Try Local Page Cache
     if (loadedItemData && loadedItemData.id === id) return loadedItemData;
 
-    // 2. Try 'item-review'
-    try {
-        const reviewDoc = await db.collection('item-review').doc(id).get();
-        if (reviewDoc.exists) {
-            const data = reviewDoc.data();
-            data.id = reviewDoc.id;
-            return data;
-        }
-    } catch (e) { console.warn("Review lookup failed", e); }
-
-    // 3. Scan Shards (Optimized Limit)
-    let shardId = 1;
-    while (shardId < 20) {
+    // 2. Check Denormalized Cache
+    if (!allDenormalizedItems) {
         try {
-            const shardRef = db.collection(`items-${shardId}`).doc('items');
-            const shardDoc = await shardRef.get();
-            if (!shardDoc.exists) break;
-
-            const items = shardDoc.data().items || [];
-            const match = items.find(i => i.itemId === id);
-            if (match) {
-                match.id = match.itemId;
-                return match;
+            console.log("Fetching denormalized items for lookup...");
+            const doc = await db.collection('denormalized_data').doc('items').get();
+            if (doc.exists) {
+                allDenormalizedItems = doc.data();
+            } else {
+                allDenormalizedItems = {};
             }
-        } catch (e) { break; }
-        shardId++;
+        } catch (e) {
+            console.error("Error fetching denormalized items:", e);
+            return null;
+        }
     }
+
+    // 3. Lookup in Map
+    if (allDenormalizedItems && allDenormalizedItems[id]) {
+        const item = allDenormalizedItems[id];
+        // Ensure structure matches what renderRelatedItems expects
+        // Denormalized data usually has: keys { itemName, thumbnail, ... }
+        // renderRelatedItems checks itemImageUrls or itemImageUrl.
+        // We need to adapt it if needed, but denormalized sync saves `thumbnail`.
+        // Let's ensure we return an object that resembles an item.
+        return {
+            id: id,
+            itemId: id,
+            itemName: item.itemName,
+            itemCategory: item.itemCategory,
+            itemImageUrl: item.thumbnail || (item.itemImageUrls ? item.itemImageUrls[0] : null), // Adapt for renderer
+            itemImageUrls: item.itemImageUrls || (item.thumbnail ? [{ url: item.thumbnail }] : [])
+        };
+    }
+
     return null;
 }
 
@@ -3032,8 +3029,8 @@ function highlightStars(stars, value) {
 
 
 
-// --- Typesense Sync Helper ---
-async function syncToTypesense(collection, documentData, action = 'upsert') {
+// --- Denormalized Sync Helper ---
+async function syncItemToDenormalized(collection, documentData, action = 'upsert') {
     if (collection !== 'items') return;
 
     // We are now syncing to Firestore denormalized_data/items directly

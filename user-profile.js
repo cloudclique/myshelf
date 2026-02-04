@@ -57,6 +57,38 @@ let pageCursors = [null];
 // View Toggle State
 let currentViewMode = localStorage.getItem('profileViewMode') || 'grid';
 
+let targetProfileDataPromise = null;
+let itemsFetchPromise = null;
+
+// --- Shared Fetch Helpers ---
+function ensureTargetProfileLoaded(userId) {
+    if (targetProfileDataPromise) return targetProfileDataPromise;
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    targetProfileDataPromise = db.collection('artifacts').doc(appId).collection('user_profiles').doc(userId).get()
+        .then(doc => doc.exists ? doc.data() : null)
+        .catch(err => { console.error("Error fetching profile:", err); return null; });
+    return targetProfileDataPromise;
+}
+
+function ensureItemsLoaded(userId) {
+    if (globalItemsCache[userId]) return Promise.resolve(globalItemsCache[userId]);
+    if (itemsFetchPromise) return itemsFetchPromise;
+
+    itemsFetchPromise = getUserCollectionRef(userId).doc('items').get()
+        .then(doc => {
+            const data = doc.exists ? doc.data() : {};
+            globalItemsCache[userId] = data;
+            itemsFetchPromise = null; // Access cache directly next time
+            return data;
+        })
+        .catch(err => {
+            console.error("Error fetching items:", err);
+            itemsFetchPromise = null;
+            return {};
+        });
+    return itemsFetchPromise;
+}
+
 // --- DOM Elements ---
 const profileLoader = document.getElementById('profileLoader');
 const profileItemsGrid = document.getElementById('profileItemsGrid');
@@ -210,10 +242,8 @@ async function fetchUsername(userId) {
     if (cached) return cached;
 
     try {
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const profileDocRef = db.collection('artifacts').doc(appId).collection('user_profiles').doc(userId);
-        const docSnap = await profileDocRef.get();
-        const username = docSnap.exists ? (docSnap.data().username || 'User Profile') : 'Unknown User';
+        const data = await ensureTargetProfileLoaded(userId); // Use shared promise
+        const username = data?.username || 'Unknown User';
         setCachedData(cacheKey, username);
         return username;
     } catch (e) {
@@ -237,16 +267,10 @@ async function fetchStatusCounts(userId) {
     }
 
     try {
-        const itemsDoc = await getUserCollectionRef(userId).doc('items').get();
-        if (itemsDoc.exists) {
-            const itemsMap = itemsDoc.data();
-            // Cache immediately since we have data
-            globalItemsCache[userId] = itemsMap;
-
-            Object.values(itemsMap).forEach(item => {
-                if (STATUS_OPTIONS.includes(item.status)) counts[item.status]++;
-            });
-        }
+        const itemsMap = await ensureItemsLoaded(userId); // Use shared promise
+        Object.values(itemsMap).forEach(item => {
+            if (STATUS_OPTIONS.includes(item.status)) counts[item.status]++;
+        });
     } catch (err) { console.error("Error fetching status counts:", err); }
     return counts;
 }
@@ -275,8 +299,8 @@ async function fetchAndRenderBanner(userId) {
     }
 
     try {
-        const userDoc = await getUserProfileDocRef(userId).get();
-        const bannerBase64 = userDoc.data()?.bannerBase64;
+        const data = await ensureTargetProfileLoaded(userId); // Use shared promise
+        const bannerBase64 = data?.bannerBase64;
         const bannerUrl = bannerBase64 || DEFAULT_BANNER_URL;
         profileBanner.src = bannerUrl;
         setCachedData(cacheKey, bannerUrl);
@@ -298,6 +322,10 @@ async function initializeProfile() {
     renderSkeletonGrid();
 
     targetUserId = getUserIdFromUrl();
+
+    // Reset Shared Promises for new user
+    targetProfileDataPromise = null;
+    itemsFetchPromise = null;
 
     if (!targetUserId) {
         // Redirection Logic: Check if we are at root with no params/hash
@@ -400,25 +428,29 @@ async function fetchUserLists(userId) {
 
     try {
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const userDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(userId).get();
-        const favoriteListIds = userDoc.data()?.favoriteLists || [];
+        // Use shared promise instead of redundant fetch
+        const userProfileData = await ensureTargetProfileLoaded(userId);
+        const favoriteListIds = userProfileData?.favoriteLists || [];
         const listMap = new Map(); // dedupe by ID
 
-        // --- FETCH PUBLIC LISTS ---
-        const publicListsSnapshot = await db.collection('lists')
-            .where('userId', '==', userId)
-            .get();
+        // --- FETCH PUBLIC LISTS (Denormalized) ---
+        const denormListsDoc = await db.collection('denormalized_data').doc('lists').get();
+        if (denormListsDoc.exists) {
+            const allLists = denormListsDoc.data();
+            const userLists = allLists[userId] || {};
 
-        publicListsSnapshot.forEach(doc => {
-            const listData = doc.data();
-            const isFavorite = favoriteListIds.includes(doc.id);
-            listMap.set(doc.id, {
-                id: doc.id,
-                type: 'public',
-                isFavorite: isFavorite,
-                ...listData
+            Object.entries(userLists).forEach(([lId, lData]) => {
+                if (lData.privacy === 'public') {
+                    const isFavorite = favoriteListIds.includes(lId);
+                    listMap.set(lId, {
+                        id: lId,
+                        type: 'public',
+                        isFavorite: isFavorite,
+                        ...lData
+                    });
+                }
             });
-        });
+        }
 
         // Also fetch favorited public lists by other users
         if (favoriteListIds.length > 0) {
@@ -559,8 +591,9 @@ async function setupRoleModal(currentUid) {
         const myDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(currentUid).get();
         const myRole = myDoc.data()?.role || 'user';
 
-        const targetDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(targetUserId).get();
-        const targetRole = targetDoc.data()?.role || 'user';
+        // Use shared promise for target user
+        const targetData = await ensureTargetProfileLoaded(targetUserId);
+        const targetRole = targetData?.role || 'user';
 
         const allowedRoles = ROLE_HIERARCHY[myRole]?.assigns || [];
 
@@ -589,6 +622,8 @@ async function setupRoleModal(currentUid) {
                                 role: role
                             }, { merge: true });
                             alert("Role updated to " + role);
+                            // Invalidates the profile promise if role changes (though page likely won't reload automatically to reflect, good practice)
+                            targetProfileDataPromise = null;
                         } catch (err) {
                             console.error("Error updating role:", err);
                             alert("Failed to update role.");
@@ -645,12 +680,7 @@ async function fetchProfileItems(status) {
     // Check if we have data in memory
     if (!globalItemsCache[targetUserId]) {
         try {
-            const itemsDoc = await getUserCollectionRef(targetUserId).doc('items').get();
-            if (itemsDoc.exists) {
-                globalItemsCache[targetUserId] = itemsDoc.data();
-            } else {
-                globalItemsCache[targetUserId] = {};
-            }
+            await ensureItemsLoaded(targetUserId); // Shared promise
         } catch (e) {
             console.error(e);
             loadingStatus.textContent = "Error loading items.";
@@ -1057,6 +1087,23 @@ function linkify(text) {
 
 async function loadComments(profileUserId) {
     const commentsList = document.getElementById('commentsList');
+
+    const observer = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting) {
+            observer.disconnect();
+            fetchAndRenderComments(profileUserId);
+        }
+    });
+
+    if (commentsList) {
+        observer.observe(commentsList);
+    }
+}
+
+async function fetchAndRenderComments(profileUserId) {
+    const commentsList = document.getElementById('commentsList');
+    if (!commentsList) return;
+
     commentsList.innerHTML = '<p>Loading comments...</p>';
     const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
     const currentUser = auth.currentUser;
@@ -1140,7 +1187,7 @@ async function loadComments(profileUserId) {
                         await commentsDocRef.update({
                             [commentId]: firebase.firestore.FieldValue.delete()
                         });
-                        loadComments(profileUserId);
+                        fetchAndRenderComments(profileUserId);
                     } catch (err) { console.error("Failed to delete comment:", err); }
                 });
             };
@@ -1154,7 +1201,7 @@ async function loadComments(profileUserId) {
                     await commentsDocRef.update({
                         [`${commentId}.isPinned`]: !isPinned
                     });
-                    loadComments(profileUserId);
+                    fetchAndRenderComments(profileUserId);
                 } catch (err) { console.error("Failed to toggle pin:", err); }
             };
         }
@@ -1194,7 +1241,7 @@ async function postComment(event) {
         }, { merge: true });
 
         commentsCurrentPage = 1;
-        loadComments(targetUserId);
+        fetchAndRenderComments(targetUserId);
     } catch (err) { console.error("Failed to post comment:", err); }
 }
 
@@ -1210,14 +1257,14 @@ function renderCommentPagination(profileUserId, totalPages = 1) {
     prevBtn.className = 'action-btn';
     prevBtn.innerHTML = '<i class="bi bi-caret-left-fill"></i>';
     prevBtn.disabled = commentsCurrentPage === 1;
-    prevBtn.onclick = () => { commentsCurrentPage--; loadComments(profileUserId); };
+    prevBtn.onclick = () => { commentsCurrentPage--; fetchAndRenderComments(profileUserId); };
 
     const nextBtn = document.createElement('button');
     nextBtn.style.margin = '20px';
     nextBtn.className = 'action-btn';
     nextBtn.innerHTML = '<i class="bi bi-caret-right-fill"></i>';
     nextBtn.disabled = commentsCurrentPage >= totalPages;
-    nextBtn.onclick = () => { commentsCurrentPage++; loadComments(profileUserId); };
+    nextBtn.onclick = () => { commentsCurrentPage++; fetchAndRenderComments(profileUserId); };
     const pageIndicator = document.createElement('span');
     pageIndicator.textContent = `Page ${commentsCurrentPage}`;
     container.appendChild(prevBtn);
@@ -1268,7 +1315,7 @@ auth.onAuthStateChanged(async (user) => {
             return;
         } else {
             localStorage.removeItem('cached_uid');
-            window.location.replace('./search/');
+            window.location.replace('./home/');
             return;
         }
     }

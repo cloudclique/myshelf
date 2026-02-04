@@ -174,34 +174,109 @@ auth.onAuthStateChanged(user => {
 });
 
 // --- Global Header Logic for Admin/Mod ---
+// --- Global Header Logic for Admin/Mod & Auth Preloading ---
 // This runs on every page that imports firebase-config.js
-auth.onAuthStateChanged((user) => {
-    if (!user) return;
 
-    const pollForHeader = async (attempts = 0) => {
-        const reviewLink = document.getElementById('headerReviewLink');
-        if (reviewLink) {
+export const userState = {
+    uid: null,
+    isLoggedIn: false,
+    allowNSFW: false,
+    role: 'user',
+    username: 'Anonymous',
+    isLoaded: false
+};
+
+// Expose globally for debugging and non-module scripts
+window.shelfAuth = userState;
+
+// Queue for callbacks waiting for the initial auth load
+const authLoadListeners = [];
+
+export function onAuthReady(callback) {
+    if (userState.isLoaded) {
+        callback(userState);
+    } else {
+        authLoadListeners.push(callback);
+    }
+}
+
+// Dispatch event for reactive UI updates
+function dispatchAuthUpdate() {
+    window.dispatchEvent(new CustomEvent('shelf-auth-updated', { detail: userState }));
+
+    // Process one-time listeners
+    if (userState.isLoaded) {
+        while (authLoadListeners.length > 0) {
+            const cb = authLoadListeners.shift();
+            try { cb(userState); } catch (e) { console.error(e); }
+        }
+    }
+}
+
+auth.onAuthStateChanged(async (user) => {
+    if (user) {
+        userState.uid = user.uid;
+        userState.isLoggedIn = true;
+
+        // Preload Profile for Settings (allowNSFW, role)
+        const pollForHeader = async (attempts = 0) => {
+            const reviewLink = document.getElementById('headerReviewLink');
+
+            // We fetch the profile regardless of header presence to populate userState
             try {
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                // Attempt to get from cache first if possible, but Firestore handles this well.
+                // We'll just do a standard get().
                 const profileDoc = await db.collection('artifacts').doc(appId).collection('user_profiles').doc(user.uid).get();
-                const role = profileDoc.exists ? (profileDoc.data().role || 'user') : 'user';
 
-                if (['admin', 'mod'].includes(role)) {
+                if (profileDoc.exists) {
+                    const data = profileDoc.data();
+                    userState.allowNSFW = !!data.allowNSFW;
+                    userState.role = data.role || 'user';
+                    userState.username = data.username || 'Anonymous';
+                } else {
+                    userState.allowNSFW = false;
+                    userState.role = 'user';
+                    userState.username = 'Anonymous';
+                }
+
+                // Header Logic
+                if (reviewLink && ['admin', 'mod'].includes(userState.role)) {
                     reviewLink.style.display = 'inline-block';
                 }
+
             } catch (e) {
-                console.error("Error checking permissions for header:", e);
+                console.error("Error fetching user profile:", e);
+                userState.allowNSFW = false; // complete fail safe
+                userState.username = 'Anonymous';
             }
-            return;
-        }
 
-        // Retry every 500ms, up to 20 times (10 seconds)
-        if (attempts < 20) {
-            setTimeout(() => pollForHeader(attempts + 1), 500);
-        }
-    };
+            // Mark as loaded after first fetch attempt
+            if (!userState.isLoaded) {
+                userState.isLoaded = true;
+                dispatchAuthUpdate();
+            } else {
+                dispatchAuthUpdate(); // Update again if something changed
+            }
 
-    pollForHeader();
+            // If header element wasn't found, keep polling just for the visual element update (legacy logic preservation)
+            if (!reviewLink && attempts < 10) {
+                setTimeout(() => pollForHeader(attempts + 1), 500);
+            }
+        };
+
+        pollForHeader();
+        requestNotificationPermission(); // Ask on any page if logged in
+
+    } else {
+        // Logged Out
+        userState.uid = null;
+        userState.isLoggedIn = false;
+        userState.allowNSFW = false;
+        userState.role = 'user';
+        userState.isLoaded = true;
+        dispatchAuthUpdate();
+    }
 });
 
 
